@@ -21,6 +21,8 @@
 
 struct Pilot {
     uint8_t  mac[6];
+    uint8_t  uid[6];     // ELRSバインドUID (ホワイトリスト用)
+    bool     uidSet;     // uid が設定済みかどうか
     char     name[32];
     int8_t   rssi;
     uint32_t lastSeen;
@@ -60,9 +62,14 @@ static String macStr(const uint8_t* m) {
 }
 
 static int findPilot(const uint8_t* mac) {
-    for (int i = 0; i < g_nPilots; i++)
-        if (memcmp(g_pilots[i].mac, mac, 6) == 0) return i;
+    for (int i = 0; i < MAX_PILOTS; i++)
+        if (g_pilots[i].active && memcmp(g_pilots[i].mac, mac, 6) == 0) return i;
     return -1;
+}
+
+static bool parseMAC(const char* str, uint8_t* out) {
+    return sscanf(str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+                  &out[0], &out[1], &out[2], &out[3], &out[4], &out[5]) == 6;
 }
 
 // ── UARTフレーム処理 (onPromiscuousの代替) ────────────────────
@@ -73,15 +80,40 @@ static void processFrame(const uint8_t* frame) {
 
     portENTER_CRITICAL(&g_mux);
     int idx = findPilot(mac);
-    if (idx < 0 && g_nPilots < MAX_PILOTS) {
-        idx = g_nPilots++;
-        memcpy(g_pilots[idx].mac, mac, 6);
-        snprintf(g_pilots[idx].name, sizeof(g_pilots[idx].name), "Pilot %d", idx + 1);
-        g_pilots[idx].active   = true;
-        g_pilots[idx].crossing = false;
-        g_pilots[idx].peakRssi = -127;
-        g_pilots[idx].enterAt  = -80;
-        g_pilots[idx].exitAt   = -90;
+
+    if (idx < 0) {
+        // UID ホワイトリスト照合
+        bool anyUid = false;
+        for (int i = 0; i < MAX_PILOTS; i++)
+            if (g_pilots[i].uidSet) { anyUid = true; break; }
+
+        if (anyUid) {
+            // UID設定あり → 一致するスロットにのみ割り当て
+            for (int i = 0; i < MAX_PILOTS; i++) {
+                if (g_pilots[i].uidSet && memcmp(g_pilots[i].uid, mac, 6) == 0) {
+                    memcpy(g_pilots[i].mac, mac, 6);
+                    g_pilots[i].active = true;
+                    if (i >= g_nPilots) g_nPilots = i + 1;
+                    idx = i;
+                    Serial.printf("[UID] P%d matched %02X:%02X:%02X:%02X:%02X:%02X\n",
+                                  i, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+                    break;
+                }
+            }
+            // 未登録MACは無視
+        } else {
+            // UID未設定 → 先着順で自動割り当て
+            if (g_nPilots < MAX_PILOTS) {
+                idx = g_nPilots++;
+                memcpy(g_pilots[idx].mac, mac, 6);
+                snprintf(g_pilots[idx].name, sizeof(g_pilots[idx].name), "Pilot %d", idx + 1);
+                g_pilots[idx].active   = true;
+                g_pilots[idx].crossing = false;
+                g_pilots[idx].peakRssi = -127;
+                g_pilots[idx].enterAt  = -80;
+                g_pilots[idx].exitAt   = -90;
+            }
+        }
     }
     if (idx >= 0) {
         g_pilots[idx].rssi     = rssi;
@@ -148,8 +180,8 @@ struct PilotSnap { Pilot data[MAX_PILOTS]; uint8_t n; };
 static PilotSnap snapPilots() {
     PilotSnap s{};
     portENTER_CRITICAL(&g_mux);
-    s.n = g_nPilots;
-    memcpy(s.data, g_pilots, sizeof(Pilot) * s.n);
+    s.n = MAX_PILOTS;   // 常に4スロット全て送出
+    memcpy(s.data, g_pilots, sizeof(Pilot) * MAX_PILOTS);
     portEXIT_CRITICAL(&g_mux);
     return s;
 }
@@ -162,12 +194,14 @@ static String buildJson(const PilotSnap& s) {
         JsonObject o = arr.add<JsonObject>();
         o["id"]       = i;
         o["name"]     = s.data[i].name;
-        o["mac"]      = macStr(s.data[i].mac);
+        o["mac"]      = s.data[i].active ? macStr(s.data[i].mac) : "";
+        o["uid"]      = s.data[i].uidSet  ? macStr(s.data[i].uid)  : "";
         o["rssi"]     = s.data[i].rssi;
         o["ts"]       = s.data[i].lastSeen;
         o["crossing"] = s.data[i].crossing;
         o["enterAt"]  = s.data[i].enterAt;
         o["exitAt"]   = s.data[i].exitAt;
+        o["active"]   = s.data[i].active;
     }
     String out;
     serializeJson(doc, out);
@@ -176,8 +210,33 @@ static String buildJson(const PilotSnap& s) {
 
 static void loadPilotPrefs() {
     prefs.begin("pilots", true);
-    g_nPilots = min((unsigned)prefs.getUChar("n", 0), (unsigned)MAX_PILOTS);
-    for (int i = 0; i < g_nPilots; i++) {
+
+    // 全スロット初期化
+    for (int i = 0; i < MAX_PILOTS; i++) {
+        memset(g_pilots[i].mac, 0, 6);
+        memset(g_pilots[i].uid, 0, 6);
+        g_pilots[i].uidSet   = false;
+        snprintf(g_pilots[i].name, sizeof(g_pilots[i].name), "Pilot %d", i + 1);
+        g_pilots[i].rssi     = -100;
+        g_pilots[i].active   = false;
+        g_pilots[i].crossing = false;
+        g_pilots[i].peakRssi = -127;
+        g_pilots[i].enterAt  = -80;
+        g_pilots[i].exitAt   = -90;
+    }
+
+    // UID設定を全スロットから読み込む (MAC到着前から設定可能)
+    for (int i = 0; i < MAX_PILOTS; i++) {
+        char k[12];
+        snprintf(k, sizeof(k), "uid%d", i);
+        prefs.getBytes(k, g_pilots[i].uid, 6);
+        snprintf(k, sizeof(k), "us%d", i);
+        g_pilots[i].uidSet = prefs.getBool(k, false);
+    }
+
+    // 過去に検出済みのパイロットデータを読み込む
+    uint8_t n = min((unsigned)prefs.getUChar("n", 0), (unsigned)MAX_PILOTS);
+    for (int i = 0; i < n; i++) {
         char k[12];
         snprintf(k, sizeof(k), "mac%d", i);
         prefs.getBytes(k, g_pilots[i].mac, 6);
@@ -187,28 +246,41 @@ static void loadPilotPrefs() {
         g_pilots[i].enterAt  = (int8_t)prefs.getChar(k, -80);
         snprintf(k, sizeof(k), "ex%d", i);
         g_pilots[i].exitAt   = (int8_t)prefs.getChar(k, -90);
-        g_pilots[i].rssi     = -100;
         g_pilots[i].active   = true;
-        g_pilots[i].crossing = false;
-        g_pilots[i].peakRssi = -127;
     }
+    g_nPilots = n;
+
     prefs.end();
-    Serial.printf("[Pilots] loaded %d\n", g_nPilots);
+    Serial.printf("[Pilots] loaded %d active\n", g_nPilots);
 }
 
 static void savePilotPrefs(const PilotSnap& s) {
     prefs.begin("pilots", false);
-    prefs.putUChar("n", s.n);
-    for (int i = 0; i < s.n; i++) {
+
+    // アクティブパイロット数を記録
+    uint8_t n = 0;
+    for (int i = 0; i < MAX_PILOTS; i++)
+        if (s.data[i].active) n = i + 1;
+    prefs.putUChar("n", n);
+
+    for (int i = 0; i < MAX_PILOTS; i++) {
         char k[12];
-        snprintf(k, sizeof(k), "mac%d", i);
-        prefs.putBytes(k, s.data[i].mac, 6);
-        snprintf(k, sizeof(k), "name%d", i);
-        prefs.putString(k, s.data[i].name);
-        snprintf(k, sizeof(k), "en%d", i);
-        prefs.putChar(k, s.data[i].enterAt);
-        snprintf(k, sizeof(k), "ex%d", i);
-        prefs.putChar(k, s.data[i].exitAt);
+        // UID設定は全スロット常に保存
+        snprintf(k, sizeof(k), "uid%d", i);
+        prefs.putBytes(k, s.data[i].uid, 6);
+        snprintf(k, sizeof(k), "us%d", i);
+        prefs.putBool(k, s.data[i].uidSet);
+
+        if (s.data[i].active) {
+            snprintf(k, sizeof(k), "mac%d", i);
+            prefs.putBytes(k, s.data[i].mac, 6);
+            snprintf(k, sizeof(k), "name%d", i);
+            prefs.putString(k, s.data[i].name);
+            snprintf(k, sizeof(k), "en%d", i);
+            prefs.putChar(k, s.data[i].enterAt);
+            snprintf(k, sizeof(k), "ex%d", i);
+            prefs.putChar(k, s.data[i].exitAt);
+        }
     }
     prefs.end();
 }
@@ -273,10 +345,25 @@ void setup() {
                 req->send(400, "application/json", R"({"error":"invalid id"})");
                 return;
             }
-            const char* name = doc["name"] | "";
+            const char* name   = doc["name"] | "";
+            const char* uidStr = doc["uid"]  | "";
             portENTER_CRITICAL(&g_mux);
-            if (id < g_nPilots)
+            // 名前更新
+            if (strlen(name) > 0)
                 strncpy(g_pilots[id].name, name, sizeof(g_pilots[id].name) - 1);
+            // UID更新: "AA:BB:CC:DD:EE:FF" 形式 or "" でクリア
+            if (strlen(uidStr) == 17) {
+                uint8_t uid[6];
+                if (parseMAC(uidStr, uid)) {
+                    memcpy(g_pilots[id].uid, uid, 6);
+                    g_pilots[id].uidSet = true;
+                    Serial.printf("[UID] P%d set %s\n", id, uidStr);
+                }
+            } else if (strlen(uidStr) == 0 && doc["uid"].is<const char*>()) {
+                memset(g_pilots[id].uid, 0, 6);
+                g_pilots[id].uidSet = false;
+                Serial.printf("[UID] P%d cleared\n", id);
+            }
             portEXIT_CRITICAL(&g_mux);
             savePilotPrefs(snapPilots());
             req->send(200, "application/json", R"({"ok":true})");

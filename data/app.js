@@ -93,8 +93,16 @@ function buildConfigCard(i) {
       <input type="text" id="cfgName${i}" value="Pilot ${i + 1}">
     </div>
     <div class="config-row">
-      <label>MAC</label>
+      <label>MAC (検出済)</label>
       <span class="mac-display" id="cfgMac${i}">未検出</span>
+    </div>
+    <div class="config-row">
+      <label>UID (バインド)</label>
+      <input type="text" id="cfgUid${i}" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17"
+             style="font-family:monospace;text-transform:uppercase"
+             oninput="this.value=this.value.toUpperCase()">
+      <button class="btn-secondary" style="padding:4px 8px;font-size:11px"
+              onclick="clearUid(${i})">✕</button>
     </div>
     <button class="btn-save" onclick="savePilotConfig(${i})">💾 保存</button>
   </div>
@@ -254,8 +262,12 @@ function processData(data) {
     // Config card (skip if user is editing)
     const cfgN = el(`cfgName${i}`);
     if (cfgN && document.activeElement !== cfgN) cfgN.value = p.name;
-    const cfgM = el(`cfgMac${i}`); if (cfgM) cfgM.textContent = p.mac;
-    const pmac = el(`pmac${i}`);   if (pmac) pmac.textContent = p.mac.slice(-8);
+    const cfgM = el(`cfgMac${i}`);
+    if (cfgM) cfgM.textContent = p.active ? p.mac : '未検出';
+    const cfgU = el(`cfgUid${i}`);
+    if (cfgU && document.activeElement !== cfgU) cfgU.value = p.uid || '';
+    const pmac = el(`pmac${i}`);
+    if (pmac) pmac.textContent = p.active ? p.mac.slice(-8) : '---';
 
     // RSSI display
     const bar  = el(`rssiBar${i}`);   if (bar)  bar.style.width    = barPct;
@@ -452,12 +464,25 @@ async function saveGlobalConfig() {
 
 async function savePilotConfig(i) {
   const nameEl = el(`cfgName${i}`);
+  const uidEl  = el(`cfgUid${i}`);
   const name   = nameEl ? nameEl.value.trim() : '';
+  const uid    = uidEl  ? uidEl.value.trim()  : '';
   if (!name) { showToast('名前を入力してください', true); return; }
-  if (await apiFetch('/api/pilots', 'POST', { id: i, name })) {
-    showToast(`Pilot ${i + 1} 名前を保存しました`);
+  // UID形式チェック (空 or "XX:XX:XX:XX:XX:XX")
+  if (uid && !/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(uid)) {
+    showToast('UID形式: AA:BB:CC:DD:EE:FF', true); return;
+  }
+  if (await apiFetch('/api/pilots', 'POST', { id: i, name, uid })) {
+    showToast(`Pilot ${i + 1} 保存しました`);
     const pn = el(`pname${i}`);     if (pn) pn.textContent = name;
     const cn = el(`calibName${i}`); if (cn) cn.textContent = name;
+  }
+}
+
+async function clearUid(i) {
+  if (await apiFetch('/api/pilots', 'POST', { id: i, name: el(`cfgName${i}`).value.trim(), uid: '' })) {
+    const ue = el(`cfgUid${i}`); if (ue) ue.value = '';
+    showToast(`Pilot ${i + 1} UID をクリアしました`);
   }
 }
 
