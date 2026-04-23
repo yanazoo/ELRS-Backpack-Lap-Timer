@@ -18,10 +18,13 @@ struct Pilot {
     int8_t   rssi;
     uint32_t lastSeen;
     bool     active;
-    // RotorHazard state machine
-    bool     crossing;  // true = CROSSING, false = CLEAR
-    int8_t   peakRssi;  // highest RSSI seen during current crossing
-    uint32_t peakTs;    // timestamp of that peak (Phase 2: lap trigger time)
+    // RotorHazard state machine (per-pilot)
+    bool     crossing;
+    int8_t   peakRssi;
+    uint32_t peakTs;
+    // Per-pilot thresholds
+    int8_t   enterAt;   // CLEAR→CROSSING trigger (dBm)
+    int8_t   exitAt;    // CROSSING→CLEAR trigger (dBm), must be < enterAt
 };
 
 struct Record {
@@ -35,9 +38,7 @@ static uint8_t      g_nPilots  = 0;
 static Record       g_hist[HISTORY_SIZE];
 static uint16_t     g_histHead  = 0;
 static uint16_t     g_histCnt   = 0;
-// RotorHazard-style thresholds (global, shared by all pilots)
-static int8_t       g_enterAt   = -80; // CLEAR→CROSSING trigger
-static int8_t       g_exitAt    = -90; // CROSSING→CLEAR trigger (< enterAt = hysteresis)
+static uint16_t     g_minLapMs  = 3000; // global min lap time (ms)
 static portMUX_TYPE g_mux       = portMUX_INITIALIZER_UNLOCKED;
 
 static AsyncWebServer server(80);
@@ -53,7 +54,6 @@ static String macStr(const uint8_t* m) {
     return String(buf);
 }
 
-// Must be called inside critical section
 static int findPilot(const uint8_t* mac) {
     for (int i = 0; i < g_nPilots; i++)
         if (memcmp(g_pilots[i].mac, mac, 6) == 0) return i;
@@ -69,12 +69,10 @@ static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type)
     const uint8_t* p = pkt->payload;
     const uint16_t len = pkt->rx_ctrl.sig_len;
 
-    // Management Action frame: FC[0]=0xD0
     if (len < 28 || p[0] != 0xD0) return;
-    // Vendor-specific category (0x7F) + Espressif OUI (18:FE:34) = ESP-NOW
     if (p[24] != 0x7F || p[25] != 0x18 || p[26] != 0xFE || p[27] != 0x34) return;
 
-    const uint8_t* src  = p + 10; // Source MAC at offset 10 in 802.11 header
+    const uint8_t* src  = p + 10;
     const int8_t   rssi = static_cast<int8_t>(pkt->rx_ctrl.rssi);
     const uint32_t now  = millis();
 
@@ -87,17 +85,19 @@ static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type)
         g_pilots[idx].active   = true;
         g_pilots[idx].crossing = false;
         g_pilots[idx].peakRssi = -127;
+        g_pilots[idx].enterAt  = -80;
+        g_pilots[idx].exitAt   = -90;
     }
     if (idx >= 0) {
         g_pilots[idx].rssi     = rssi;
         g_pilots[idx].lastSeen = now;
 
-        // RotorHazard state machine:
-        //   CLEAR   → rssi > enterAt → CROSSING (start tracking peak)
+        // RotorHazard state machine (per-pilot thresholds):
+        //   CLEAR   → rssi > enterAt → CROSSING
         //   CROSSING → rssi > peak  → update peak
-        //   CROSSING → rssi < exitAt → CLEAR (lap trigger point in Phase 2)
+        //   CROSSING → rssi < exitAt → CLEAR (Phase 2: lap at peakTs)
         if (!g_pilots[idx].crossing) {
-            if (rssi > g_enterAt) {
+            if (rssi > g_pilots[idx].enterAt) {
                 g_pilots[idx].crossing = true;
                 g_pilots[idx].peakRssi = rssi;
                 g_pilots[idx].peakTs   = now;
@@ -107,7 +107,7 @@ static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type)
                 g_pilots[idx].peakRssi = rssi;
                 g_pilots[idx].peakTs   = now;
             }
-            if (rssi < g_exitAt) {
+            if (rssi < g_pilots[idx].exitAt) {
                 g_pilots[idx].crossing = false;
                 // Phase 2: triggerLap(idx, g_pilots[idx].peakTs, g_pilots[idx].peakRssi)
             }
@@ -120,19 +120,12 @@ static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type)
     portEXIT_CRITICAL_ISR(&g_mux);
 }
 
-struct PilotSnap {
-    Pilot   data[MAX_PILOTS];
-    uint8_t n;
-    int8_t  enterAt;
-    int8_t  exitAt;
-};
+struct PilotSnap { Pilot data[MAX_PILOTS]; uint8_t n; };
 
 static PilotSnap snapPilots() {
     PilotSnap s{};
     portENTER_CRITICAL(&g_mux);
-    s.n       = g_nPilots;
-    s.enterAt = g_enterAt;
-    s.exitAt  = g_exitAt;
+    s.n = g_nPilots;
     memcpy(s.data, g_pilots, sizeof(Pilot) * s.n);
     portEXIT_CRITICAL(&g_mux);
     return s;
@@ -140,8 +133,7 @@ static PilotSnap snapPilots() {
 
 static String buildJson(const PilotSnap& s) {
     JsonDocument doc;
-    doc["enterAt"] = s.enterAt;
-    doc["exitAt"]  = s.exitAt;
+    doc["minLapMs"] = g_minLapMs;
     JsonArray arr = doc["pilots"].to<JsonArray>();
     for (int i = 0; i < s.n; i++) {
         JsonObject o = arr.add<JsonObject>();
@@ -151,25 +143,12 @@ static String buildJson(const PilotSnap& s) {
         o["rssi"]     = s.data[i].rssi;
         o["ts"]       = s.data[i].lastSeen;
         o["crossing"] = s.data[i].crossing;
+        o["enterAt"]  = s.data[i].enterAt;
+        o["exitAt"]   = s.data[i].exitAt;
     }
     String out;
     serializeJson(doc, out);
     return out;
-}
-
-static void loadThresholds() {
-    prefs.begin("thresh", true);
-    g_enterAt = (int8_t)prefs.getChar("enterAt", -80);
-    g_exitAt  = (int8_t)prefs.getChar("exitAt",  -90);
-    prefs.end();
-    Serial.printf("[Thresh] EnterAt=%d  ExitAt=%d\n", g_enterAt, g_exitAt);
-}
-
-static void saveThresholds(int8_t en, int8_t ex) {
-    prefs.begin("thresh", false);
-    prefs.putChar("enterAt", en);
-    prefs.putChar("exitAt",  ex);
-    prefs.end();
 }
 
 static void loadPilotPrefs() {
@@ -181,12 +160,17 @@ static void loadPilotPrefs() {
         prefs.getBytes(k, g_pilots[i].mac, 6);
         snprintf(k, sizeof(k), "name%d", i);
         prefs.getString(k, g_pilots[i].name, sizeof(g_pilots[i].name));
+        snprintf(k, sizeof(k), "en%d", i);
+        g_pilots[i].enterAt  = (int8_t)prefs.getChar(k, -80);
+        snprintf(k, sizeof(k), "ex%d", i);
+        g_pilots[i].exitAt   = (int8_t)prefs.getChar(k, -90);
         g_pilots[i].rssi     = -100;
         g_pilots[i].active   = true;
         g_pilots[i].crossing = false;
         g_pilots[i].peakRssi = -127;
     }
     prefs.end();
+    Serial.printf("[Pilots] loaded %d\n", g_nPilots);
 }
 
 static void savePilotPrefs(const PilotSnap& s) {
@@ -198,7 +182,24 @@ static void savePilotPrefs(const PilotSnap& s) {
         prefs.putBytes(k, s.data[i].mac, 6);
         snprintf(k, sizeof(k), "name%d", i);
         prefs.putString(k, s.data[i].name);
+        snprintf(k, sizeof(k), "en%d", i);
+        prefs.putChar(k, s.data[i].enterAt);
+        snprintf(k, sizeof(k), "ex%d", i);
+        prefs.putChar(k, s.data[i].exitAt);
     }
+    prefs.end();
+}
+
+static void loadSettings() {
+    prefs.begin("settings", true);
+    g_minLapMs = prefs.getUShort("minLapMs", 3000);
+    prefs.end();
+    Serial.printf("[Settings] minLapMs=%d\n", g_minLapMs);
+}
+
+static void saveSettings() {
+    prefs.begin("settings", false);
+    prefs.putUShort("minLapMs", g_minLapMs);
     prefs.end();
 }
 
@@ -210,7 +211,7 @@ void setup() {
         Serial.println("[WARN] LittleFS mount failed");
 
     loadPilotPrefs();
-    loadThresholds();
+    loadSettings();
 
     WiFi.mode(WIFI_AP);
     WiFi.softAP(AP_SSID, "", AP_CHANNEL);
@@ -236,7 +237,7 @@ void setup() {
         req->send(200, "application/json", buildJson(snapPilots()));
     });
 
-    // POST /api/pilots — update pilot name by id
+    // POST /api/pilots — update pilot name
     server.on("/api/pilots", HTTP_POST,
         [](AsyncWebServerRequest*) {},
         nullptr,
@@ -260,19 +261,7 @@ void setup() {
             req->send(200, "application/json", R"({"ok":true})");
         });
 
-    // GET /api/thresholds
-    server.on("/api/thresholds", HTTP_GET, [](AsyncWebServerRequest* req) {
-        JsonDocument doc;
-        portENTER_CRITICAL(&g_mux);
-        doc["enterAt"] = g_enterAt;
-        doc["exitAt"]  = g_exitAt;
-        portEXIT_CRITICAL(&g_mux);
-        String out;
-        serializeJson(doc, out);
-        req->send(200, "application/json", out);
-    });
-
-    // POST /api/thresholds — update EnterAt / ExitAt and persist to NVS
+    // POST /api/thresholds — update per-pilot EnterAt/ExitAt, persist to NVS
     server.on("/api/thresholds", HTTP_POST,
         [](AsyncWebServerRequest*) {},
         nullptr,
@@ -282,27 +271,56 @@ void setup() {
                 req->send(400, "application/json", R"({"error":"invalid JSON"})");
                 return;
             }
+            int id = doc["id"] | -1;
+            if (id < 0 || id >= MAX_PILOTS) {
+                req->send(400, "application/json", R"({"error":"invalid id"})");
+                return;
+            }
             int8_t en, ex;
             portENTER_CRITICAL(&g_mux);
-            en = (int8_t)(doc["enterAt"] | (int)g_enterAt);
-            ex = (int8_t)(doc["exitAt"]  | (int)g_exitAt);
+            en = (int8_t)(doc["enterAt"] | (int)g_pilots[id].enterAt);
+            ex = (int8_t)(doc["exitAt"]  | (int)g_pilots[id].exitAt);
             portEXIT_CRITICAL(&g_mux);
-
-            // ExitAt must be strictly below EnterAt to maintain hysteresis
             if (ex >= en) {
                 req->send(400, "application/json", R"({"error":"exitAt must be < enterAt"})");
                 return;
             }
             portENTER_CRITICAL(&g_mux);
-            g_enterAt = en;
-            g_exitAt  = ex;
+            if (id < g_nPilots) {
+                g_pilots[id].enterAt = en;
+                g_pilots[id].exitAt  = ex;
+            }
             portEXIT_CRITICAL(&g_mux);
-            saveThresholds(en, ex);
-            Serial.printf("[Thresh] updated EnterAt=%d  ExitAt=%d\n", en, ex);
+            savePilotPrefs(snapPilots());
+            Serial.printf("[Thresh] P%d EnterAt=%d ExitAt=%d\n", id, en, ex);
             req->send(200, "application/json", R"({"ok":true})");
         });
 
-    // GET /api/csv — download RSSI history as CSV
+    // GET /api/settings
+    server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest* req) {
+        JsonDocument doc;
+        doc["minLapMs"] = g_minLapMs;
+        String out; serializeJson(doc, out);
+        req->send(200, "application/json", out);
+    });
+
+    // POST /api/settings — update global settings
+    server.on("/api/settings", HTTP_POST,
+        [](AsyncWebServerRequest*) {},
+        nullptr,
+        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t, size_t) {
+            JsonDocument doc;
+            if (deserializeJson(doc, data, len)) {
+                req->send(400, "application/json", R"({"error":"invalid JSON"})");
+                return;
+            }
+            if (doc["minLapMs"].is<int>())
+                g_minLapMs = (uint16_t)constrain((int)doc["minLapMs"], 500, 60000);
+            saveSettings();
+            req->send(200, "application/json", R"({"ok":true})");
+        });
+
+    // GET /api/csv
     server.on("/api/csv", HTTP_GET, [](AsyncWebServerRequest* req) {
         uint16_t cnt, head;
         uint8_t  np;
@@ -329,7 +347,7 @@ void setup() {
         req->send(resp);
     });
 
-    // POST /api/reset — clear all detected pilots and history
+    // POST /api/reset
     server.on("/api/reset", HTTP_POST, [](AsyncWebServerRequest* req) {
         portENTER_CRITICAL(&g_mux);
         g_nPilots  = 0;

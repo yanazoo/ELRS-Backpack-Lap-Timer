@@ -2,643 +2,258 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ELRS RSSI Logger</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>ELRS-Logger</title>
+<script src="smoothie.js"></script>
 <style>
+/* ── PhobosLT derived design ─────────────────────────── */
 :root {
-  --bg:  #0a0a0a;
-  --bg2: #111;
-  --bd:  #222;
-  --txt: #ccc;
-  --dim: #555;
-  --c1: #00fff5;
-  --c2: #ff7700;
-  --c3: #00ff44;
-  --c4: #ff00cc;
+  --bg:       #0d1117;
+  --surface:  #161b22;
+  --surface2: #21262d;
+  --border:   #30363d;
+  --text:     #e6edf3;
+  --muted:    #8b949e;
+  --accent:   #58a6ff;
+  --accent-d: #1f6feb;
+  --ok:       #3fb950;
+  --err:      #f85149;
+  --warn:     #d29922;
+  --p0: #58a6ff; --p0-bg: rgba(88,166,255,.12);
+  --p1: #f85149; --p1-bg: rgba(248,81,73,.12);
+  --p2: #3fb950; --p2-bg: rgba(63,185,80,.12);
+  --p3: #d29922; --p3-bg: rgba(210,153,34,.12);
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: var(--bg);
-  color: var(--txt);
-  font-family: 'Courier New', Courier, monospace;
-  min-height: 100vh;
-}
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--bd);
-}
-h1 { font-size: 0.95rem; letter-spacing: 3px; text-transform: uppercase; color: #fff; }
-.dot {
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  background: #333;
-  transition: background 0.3s;
-}
-.dot.on { background: #0f0; box-shadow: 0 0 6px #0f0; }
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;min-height:100vh;}
+a{color:inherit;text-decoration:none;}
 
-nav { display: flex; border-bottom: 1px solid var(--bd); }
-.tab {
-  padding: 10px 20px;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  font-size: 0.8rem;
-  letter-spacing: 2px;
-  color: var(--dim);
-  user-select: none;
-}
-.tab.active { color: var(--c1); border-bottom-color: var(--c1); }
+/* Header */
+header{background:#0d1117;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.header-inner{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;max-width:1200px;margin:0 auto;}
+.logo{display:flex;align-items:center;gap:8px;}
+.logo h1{font-size:16px;color:var(--accent);font-weight:700;letter-spacing:.5px;}
+.sse-dot{width:9px;height:9px;border-radius:50%;display:inline-block;transition:background .3s;}
+.sse-dot.connected{background:var(--ok);box-shadow:0 0 5px var(--ok);}
+.sse-dot.disconnected{background:var(--muted);}
+.tab-bar{display:flex;gap:4px;}
+.tab-btn{background:transparent;border:none;color:var(--muted);padding:6px 13px;border-radius:6px;font-size:13px;cursor:pointer;transition:background .15s,color .15s;}
+.tab-btn:hover{background:var(--surface2);color:var(--text);}
+.tab-btn.active{background:var(--accent-d);color:#fff;}
 
-.sec { display: none; padding: 16px; }
-.sec.active { display: block; }
+/* Sections */
+.tab-pane{display:none;padding:14px;max-width:1200px;margin:0 auto;}
+.tab-pane.active{display:block;}
 
-/* ── Pilot cards ── */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
-}
-.card {
-  background: var(--bg2);
-  border: 1px solid var(--bd);
-  border-radius: 6px;
-  padding: 14px;
-  position: relative;
-  overflow: hidden;
-}
-.card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0;
-  width: 3px; height: 100%;
-  background: var(--accent, #fff);
-}
-.pnum {
-  font-size: 0.68rem;
-  letter-spacing: 3px;
-  color: var(--accent, #fff);
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-.pname { font-size: 1.05rem; font-weight: bold; color: #fff; margin-bottom: 2px; }
-.pmac  { font-size: 0.68rem; color: var(--dim); margin-bottom: 10px; }
+/* ── Race tab ─────────────────────────────────────── */
+.race-controls{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px 16px;margin-bottom:14px;text-align:center;}
+#timer{font-size:44px;font-family:monospace;color:var(--accent);letter-spacing:3px;margin-bottom:16px;}
+.race-buttons{display:flex;justify-content:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.race-meta{display:flex;align-items:center;justify-content:center;gap:12px;font-size:13px;color:var(--muted);flex-wrap:wrap;}
+.race-meta input{width:52px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 7px;border-radius:5px;font-size:13px;text-align:center;}
+.pilot-race-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.pilot-race-card{background:var(--surface);border-radius:8px;overflow:hidden;}
+.pilot-card-header{display:flex;align-items:center;justify-content:space-between;padding:7px 11px;font-size:13px;font-weight:700;}
+.pilot-card-header.p0{background:var(--p0-bg);color:var(--p0);}
+.pilot-card-header.p1{background:var(--p1-bg);color:var(--p1);}
+.pilot-card-header.p2{background:var(--p2-bg);color:var(--p2);}
+.pilot-card-header.p3{background:var(--p3-bg);color:var(--p3);}
+.pilot-freq-badge{font-size:11px;color:var(--muted);font-weight:400;}
+.pilot-lapcount{font-size:11px;}
+.rssi-mini-bar{display:flex;align-items:center;gap:6px;padding:5px 11px;background:var(--surface2);}
+.rssi-mini-label{font-size:11px;color:var(--muted);min-width:30px;}
+.rssi-mini-track{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+.rssi-mini-fill{height:100%;border-radius:3px;transition:width .25s;width:0%;}
+.p0-fill{background:var(--p0);}
+.p1-fill{background:var(--p1);}
+.p2-fill{background:var(--p2);}
+.p3-fill{background:var(--p3);}
+.rssi-mini-val{font-size:12px;min-width:24px;text-align:right;}
+.pilot-total-row{display:flex;align-items:center;gap:6px;padding:4px 11px;font-size:12px;color:var(--muted);}
+.pilot-total{color:var(--warn);font-weight:700;}
+.lap-table-wrap{max-height:160px;overflow-y:auto;}
+.lapTable{width:100%;border-collapse:collapse;font-size:11px;}
+.lapTable thead th{background:var(--surface2);color:var(--muted);padding:3px 5px;text-align:center;font-weight:400;font-size:10px;position:sticky;top:0;}
+.lapTable tbody td{padding:3px 5px;text-align:center;border-bottom:1px solid var(--border);}
+.lap-time{font-size:13px;font-weight:700;}
+.hs-row td{color:var(--warn);font-style:italic;}
+.best-row td{color:var(--ok);}
+.page-footer{text-align:center;padding:14px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);margin-top:16px;}
 
-.rssi-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
-.rssi-val {
-  font-size: 2rem;
-  font-weight: bold;
-  color: var(--accent, #fff);
-  min-width: 72px;
-  line-height: 1;
-}
-.badge {
-  font-size: 0.65rem;
-  letter-spacing: 2px;
-  padding: 2px 8px;
-  border-radius: 3px;
-  background: #1a1a1a;
-  color: var(--dim);
-  transition: background 0.15s, color 0.15s;
-}
-.badge.cross {
-  background: var(--accent, #fff);
-  color: #000;
-  animation: pulse 0.4s ease;
-}
-@keyframes pulse {
-  0%   { transform: scale(1.15); }
-  100% { transform: scale(1); }
-}
-.bar-bg {
-  height: 5px;
-  background: #1a1a1a;
-  border-radius: 3px;
-  margin-bottom: 10px;
-  overflow: hidden;
-}
-.bar {
-  height: 100%;
-  border-radius: 3px;
-  background: var(--accent, #fff);
-  transition: width 0.1s linear;
-}
-canvas.wv {
-  width: 100%;
-  height: 80px;
-  display: block;
-  border-radius: 3px;
-}
+/* ── Config tab ───────────────────────────────────── */
+.global-config-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;}
+.global-title{font-size:13px;font-weight:600;margin-bottom:12px;}
+.config-items{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;}
+.config-row{display:flex;align-items:center;gap:8px;}
+.config-row label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;min-width:170px;}
+.slider-num{display:flex;align-items:center;gap:6px;flex:1;}
+.slider-num input[type=range]{flex:1;accent-color:var(--accent);}
+.slider-num input[type=number],.slider-num input[type=text]{width:58px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 7px;border-radius:5px;font-size:13px;text-align:center;}
+.unit{font-size:12px;color:var(--muted);}
+.voice-row{display:flex;gap:8px;margin-bottom:10px;}
+.config-pilots-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.config-pilot-card{background:var(--surface);border-radius:8px;overflow:hidden;}
+.p0-border{border-top:3px solid var(--p0);}
+.p1-border{border-top:3px solid var(--p1);}
+.p2-border{border-top:3px solid var(--p2);}
+.p3-border{border-top:3px solid var(--p3);}
+.config-pilot-header{padding:8px 12px;font-size:13px;font-weight:700;}
+.config-pilot-header.p0{color:var(--p0);}
+.config-pilot-header.p1{color:var(--p1);}
+.config-pilot-header.p2{color:var(--p2);}
+.config-pilot-header.p3{color:var(--p3);}
+.config-pilot-body{padding:10px 12px;}
+.config-pilot-body .config-row{margin-bottom:8px;}
+.config-pilot-body .config-row label{min-width:80px;}
+.config-pilot-body input[type=text]{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:5px;font-size:13px;flex:1;}
+.config-pilot-body input[type=text]:focus{outline:none;border-color:var(--accent);}
+.mac-display{font-size:11px;color:var(--muted);flex:1;font-family:monospace;}
+.danger-zone{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:10px;}
 
-/* ── Threshold panel ── */
-.thresh {
-  margin-top: 16px;
-  background: var(--bg2);
-  border: 1px solid var(--bd);
-  border-radius: 6px;
-  padding: 16px;
-}
-.thresh-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.thresh-title { font-size: 0.7rem; color: var(--dim); letter-spacing: 2px; }
-.thresh-hint  {
-  font-size: 0.68rem;
-  color: var(--dim);
-  line-height: 1.5;
-  margin-bottom: 14px;
-  padding: 8px 10px;
-  background: #0f0f0f;
-  border-left: 2px solid var(--bd);
-  border-radius: 0 3px 3px 0;
-}
-.thresh-hint b { color: var(--c1); }
-.trow { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.trow label {
-  font-size: 0.72rem;
-  min-width: 64px;
-  color: var(--txt);
-}
-.trow input[type=range] { flex: 1; cursor: pointer; accent-color: var(--c1); }
-.trow .val  { font-size: 0.85rem; min-width: 60px; text-align: right; font-weight: bold; }
-.trow .val.enter { color: var(--c1); }
-.trow .val.exit  { color: #aaa; }
+/* ── Calibration tab ──────────────────────────────── */
+.calib-desc{font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6;}
+.calib-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.calib-card{background:var(--surface);border-radius:8px;overflow:hidden;}
+.calib-header{display:flex;align-items:center;justify-content:space-between;padding:7px 11px;font-size:13px;font-weight:700;}
+.calib-header.p0{background:var(--p0-bg);color:var(--p0);}
+.calib-header.p1{background:var(--p1-bg);color:var(--p1);}
+.calib-header.p2{background:var(--p2-bg);color:var(--p2);}
+.calib-header.p3{background:var(--p3-bg);color:var(--p3);}
+.rssi-live-badge{font-size:12px;font-weight:400;}
+.calib-card canvas{display:block;width:100%;height:130px;}
+.calib-sliders{padding:10px 11px;display:flex;flex-direction:column;gap:8px;}
+.calib-sliders .config-row label{min-width:100px;font-size:11px;}
+.calib-sliders input[type=range]{flex:1;accent-color:inherit;}
+.calib-sliders input[type=number]{width:52px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:5px;font-size:13px;text-align:center;}
+.calib-footer{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
 
-.thresh-warning {
-  display: none;
-  font-size: 0.72rem;
-  color: #f66;
-  margin-top: 6px;
-  padding: 6px 10px;
-  background: #2a0000;
-  border-radius: 3px;
-}
-.thresh-footer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 12px;
-}
-.save-thresh-btn {
-  background: var(--c1);
-  color: #000;
-  border: none;
-  padding: 7px 18px;
-  font-family: inherit;
-  font-size: 0.78rem;
-  letter-spacing: 2px;
-  cursor: pointer;
-  border-radius: 4px;
-}
-.save-thresh-btn:hover { opacity: 0.85; }
-.save-thresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.saved-flash {
-  font-size: 0.72rem;
-  color: #0f0;
-  opacity: 0;
-  transition: opacity 0.5s;
-}
+/* ── Buttons ──────────────────────────────────────── */
+.btn-success{background:var(--ok);color:#000;border:none;padding:8px 18px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-danger {background:var(--err);color:#fff;border:none;padding:8px 18px;border-radius:6px;font-size:13px;cursor:pointer;}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer;}
+.btn-save{width:100%;background:var(--accent);color:#000;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;}
+.btn-voice{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:7px 14px;border-radius:6px;font-size:13px;cursor:pointer;min-width:120px;}
+.btn-voice.on{background:var(--ok);color:#000;border-color:var(--ok);}
 
-/* ── Actions ── */
-.actions { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
-button {
-  background: #1a1a1a;
-  color: var(--txt);
-  border: 1px solid var(--bd);
-  padding: 8px 16px;
-  font-family: inherit;
-  font-size: 0.78rem;
-  letter-spacing: 1px;
-  cursor: pointer;
-  border-radius: 4px;
-}
-button:hover { background: #252525; }
-button.danger { color: #f55; border-color: #f55; background: transparent; }
-button.danger:hover { background: #f55; color: #000; }
+/* Countdown overlay */
+#countdownOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;align-items:center;justify-content:center;}
+#countdownNum{font-size:120px;font-weight:900;color:var(--accent);font-family:monospace;animation:none;}
+@keyframes cdPulse{0%{transform:scale(1.5);opacity:.5}100%{transform:scale(1);opacity:1}}
+.cd-anim{animation:cdPulse .35s ease-out forwards;}
+.cd-go{color:var(--ok)!important;}
 
-/* ── Config tab ── */
-.cfg-card {
-  background: var(--bg2);
-  border: 1px solid var(--bd);
-  border-radius: 6px;
-  padding: 14px;
-  position: relative;
-}
-.cfg-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0;
-  width: 3px; height: 100%;
-  background: var(--accent, #fff);
-}
-.lbl { font-size: 0.68rem; color: var(--dim); letter-spacing: 1px; margin-bottom: 3px; }
-.cfg-card input[type=text] {
-  width: 100%;
-  background: #1a1a1a;
-  border: 1px solid var(--bd);
-  color: #fff;
-  padding: 8px;
-  font-family: inherit;
-  font-size: 0.9rem;
-  border-radius: 4px;
-  margin-bottom: 10px;
-}
-.cfg-card input[type=text]:focus { outline: none; border-color: var(--accent, #888); }
-.save-btn {
-  width: 100%;
-  padding: 8px;
-  font-family: inherit;
-  font-size: 0.78rem;
-  letter-spacing: 2px;
-  cursor: pointer;
-  border: none;
-  border-radius: 4px;
-  background: var(--accent, #888);
-  color: #000;
-}
-.save-btn:hover { opacity: 0.85; }
+/* Toast */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:8px 16px;border-radius:8px;font-size:13px;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;}
+#toast.show{opacity:1;}
 
-.empty { color: var(--dim); font-size: 0.85rem; padding: 40px; text-align: center; }
+/* Responsive */
+@media(max-width:900px){
+  .pilot-race-grid{grid-template-columns:repeat(2,1fr);}
+  .calib-grid{grid-template-columns:repeat(2,1fr);}
+}
+@media(max-width:520px){
+  #timer{font-size:32px;}
+  .pilot-race-grid{grid-template-columns:1fr;}
+  .calib-grid{grid-template-columns:1fr;}
+  .config-pilots-grid{grid-template-columns:1fr;}
+  .config-row{flex-wrap:wrap;}
+  .config-row label{min-width:unset;width:100%;}
+}
 </style>
 </head>
 <body>
 
+<div id="toast"></div>
+<div id="countdownOverlay"><div id="countdownNum">3</div></div>
+
 <header>
-  <h1>ELRS RSSI Logger</h1>
-  <div id="dot" class="dot" title="WebSocket disconnected"></div>
+  <div class="header-inner">
+    <div class="logo">
+      <h1>ELRS-Logger</h1>
+      <span id="sseStatus" class="sse-dot disconnected"></span>
+    </div>
+    <nav class="tab-bar">
+      <button class="tab-btn" data-tab="race"   onclick="switchTab('race')">🏁 レース</button>
+      <button class="tab-btn" data-tab="config" onclick="switchTab('config')">⚙️ 設定</button>
+      <button class="tab-btn active" data-tab="calib" onclick="switchTab('calib')">📡 キャリブ</button>
+    </nav>
+  </div>
 </header>
 
-<nav>
-  <div class="tab active" onclick="showTab('live')">LIVE</div>
-  <div class="tab" onclick="showTab('config')">CONFIG</div>
-</nav>
-
-<!-- ═══ LIVE tab ═══════════════════════════════════════ -->
-<section id="live" class="sec active">
-  <div id="pgrid" class="grid">
-    <div class="empty">Waiting for ELRS ESP-NOW packets…</div>
-  </div>
-
-  <!-- ── Threshold panel (RotorHazard準拠) ── -->
-  <div class="thresh">
-    <div class="thresh-header">
-      <div class="thresh-title">THRESHOLD CALIBRATION</div>
+<!-- ═══ RACE ═══════════════════════════════════════════ -->
+<section id="race" class="tab-pane">
+  <div class="race-controls">
+    <div id="timer">00:00:00</div>
+    <div class="race-buttons">
+      <button class="btn-success" id="startRaceButton" onclick="startRace()">▶ スタート</button>
+      <button class="btn-danger"  id="stopRaceButton"  onclick="stopRace()">■ ストップ</button>
+      <button class="btn-secondary" onclick="clearAllLaps()">クリア</button>
     </div>
-
-    <div class="thresh-hint">
-      RotorHazard準拠の2閾値方式。<br>
-      <b>EnterAt</b>: RSSIがこの値を超えると <b>CROSSING</b> に遷移（ドローン接近）<br>
-      <b>ExitAt</b>: RSSIがこの値を下回ると <b>CLEAR</b> に遷移（ドローン離脱）<br>
-      ExitAt &lt; EnterAt の差 = ヒステリシス → ノイズによる誤検出を防ぐ
-    </div>
-
-    <div class="trow">
-      <label>EnterAt</label>
-      <input type="range" id="enterAt" min="-120" max="-30" value="-80" step="1"
-             oninput="onSliderInput()">
-      <span id="enterVal" class="val enter">-80 dBm</span>
-    </div>
-    <div class="trow">
-      <label>ExitAt</label>
-      <input type="range" id="exitAt"  min="-120" max="-30" value="-90" step="1"
-             oninput="onSliderInput()">
-      <span id="exitVal" class="val exit">-90 dBm</span>
-    </div>
-
-    <div id="threshWarn" class="thresh-warning">
-      ⚠ ExitAt は EnterAt より小さい値にしてください（ヒステリシス確保）
-    </div>
-
-    <div class="thresh-footer">
-      <button id="saveThreshBtn" class="save-thresh-btn" onclick="saveThresholds()">SAVE</button>
-      <span id="savedFlash" class="saved-flash">&#10003; SAVED</span>
+    <div class="race-meta">
+      <span>総周回数:</span>
+      <input id="totalLaps" type="number" value="0" min="0">
+      <span>(0=無制限)</span>
+      <span>| 🔋 <span id="bvoltRace">--.-</span>v</span>
     </div>
   </div>
 
-  <div class="actions">
-    <a href="/api/csv" download="rssi_log.csv" style="text-decoration:none">
-      <button>&#11015; Download CSV</button>
-    </a>
+  <div class="pilot-race-grid" id="raceGrid">
+    <!-- 4 pilot cards injected by JS -->
+  </div>
+  <footer class="page-footer">ELRS Backpack Lap Timer</footer>
+</section>
+
+<!-- ═══ CONFIG ══════════════════════════════════════════ -->
+<section id="config" class="tab-pane">
+  <div class="global-config-card">
+    <div class="global-title">グローバル設定</div>
+    <div class="config-items">
+      <div class="config-row">
+        <label>最小ラップ時間（全パイロット共通）</label>
+        <div class="slider-num">
+          <input type="range"  id="globalMinLap"  min="0.5" max="30" step="0.5" value="3"
+                 oninput="syncSN('globalMinLap','globalMinLapN',1)">
+          <input type="number" id="globalMinLapN" min="0.5" max="30" step="0.5" value="3"
+                 oninput="syncNS('globalMinLapN','globalMinLap',1,30)">
+          <span class="unit">s</span>
+        </div>
+      </div>
+      <div class="config-row">
+        <label>バッテリー電圧</label>
+        <span style="color:var(--ok);font-weight:700">🔋 <span id="bvolt">--.-</span>v</span>
+      </div>
+    </div>
+    <div class="voice-row">
+      <button id="voiceToggleBtn" class="btn-voice on" onclick="toggleVoice()">🔊 音声 ON</button>
+      <button class="btn-secondary" onclick="testVoice()">🔊 テスト</button>
+    </div>
+    <button class="btn-save" onclick="saveGlobalConfig()">💾 グローバル設定を保存</button>
+  </div>
+
+  <div class="config-pilots-grid" id="configGrid">
+    <!-- 4 pilot config cards injected by JS -->
+  </div>
+
+  <div class="danger-zone">
+    <button class="btn-danger" style="width:100%" onclick="resetAllPilots()">✕ 全パイロットをリセット</button>
   </div>
 </section>
 
-<!-- ═══ CONFIG tab ════════════════════════════════════ -->
-<section id="config" class="sec">
-  <div style="font-size:0.78rem;color:var(--dim);margin-bottom:12px">
-    Rename detected pilots. Names are saved to ESP32 NVS.
+<!-- ═══ CALIB ════════════════════════════════════════════ -->
+<section id="calib" class="tab-pane active">
+  <p class="calib-desc">
+    RSSIリアルタイム波形と検知閾値の設定。機体を近づけてピーク値を確認し、
+    Enter閾値（入）とExit閾値（出）を調整してください。
+  </p>
+  <div class="calib-grid" id="calibGrid">
+    <!-- 4 calib cards injected by JS -->
   </div>
-  <div id="cgrid" class="grid">
-    <div class="empty">No pilots detected yet.</div>
-  </div>
-  <div class="actions">
-    <button class="danger" onclick="resetAll()">&#10005; Reset All Pilots</button>
+  <div class="calib-footer">
+    <a href="/api/csv" download="rssi_log.csv" class="btn-secondary">⬇ CSV ダウンロード</a>
   </div>
 </section>
 
-<script>
-// ── Accent colours (PhobosLT 4-channel palette) ───────────────────────────
-const HEX = ['#00fff5', '#ff7700', '#00ff44', '#ff00cc'];
-const CSS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)'];
-
-// ── State ─────────────────────────────────────────────────────────────────
-let pilots = [];
-let charts = {};
-let enterAt = -80, exitAt = -90;
-let lastPilotCnt = -1;
-
-// ── Tabs ──────────────────────────────────────────────────────────────────
-function showTab(name) {
-  ['live', 'config'].forEach(id =>
-    document.getElementById(id).classList.toggle('active', id === name));
-  document.querySelectorAll('.tab').forEach((t, i) =>
-    t.classList.toggle('active', ['live', 'config'][i] === name));
-}
-
-// ── Scrolling canvas chart ────────────────────────────────────────────────
-class RssiChart {
-  constructor(canvas, hex) {
-    this.cvs      = canvas;
-    this.ctx      = canvas.getContext('2d');
-    this.hex      = hex;
-    this.data     = [];
-    this.maxPts   = 300;
-    this.enter    = -80;
-    this.exit_    = -90;
-    this.crossing = false; // authoritative state from server
-  }
-
-  push(v, crossing) {
-    this.data.push(v);
-    if (this.data.length > this.maxPts) this.data.shift();
-    this.crossing = crossing;
-    this.draw();
-  }
-
-  setThr(en, ex) {
-    this.enter = en;
-    this.exit_ = ex;
-    this.draw();
-  }
-
-  draw() {
-    const cvs = this.cvs;
-    const ctx  = this.ctx;
-    const W = cvs.width  = cvs.offsetWidth  || 300;
-    const H = cvs.height = cvs.offsetHeight || 80;
-    const RMIN = -120, RMAX = -30;
-    const toY = v => H - ((v - RMIN) / (RMAX - RMIN)) * H;
-    const toX = i => (i / Math.max(this.maxPts - 1, 1)) * W;
-    const { data, hex, enter, exit_, crossing } = this;
-
-    // Background
-    ctx.fillStyle = '#111';
-    ctx.fillRect(0, 0, W, H);
-
-    // Grid lines at -40 / -60 / -80 / -100 / -120 dBm
-    ctx.lineWidth = 1;
-    ctx.setLineDash([]);
-    [-40, -60, -80, -100, -120].forEach(v => {
-      ctx.strokeStyle = '#1e1e1e';
-      ctx.beginPath(); ctx.moveTo(0, toY(v)); ctx.lineTo(W, toY(v)); ctx.stroke();
-    });
-
-    // EnterAt line (accent, dashed)
-    ctx.setLineDash([4, 4]);
-    ctx.strokeStyle = hex + '99';
-    ctx.beginPath(); ctx.moveTo(0, toY(enter)); ctx.lineTo(W, toY(enter)); ctx.stroke();
-
-    // ExitAt line (white dim, dashed)
-    ctx.strokeStyle = '#ffffff44';
-    ctx.beginPath(); ctx.moveTo(0, toY(exit_)); ctx.lineTo(W, toY(exit_)); ctx.stroke();
-    ctx.setLineDash([]);
-
-    if (data.length < 2) return;
-
-    // CROSSING shaded fill — uses authoritative server state
-    if (crossing) {
-      ctx.fillStyle = hex + '1a';
-      ctx.beginPath();
-      ctx.moveTo(toX(0), H);
-      data.forEach((v, i) => ctx.lineTo(toX(i), toY(v)));
-      ctx.lineTo(toX(data.length - 1), H);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // RSSI line
-    ctx.strokeStyle = hex;
-    ctx.lineWidth   = 2;
-    ctx.beginPath();
-    data.forEach((v, i) =>
-      i === 0 ? ctx.moveTo(toX(i), toY(v)) : ctx.lineTo(toX(i), toY(v)));
-    ctx.stroke();
-  }
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────
-const rssiPct = rssi => Math.max(0, Math.min(100, ((rssi + 120) / 90) * 100));
-
-// ── Live tab: create pilot card ───────────────────────────────────────────
-function createCard(p) {
-  document.querySelector('#pgrid .empty')?.remove();
-  const acc = CSS[p.id % 4];
-  const hex = HEX[p.id % 4];
-  const div = document.createElement('div');
-  div.className = 'card';
-  div.id = `c${p.id}`;
-  div.style.setProperty('--accent', acc);
-  div.innerHTML = `
-    <div class="pnum">PILOT ${p.id + 1}</div>
-    <div class="pname" id="pn${p.id}">${p.name}</div>
-    <div class="pmac">${p.mac}</div>
-    <div class="rssi-row">
-      <div class="rssi-val" id="rv${p.id}">${p.rssi}</div>
-      <div class="badge" id="bd${p.id}">CLEAR</div>
-    </div>
-    <div class="bar-bg"><div class="bar" id="br${p.id}" style="width:0%"></div></div>
-    <canvas class="wv" id="cv${p.id}"></canvas>
-  `;
-  document.getElementById('pgrid').appendChild(div);
-  const chart = new RssiChart(document.getElementById(`cv${p.id}`), hex);
-  chart.setThr(enterAt, exitAt);
-  charts[p.id] = chart;
-}
-
-// ── Live tab: update existing card ────────────────────────────────────────
-function updateCard(p) {
-  const rv = document.getElementById(`rv${p.id}`);
-  if (!rv) return;
-  document.getElementById(`pn${p.id}`).textContent = p.name;
-  rv.textContent = p.rssi;
-  document.getElementById(`br${p.id}`).style.width = rssiPct(p.rssi) + '%';
-
-  // Badge: use authoritative crossing state from server state machine
-  const bd = document.getElementById(`bd${p.id}`);
-  const wasCross = bd.classList.contains('cross');
-  if (p.crossing !== wasCross) {
-    bd.textContent = p.crossing ? 'CROSSING' : 'CLEAR';
-    bd.className   = 'badge' + (p.crossing ? ' cross' : '');
-  }
-
-  charts[p.id]?.push(p.rssi, p.crossing);
-}
-
-// ── Config tab: add card (once per pilot, preserves input) ────────────────
-function ensureConfigCard(p) {
-  if (document.getElementById(`cc${p.id}`)) return;
-  document.querySelector('#cgrid .empty')?.remove();
-  const acc = CSS[p.id % 4];
-  const hex = HEX[p.id % 4];
-  const div = document.createElement('div');
-  div.className = 'cfg-card';
-  div.id = `cc${p.id}`;
-  div.style.setProperty('--accent', acc);
-  div.innerHTML = `
-    <div class="pnum" style="color:${hex}">PILOT ${p.id + 1}</div>
-    <div class="lbl" style="margin-top:6px">MAC</div>
-    <div style="font-size:0.78rem;color:#777;margin-bottom:10px">${p.mac}</div>
-    <div class="lbl">NAME</div>
-    <input type="text" id="cn${p.id}" value="${p.name}" maxlength="31" autocomplete="off">
-    <button class="save-btn" style="background:${hex}" onclick="savePilotName(${p.id})">SAVE</button>
-  `;
-  document.getElementById('cgrid').appendChild(div);
-}
-
-// ── Render from WebSocket payload ─────────────────────────────────────────
-function render(data) {
-  if (!data.pilots) return;
-  const ps = data.pilots;
-  ps.forEach(p => {
-    if (!document.getElementById(`c${p.id}`)) createCard(p);
-    updateCard(p);
-  });
-  pilots = ps;
-  if (ps.length !== lastPilotCnt) {
-    lastPilotCnt = ps.length;
-    ps.forEach(ensureConfigCard);
-  }
-}
-
-// ── Threshold sliders ─────────────────────────────────────────────────────
-
-// Called on every input event (real-time visual only, no network)
-function onSliderInput() {
-  const en = +document.getElementById('enterAt').value;
-  const ex = +document.getElementById('exitAt').value;
-  document.getElementById('enterVal').textContent = en + ' dBm';
-  document.getElementById('exitVal').textContent  = ex + ' dBm';
-
-  // Update chart overlays in real-time while dragging
-  enterAt = en; exitAt = ex;
-  Object.values(charts).forEach(c => c.setThr(en, ex));
-
-  // Validation warning
-  const warn = document.getElementById('threshWarn');
-  const btn  = document.getElementById('saveThreshBtn');
-  if (ex >= en) {
-    warn.style.display = 'block';
-    btn.disabled = true;
-  } else {
-    warn.style.display = 'none';
-    btn.disabled = false;
-  }
-}
-
-// POST thresholds to ESP32 and save to NVS
-async function saveThresholds() {
-  const en = +document.getElementById('enterAt').value;
-  const ex = +document.getElementById('exitAt').value;
-  if (ex >= en) return;
-  try {
-    const r = await fetch('/api/thresholds', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enterAt: en, exitAt: ex })
-    });
-    if (r.ok) {
-      enterAt = en; exitAt = ex;
-      Object.values(charts).forEach(c => c.setThr(en, ex));
-      // Flash "SAVED" indicator
-      const fl = document.getElementById('savedFlash');
-      fl.style.opacity = '1';
-      setTimeout(() => fl.style.opacity = '0', 1800);
-    }
-  } catch (e) { console.error(e); }
-}
-
-// Load current thresholds from ESP32 on page load
-async function fetchThresholds() {
-  try {
-    const r = await fetch('/api/thresholds');
-    if (!r.ok) return;
-    const d = await r.json();
-    const en = d.enterAt ?? -80;
-    const ex = d.exitAt  ?? -90;
-    document.getElementById('enterAt').value = en;
-    document.getElementById('exitAt').value  = ex;
-    document.getElementById('enterVal').textContent = en + ' dBm';
-    document.getElementById('exitVal').textContent  = ex + ' dBm';
-    enterAt = en; exitAt = ex;
-    Object.values(charts).forEach(c => c.setThr(en, ex));
-  } catch (e) { console.error(e); }
-}
-
-// ── Config: save pilot name ───────────────────────────────────────────────
-async function savePilotName(id) {
-  const inp = document.getElementById(`cn${id}`);
-  if (!inp) return;
-  const name = inp.value.trim() || `Pilot ${id + 1}`;
-  try {
-    const r = await fetch('/api/pilots', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, name })
-    });
-    if (r.ok) {
-      inp.value = name;
-      const el = document.getElementById(`pn${id}`);
-      if (el) el.textContent = name;
-    }
-  } catch (e) { console.error(e); }
-}
-
-// ── Config: reset all ─────────────────────────────────────────────────────
-async function resetAll() {
-  if (!confirm('Clear all detected pilots and NVS data?')) return;
-  try {
-    await fetch('/api/reset', { method: 'POST' });
-    pilots = []; charts = {}; lastPilotCnt = -1;
-    document.getElementById('pgrid').innerHTML =
-      '<div class="empty">Waiting for ELRS ESP-NOW packets…</div>';
-    document.getElementById('cgrid').innerHTML =
-      '<div class="empty">No pilots detected yet.</div>';
-  } catch (e) { console.error(e); }
-}
-
-// ── WebSocket (auto-reconnect) ────────────────────────────────────────────
-let sock, reconTimer;
-function connect() {
-  sock = new WebSocket('ws://' + location.host + '/ws');
-  sock.onopen  = () => {
-    document.getElementById('dot').classList.add('on');
-    document.getElementById('dot').title = 'Connected';
-    clearTimeout(reconTimer);
-  };
-  sock.onclose = () => {
-    document.getElementById('dot').classList.remove('on');
-    document.getElementById('dot').title = 'Disconnected';
-    reconTimer = setTimeout(connect, 2000);
-  };
-  sock.onerror  = () => sock.close();
-  sock.onmessage = e => { try { render(JSON.parse(e.data)); } catch {} };
-}
-
-fetchThresholds();
-connect();
-</script>
+<!-- JavaScript will be added in Part 2 -->
+<script src="app.js"></script>
 </body>
 </html>
