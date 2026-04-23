@@ -100,6 +100,7 @@ nav { display: flex; border-bottom: 1px solid var(--bd); }
   border-radius: 3px;
   background: #1a1a1a;
   color: var(--dim);
+  transition: background 0.15s, color 0.15s;
 }
 .badge.cross {
   background: var(--accent, #fff);
@@ -107,7 +108,7 @@ nav { display: flex; border-bottom: 1px solid var(--bd); }
   animation: pulse 0.4s ease;
 }
 @keyframes pulse {
-  0%   { transform: scale(1.12); }
+  0%   { transform: scale(1.15); }
   100% { transform: scale(1); }
 }
 .bar-bg {
@@ -130,19 +131,77 @@ canvas.wv {
   border-radius: 3px;
 }
 
-/* ── Thresholds ── */
+/* ── Threshold panel ── */
 .thresh {
   margin-top: 16px;
   background: var(--bg2);
   border: 1px solid var(--bd);
   border-radius: 6px;
-  padding: 14px;
+  padding: 16px;
 }
-.thresh-title { font-size: 0.7rem; color: var(--dim); letter-spacing: 2px; margin-bottom: 10px; }
-.trow { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-.trow label { font-size: 0.72rem; min-width: 72px; color: var(--dim); }
-.trow input[type=range] { flex: 1; accent-color: var(--c1); }
-.trow span  { font-size: 0.78rem; min-width: 56px; text-align: right; }
+.thresh-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.thresh-title { font-size: 0.7rem; color: var(--dim); letter-spacing: 2px; }
+.thresh-hint  {
+  font-size: 0.68rem;
+  color: var(--dim);
+  line-height: 1.5;
+  margin-bottom: 14px;
+  padding: 8px 10px;
+  background: #0f0f0f;
+  border-left: 2px solid var(--bd);
+  border-radius: 0 3px 3px 0;
+}
+.thresh-hint b { color: var(--c1); }
+.trow { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.trow label {
+  font-size: 0.72rem;
+  min-width: 64px;
+  color: var(--txt);
+}
+.trow input[type=range] { flex: 1; cursor: pointer; accent-color: var(--c1); }
+.trow .val  { font-size: 0.85rem; min-width: 60px; text-align: right; font-weight: bold; }
+.trow .val.enter { color: var(--c1); }
+.trow .val.exit  { color: #aaa; }
+
+.thresh-warning {
+  display: none;
+  font-size: 0.72rem;
+  color: #f66;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: #2a0000;
+  border-radius: 3px;
+}
+.thresh-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.save-thresh-btn {
+  background: var(--c1);
+  color: #000;
+  border: none;
+  padding: 7px 18px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 2px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.save-thresh-btn:hover { opacity: 0.85; }
+.save-thresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.saved-flash {
+  font-size: 0.72rem;
+  color: #0f0;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
 
 /* ── Actions ── */
 .actions { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
@@ -224,17 +283,39 @@ button.danger:hover { background: #f55; color: #000; }
     <div class="empty">Waiting for ELRS ESP-NOW packets…</div>
   </div>
 
+  <!-- ── Threshold panel (RotorHazard準拠) ── -->
   <div class="thresh">
-    <div class="thresh-title">THRESHOLD OVERLAY (visual only)</div>
+    <div class="thresh-header">
+      <div class="thresh-title">THRESHOLD CALIBRATION</div>
+    </div>
+
+    <div class="thresh-hint">
+      RotorHazard準拠の2閾値方式。<br>
+      <b>EnterAt</b>: RSSIがこの値を超えると <b>CROSSING</b> に遷移（ドローン接近）<br>
+      <b>ExitAt</b>: RSSIがこの値を下回ると <b>CLEAR</b> に遷移（ドローン離脱）<br>
+      ExitAt &lt; EnterAt の差 = ヒステリシス → ノイズによる誤検出を防ぐ
+    </div>
+
     <div class="trow">
       <label>EnterAt</label>
-      <input type="range" id="enterAt" min="-120" max="-30" value="-80" step="1">
-      <span id="enterVal">-80 dBm</span>
+      <input type="range" id="enterAt" min="-120" max="-30" value="-80" step="1"
+             oninput="onSliderInput()">
+      <span id="enterVal" class="val enter">-80 dBm</span>
     </div>
     <div class="trow">
       <label>ExitAt</label>
-      <input type="range" id="exitAt"  min="-120" max="-30" value="-90" step="1">
-      <span id="exitVal">-90 dBm</span>
+      <input type="range" id="exitAt"  min="-120" max="-30" value="-90" step="1"
+             oninput="onSliderInput()">
+      <span id="exitVal" class="val exit">-90 dBm</span>
+    </div>
+
+    <div id="threshWarn" class="thresh-warning">
+      ⚠ ExitAt は EnterAt より小さい値にしてください（ヒステリシス確保）
+    </div>
+
+    <div class="thresh-footer">
+      <button id="saveThreshBtn" class="save-thresh-btn" onclick="saveThresholds()">SAVE</button>
+      <span id="savedFlash" class="saved-flash">&#10003; SAVED</span>
     </div>
   </div>
 
@@ -259,58 +340,65 @@ button.danger:hover { background: #f55; color: #000; }
 </section>
 
 <script>
-// ── Accent colours (matches PhobosLT 4-channel palette) ──────────────────
+// ── Accent colours (PhobosLT 4-channel palette) ───────────────────────────
 const HEX = ['#00fff5', '#ff7700', '#00ff44', '#ff00cc'];
 const CSS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)'];
 
-// ── Global state ─────────────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────────
 let pilots = [];
 let charts = {};
 let enterAt = -80, exitAt = -90;
 let lastPilotCnt = -1;
 
-// ── Tab switching ─────────────────────────────────────────────────────────
+// ── Tabs ──────────────────────────────────────────────────────────────────
 function showTab(name) {
-  ['live', 'config'].forEach(id => {
-    document.getElementById(id).classList.toggle('active', id === name);
-  });
-  document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['live', 'config'][i] === name);
-  });
+  ['live', 'config'].forEach(id =>
+    document.getElementById(id).classList.toggle('active', id === name));
+  document.querySelectorAll('.tab').forEach((t, i) =>
+    t.classList.toggle('active', ['live', 'config'][i] === name));
 }
 
 // ── Scrolling canvas chart ────────────────────────────────────────────────
 class RssiChart {
   constructor(canvas, hex) {
-    this.cvs    = canvas;
-    this.ctx    = canvas.getContext('2d');
-    this.hex    = hex;
-    this.data   = [];
-    this.maxPts = 300;
-    this.enter  = -80;
-    this.exit_  = -90;
+    this.cvs      = canvas;
+    this.ctx      = canvas.getContext('2d');
+    this.hex      = hex;
+    this.data     = [];
+    this.maxPts   = 300;
+    this.enter    = -80;
+    this.exit_    = -90;
+    this.crossing = false; // authoritative state from server
   }
-  push(v) {
+
+  push(v, crossing) {
     this.data.push(v);
     if (this.data.length > this.maxPts) this.data.shift();
+    this.crossing = crossing;
     this.draw();
   }
-  setThr(en, ex) { this.enter = en; this.exit_ = ex; this.draw(); }
+
+  setThr(en, ex) {
+    this.enter = en;
+    this.exit_ = ex;
+    this.draw();
+  }
+
   draw() {
     const cvs = this.cvs;
-    const ctx = this.ctx;
+    const ctx  = this.ctx;
     const W = cvs.width  = cvs.offsetWidth  || 300;
     const H = cvs.height = cvs.offsetHeight || 80;
     const RMIN = -120, RMAX = -30;
     const toY = v => H - ((v - RMIN) / (RMAX - RMIN)) * H;
     const toX = i => (i / Math.max(this.maxPts - 1, 1)) * W;
-    const { data, hex, enter, exit_ } = this;
+    const { data, hex, enter, exit_, crossing } = this;
 
     // Background
     ctx.fillStyle = '#111';
     ctx.fillRect(0, 0, W, H);
 
-    // Grid lines
+    // Grid lines at -40 / -60 / -80 / -100 / -120 dBm
     ctx.lineWidth = 1;
     ctx.setLineDash([]);
     [-40, -60, -80, -100, -120].forEach(v => {
@@ -318,20 +406,20 @@ class RssiChart {
       ctx.beginPath(); ctx.moveTo(0, toY(v)); ctx.lineTo(W, toY(v)); ctx.stroke();
     });
 
-    // EnterAt dashed line (accent colour)
+    // EnterAt line (accent, dashed)
     ctx.setLineDash([4, 4]);
     ctx.strokeStyle = hex + '99';
     ctx.beginPath(); ctx.moveTo(0, toY(enter)); ctx.lineTo(W, toY(enter)); ctx.stroke();
 
-    // ExitAt dashed line (white dim)
+    // ExitAt line (white dim, dashed)
     ctx.strokeStyle = '#ffffff44';
     ctx.beginPath(); ctx.moveTo(0, toY(exit_)); ctx.lineTo(W, toY(exit_)); ctx.stroke();
     ctx.setLineDash([]);
 
     if (data.length < 2) return;
 
-    // Shaded fill when CROSSING
-    if (data[data.length - 1] > enter) {
+    // CROSSING shaded fill — uses authoritative server state
+    if (crossing) {
       ctx.fillStyle = hex + '1a';
       ctx.beginPath();
       ctx.moveTo(toX(0), H);
@@ -343,29 +431,22 @@ class RssiChart {
 
     // RSSI line
     ctx.strokeStyle = hex;
-    ctx.lineWidth = 2;
+    ctx.lineWidth   = 2;
     ctx.beginPath();
     data.forEach((v, i) =>
-      i === 0 ? ctx.moveTo(toX(i), toY(v)) : ctx.lineTo(toX(i), toY(v))
-    );
+      i === 0 ? ctx.moveTo(toX(i), toY(v)) : ctx.lineTo(toX(i), toY(v)));
     ctx.stroke();
   }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-function rssiPct(rssi) {
-  return Math.max(0, Math.min(100, ((rssi + 120) / 90) * 100));
-}
+const rssiPct = rssi => Math.max(0, Math.min(100, ((rssi + 120) / 90) * 100));
 
-// ── Live tab: create pilot card DOM ──────────────────────────────────────
+// ── Live tab: create pilot card ───────────────────────────────────────────
 function createCard(p) {
+  document.querySelector('#pgrid .empty')?.remove();
   const acc = CSS[p.id % 4];
   const hex = HEX[p.id % 4];
-
-  // Remove the "waiting" placeholder on first detection
-  const empty = document.querySelector('#pgrid .empty');
-  if (empty) empty.remove();
-
   const div = document.createElement('div');
   div.className = 'card';
   div.id = `c${p.id}`;
@@ -382,13 +463,12 @@ function createCard(p) {
     <canvas class="wv" id="cv${p.id}"></canvas>
   `;
   document.getElementById('pgrid').appendChild(div);
-
   const chart = new RssiChart(document.getElementById(`cv${p.id}`), hex);
   chart.setThr(enterAt, exitAt);
   charts[p.id] = chart;
 }
 
-// ── Live tab: update existing card values ─────────────────────────────────
+// ── Live tab: update existing card ────────────────────────────────────────
 function updateCard(p) {
   const rv = document.getElementById(`rv${p.id}`);
   if (!rv) return;
@@ -396,21 +476,21 @@ function updateCard(p) {
   rv.textContent = p.rssi;
   document.getElementById(`br${p.id}`).style.width = rssiPct(p.rssi) + '%';
 
-  const cross = p.rssi > enterAt;
+  // Badge: use authoritative crossing state from server state machine
   const bd = document.getElementById(`bd${p.id}`);
-  bd.textContent = cross ? 'CROSSING' : 'CLEAR';
-  bd.className   = 'badge' + (cross ? ' cross' : '');
+  const wasCross = bd.classList.contains('cross');
+  if (p.crossing !== wasCross) {
+    bd.textContent = p.crossing ? 'CROSSING' : 'CLEAR';
+    bd.className   = 'badge' + (p.crossing ? ' cross' : '');
+  }
 
-  charts[p.id]?.push(p.rssi);
+  charts[p.id]?.push(p.rssi, p.crossing);
 }
 
-// ── Config tab: add card (only once per pilot) ───────────────────────────
+// ── Config tab: add card (once per pilot, preserves input) ────────────────
 function ensureConfigCard(p) {
   if (document.getElementById(`cc${p.id}`)) return;
-
-  const empty = document.querySelector('#cgrid .empty');
-  if (empty) empty.remove();
-
+  document.querySelector('#cgrid .empty')?.remove();
   const acc = CSS[p.id % 4];
   const hex = HEX[p.id % 4];
   const div = document.createElement('div');
@@ -423,7 +503,7 @@ function ensureConfigCard(p) {
     <div style="font-size:0.78rem;color:#777;margin-bottom:10px">${p.mac}</div>
     <div class="lbl">NAME</div>
     <input type="text" id="cn${p.id}" value="${p.name}" maxlength="31" autocomplete="off">
-    <button class="save-btn" style="background:${hex}" onclick="savePilot(${p.id})">SAVE</button>
+    <button class="save-btn" style="background:${hex}" onclick="savePilotName(${p.id})">SAVE</button>
   `;
   document.getElementById('cgrid').appendChild(div);
 }
@@ -432,23 +512,83 @@ function ensureConfigCard(p) {
 function render(data) {
   if (!data.pilots) return;
   const ps = data.pilots;
-
   ps.forEach(p => {
     if (!document.getElementById(`c${p.id}`)) createCard(p);
     updateCard(p);
   });
-
   pilots = ps;
-
-  // Config tab: only add new cards, preserve existing inputs
   if (ps.length !== lastPilotCnt) {
     lastPilotCnt = ps.length;
     ps.forEach(ensureConfigCard);
   }
 }
 
-// ── Config: save name ────────────────────────────────────────────────────
-async function savePilot(id) {
+// ── Threshold sliders ─────────────────────────────────────────────────────
+
+// Called on every input event (real-time visual only, no network)
+function onSliderInput() {
+  const en = +document.getElementById('enterAt').value;
+  const ex = +document.getElementById('exitAt').value;
+  document.getElementById('enterVal').textContent = en + ' dBm';
+  document.getElementById('exitVal').textContent  = ex + ' dBm';
+
+  // Update chart overlays in real-time while dragging
+  enterAt = en; exitAt = ex;
+  Object.values(charts).forEach(c => c.setThr(en, ex));
+
+  // Validation warning
+  const warn = document.getElementById('threshWarn');
+  const btn  = document.getElementById('saveThreshBtn');
+  if (ex >= en) {
+    warn.style.display = 'block';
+    btn.disabled = true;
+  } else {
+    warn.style.display = 'none';
+    btn.disabled = false;
+  }
+}
+
+// POST thresholds to ESP32 and save to NVS
+async function saveThresholds() {
+  const en = +document.getElementById('enterAt').value;
+  const ex = +document.getElementById('exitAt').value;
+  if (ex >= en) return;
+  try {
+    const r = await fetch('/api/thresholds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enterAt: en, exitAt: ex })
+    });
+    if (r.ok) {
+      enterAt = en; exitAt = ex;
+      Object.values(charts).forEach(c => c.setThr(en, ex));
+      // Flash "SAVED" indicator
+      const fl = document.getElementById('savedFlash');
+      fl.style.opacity = '1';
+      setTimeout(() => fl.style.opacity = '0', 1800);
+    }
+  } catch (e) { console.error(e); }
+}
+
+// Load current thresholds from ESP32 on page load
+async function fetchThresholds() {
+  try {
+    const r = await fetch('/api/thresholds');
+    if (!r.ok) return;
+    const d = await r.json();
+    const en = d.enterAt ?? -80;
+    const ex = d.exitAt  ?? -90;
+    document.getElementById('enterAt').value = en;
+    document.getElementById('exitAt').value  = ex;
+    document.getElementById('enterVal').textContent = en + ' dBm';
+    document.getElementById('exitVal').textContent  = ex + ' dBm';
+    enterAt = en; exitAt = ex;
+    Object.values(charts).forEach(c => c.setThr(en, ex));
+  } catch (e) { console.error(e); }
+}
+
+// ── Config: save pilot name ───────────────────────────────────────────────
+async function savePilotName(id) {
   const inp = document.getElementById(`cn${id}`);
   if (!inp) return;
   const name = inp.value.trim() || `Pilot ${id + 1}`;
@@ -459,9 +599,9 @@ async function savePilot(id) {
       body: JSON.stringify({ id, name })
     });
     if (r.ok) {
+      inp.value = name;
       const el = document.getElementById(`pn${id}`);
       if (el) el.textContent = name;
-      inp.value = name;
     }
   } catch (e) { console.error(e); }
 }
@@ -472,26 +612,15 @@ async function resetAll() {
   try {
     await fetch('/api/reset', { method: 'POST' });
     pilots = []; charts = {}; lastPilotCnt = -1;
-    document.getElementById('pgrid').innerHTML = '<div class="empty">Waiting for ELRS ESP-NOW packets…</div>';
-    document.getElementById('cgrid').innerHTML = '<div class="empty">No pilots detected yet.</div>';
+    document.getElementById('pgrid').innerHTML =
+      '<div class="empty">Waiting for ELRS ESP-NOW packets…</div>';
+    document.getElementById('cgrid').innerHTML =
+      '<div class="empty">No pilots detected yet.</div>';
   } catch (e) { console.error(e); }
 }
 
-// ── Threshold sliders ─────────────────────────────────────────────────────
-document.getElementById('enterAt').addEventListener('input', function () {
-  enterAt = +this.value;
-  document.getElementById('enterVal').textContent = enterAt + ' dBm';
-  Object.values(charts).forEach(c => c.setThr(enterAt, exitAt));
-});
-document.getElementById('exitAt').addEventListener('input', function () {
-  exitAt = +this.value;
-  document.getElementById('exitVal').textContent = exitAt + ' dBm';
-  Object.values(charts).forEach(c => c.setThr(enterAt, exitAt));
-});
-
 // ── WebSocket (auto-reconnect) ────────────────────────────────────────────
 let sock, reconTimer;
-
 function connect() {
   sock = new WebSocket('ws://' + location.host + '/ws');
   sock.onopen  = () => {
@@ -504,10 +633,11 @@ function connect() {
     document.getElementById('dot').title = 'Disconnected';
     reconTimer = setTimeout(connect, 2000);
   };
-  sock.onerror = () => sock.close();
+  sock.onerror  = () => sock.close();
   sock.onmessage = e => { try { render(JSON.parse(e.data)); } catch {} };
 }
 
+fetchThresholds();
 connect();
 </script>
 </body>
