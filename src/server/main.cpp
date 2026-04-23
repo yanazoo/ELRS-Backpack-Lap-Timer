@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <esp_wifi.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
@@ -12,19 +11,25 @@
 #define HISTORY_SIZE   500
 #define WS_INTERVAL_MS 100
 
+// ── UART from Reader ──────────────────────────────────────────
+// フレーム: [0xAA][MAC 6][RSSI uint8][XOR校験][0x55] = 10 bytes
+#define UART_RX_PIN  16     // ← Reader GPIO17
+#define UART_BAUD    115200
+#define FRAME_LEN    10
+#define FRAME_START  0xAA
+#define FRAME_END    0x55
+
 struct Pilot {
     uint8_t  mac[6];
     char     name[32];
     int8_t   rssi;
     uint32_t lastSeen;
     bool     active;
-    // RotorHazard state machine (per-pilot)
     bool     crossing;
     int8_t   peakRssi;
     uint32_t peakTs;
-    // Per-pilot thresholds
-    int8_t   enterAt;   // CLEAR→CROSSING trigger (dBm)
-    int8_t   exitAt;    // CROSSING→CLEAR trigger (dBm), must be < enterAt
+    int8_t   enterAt;
+    int8_t   exitAt;
 };
 
 struct Record {
@@ -38,7 +43,7 @@ static uint8_t      g_nPilots  = 0;
 static Record       g_hist[HISTORY_SIZE];
 static uint16_t     g_histHead  = 0;
 static uint16_t     g_histCnt   = 0;
-static uint16_t     g_minLapMs  = 3000; // global min lap time (ms)
+static uint16_t     g_minLapMs  = 3000;
 static portMUX_TYPE g_mux       = portMUX_INITIALIZER_UNLOCKED;
 
 static AsyncWebServer server(80);
@@ -60,27 +65,17 @@ static int findPilot(const uint8_t* mac) {
     return -1;
 }
 
-// 802.11 Action frame (ESP-NOW) promiscuous callback.
-// Runs in WiFi task context; use portENTER_CRITICAL_ISR for safety.
-static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type) {
-    if (type != WIFI_PKT_MGMT) return;
-
-    const auto* pkt = reinterpret_cast<const wifi_promiscuous_pkt_t*>(buf);
-    const uint8_t* p = pkt->payload;
-    const uint16_t len = pkt->rx_ctrl.sig_len;
-
-    if (len < 28 || p[0] != 0xD0) return;
-    if (p[24] != 0x7F || p[25] != 0x18 || p[26] != 0xFE || p[27] != 0x34) return;
-
-    const uint8_t* src  = p + 10;
-    const int8_t   rssi = static_cast<int8_t>(pkt->rx_ctrl.rssi);
+// ── UARTフレーム処理 (onPromiscuousの代替) ────────────────────
+static void processFrame(const uint8_t* frame) {
+    const uint8_t* mac  = frame + 1;
+    const int8_t   rssi = static_cast<int8_t>(frame[7]);
     const uint32_t now  = millis();
 
-    portENTER_CRITICAL_ISR(&g_mux);
-    int idx = findPilot(src);
+    portENTER_CRITICAL(&g_mux);
+    int idx = findPilot(mac);
     if (idx < 0 && g_nPilots < MAX_PILOTS) {
         idx = g_nPilots++;
-        memcpy(g_pilots[idx].mac, src, 6);
+        memcpy(g_pilots[idx].mac, mac, 6);
         snprintf(g_pilots[idx].name, sizeof(g_pilots[idx].name), "Pilot %d", idx + 1);
         g_pilots[idx].active   = true;
         g_pilots[idx].crossing = false;
@@ -92,10 +87,7 @@ static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type)
         g_pilots[idx].rssi     = rssi;
         g_pilots[idx].lastSeen = now;
 
-        // RotorHazard state machine (per-pilot thresholds):
-        //   CLEAR   → rssi > enterAt → CROSSING
-        //   CROSSING → rssi > peak  → update peak
-        //   CROSSING → rssi < exitAt → CLEAR (Phase 2: lap at peakTs)
+        // RotorHazard 状態機械
         if (!g_pilots[idx].crossing) {
             if (rssi > g_pilots[idx].enterAt) {
                 g_pilots[idx].crossing = true;
@@ -109,7 +101,6 @@ static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type)
             }
             if (rssi < g_pilots[idx].exitAt) {
                 g_pilots[idx].crossing = false;
-                // Phase 2: triggerLap(idx, g_pilots[idx].peakTs, g_pilots[idx].peakRssi)
             }
         }
 
@@ -117,7 +108,39 @@ static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type)
         g_histHead         = (g_histHead + 1) % HISTORY_SIZE;
         if (g_histCnt < HISTORY_SIZE) g_histCnt++;
     }
-    portEXIT_CRITICAL_ISR(&g_mux);
+    portEXIT_CRITICAL(&g_mux);
+}
+
+// ── UARTパーサー ──────────────────────────────────────────────
+static uint8_t g_rxBuf[FRAME_LEN];
+static uint8_t g_rxPos   = 0;
+static bool    g_inFrame = false;
+
+static void pollUart() {
+    while (Serial2.available()) {
+        const uint8_t b = static_cast<uint8_t>(Serial2.read());
+        if (!g_inFrame) {
+            if (b == FRAME_START) {
+                g_rxBuf[0] = b;
+                g_rxPos    = 1;
+                g_inFrame  = true;
+            }
+        } else {
+            g_rxBuf[g_rxPos++] = b;
+            if (g_rxPos == FRAME_LEN) {
+                g_inFrame = false;
+                g_rxPos   = 0;
+                if (g_rxBuf[FRAME_LEN - 1] == FRAME_END) {
+                    uint8_t cs = 0;
+                    for (int i = 1; i <= 7; i++) cs ^= g_rxBuf[i];
+                    if (cs == g_rxBuf[8])
+                        processFrame(g_rxBuf);
+                    else
+                        Serial.println("[WARN] UART checksum error");
+                }
+            }
+        }
+    }
 }
 
 struct PilotSnap { Pilot data[MAX_PILOTS]; uint8_t n; };
@@ -205,7 +228,10 @@ static void saveSettings() {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n=== ELRS Backpack RSSI Logger ===");
+    Serial.println("\n=== ELRS Server ===");
+
+    Serial2.begin(UART_BAUD, SERIAL_8N1, UART_RX_PIN, -1);  // RX only
+    Serial.printf("UART RX on GPIO%d @ %d baud\n", UART_RX_PIN, UART_BAUD);
 
     if (!LittleFS.begin(true))
         Serial.println("[WARN] LittleFS mount failed");
@@ -218,9 +244,6 @@ void setup() {
     Serial.printf("AP: %s  CH: %d  IP: %s\n",
                   AP_SSID, AP_CHANNEL, WiFi.softAPIP().toString().c_str());
 
-    esp_wifi_set_promiscuous(true);
-    esp_wifi_set_promiscuous_rx_cb(onPromiscuous);
-
     ws.onEvent([](AsyncWebSocket*, AsyncWebSocketClient* c,
                   AwsEventType t, void*, uint8_t*, size_t) {
         if (t == WS_EVT_CONNECT) {
@@ -232,12 +255,10 @@ void setup() {
 
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
-    // GET /api/pilots
     server.on("/api/pilots", HTTP_GET, [](AsyncWebServerRequest* req) {
         req->send(200, "application/json", buildJson(snapPilots()));
     });
 
-    // POST /api/pilots — update pilot name
     server.on("/api/pilots", HTTP_POST,
         [](AsyncWebServerRequest*) {},
         nullptr,
@@ -261,7 +282,6 @@ void setup() {
             req->send(200, "application/json", R"({"ok":true})");
         });
 
-    // POST /api/thresholds — update per-pilot EnterAt/ExitAt, persist to NVS
     server.on("/api/thresholds", HTTP_POST,
         [](AsyncWebServerRequest*) {},
         nullptr,
@@ -296,7 +316,6 @@ void setup() {
             req->send(200, "application/json", R"({"ok":true})");
         });
 
-    // GET /api/settings
     server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest* req) {
         JsonDocument doc;
         doc["minLapMs"] = g_minLapMs;
@@ -304,7 +323,6 @@ void setup() {
         req->send(200, "application/json", out);
     });
 
-    // POST /api/settings — update global settings
     server.on("/api/settings", HTTP_POST,
         [](AsyncWebServerRequest*) {},
         nullptr,
@@ -320,7 +338,6 @@ void setup() {
             req->send(200, "application/json", R"({"ok":true})");
         });
 
-    // GET /api/csv
     server.on("/api/csv", HTTP_GET, [](AsyncWebServerRequest* req) {
         uint16_t cnt, head;
         uint8_t  np;
@@ -347,7 +364,6 @@ void setup() {
         req->send(resp);
     });
 
-    // POST /api/reset
     server.on("/api/reset", HTTP_POST, [](AsyncWebServerRequest* req) {
         portENTER_CRITICAL(&g_mux);
         g_nPilots  = 0;
@@ -366,6 +382,7 @@ void setup() {
 }
 
 void loop() {
+    pollUart();
     ws.cleanupClients();
     const uint32_t now = millis();
     if (now - g_lastWs >= WS_INTERVAL_MS && ws.count() > 0) {
