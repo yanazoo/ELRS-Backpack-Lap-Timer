@@ -4,162 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>ELRS-Logger</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/race.css">
+<link rel="stylesheet" href="css/config.css">
+<link rel="stylesheet" href="css/calib.css">
+<link rel="stylesheet" href="css/components.css">
 <script src="smoothie.js"></script>
-<style>
-/* ── PhobosLT derived design ─────────────────────────── */
-:root {
-  --bg:       #0d1117;
-  --surface:  #161b22;
-  --surface2: #21262d;
-  --border:   #30363d;
-  --text:     #e6edf3;
-  --muted:    #8b949e;
-  --accent:   #58a6ff;
-  --accent-d: #1f6feb;
-  --ok:       #3fb950;
-  --err:      #f85149;
-  --warn:     #d29922;
-  --p0: #58a6ff; --p0-bg: rgba(88,166,255,.12);
-  --p1: #f85149; --p1-bg: rgba(248,81,73,.12);
-  --p2: #3fb950; --p2-bg: rgba(63,185,80,.12);
-  --p3: #d29922; --p3-bg: rgba(210,153,34,.12);
-}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;min-height:100vh;}
-a{color:inherit;text-decoration:none;}
-
-/* Header */
-header{background:#0d1117;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
-.header-inner{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;max-width:1200px;margin:0 auto;}
-.logo{display:flex;align-items:center;gap:8px;}
-.logo h1{font-size:16px;color:var(--accent);font-weight:700;letter-spacing:.5px;}
-.sse-dot{width:9px;height:9px;border-radius:50%;display:inline-block;transition:background .3s;}
-.sse-dot.connected{background:var(--ok);box-shadow:0 0 5px var(--ok);}
-.sse-dot.disconnected{background:var(--muted);}
-.tab-bar{display:flex;gap:4px;}
-.tab-btn{background:transparent;border:none;color:var(--muted);padding:6px 13px;border-radius:6px;font-size:13px;cursor:pointer;transition:background .15s,color .15s;}
-.tab-btn:hover{background:var(--surface2);color:var(--text);}
-.tab-btn.active{background:var(--accent-d);color:#fff;}
-
-/* Sections */
-.tab-pane{display:none;padding:14px;max-width:1200px;margin:0 auto;}
-.tab-pane.active{display:block;}
-
-/* ── Race tab ─────────────────────────────────────── */
-.race-controls{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px 16px;margin-bottom:14px;text-align:center;}
-#timer{font-size:44px;font-family:monospace;color:var(--accent);letter-spacing:3px;margin-bottom:16px;}
-.race-buttons{display:flex;justify-content:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
-.race-meta{display:flex;align-items:center;justify-content:center;gap:12px;font-size:13px;color:var(--muted);flex-wrap:wrap;}
-.race-meta input{width:52px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 7px;border-radius:5px;font-size:13px;text-align:center;}
-.pilot-race-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
-.pilot-race-card{background:var(--surface);border-radius:8px;overflow:hidden;}
-.pilot-card-header{display:flex;align-items:center;justify-content:space-between;padding:7px 11px;font-size:13px;font-weight:700;}
-.pilot-card-header.p0{background:var(--p0-bg);color:var(--p0);}
-.pilot-card-header.p1{background:var(--p1-bg);color:var(--p1);}
-.pilot-card-header.p2{background:var(--p2-bg);color:var(--p2);}
-.pilot-card-header.p3{background:var(--p3-bg);color:var(--p3);}
-.pilot-freq-badge{font-size:11px;color:var(--muted);font-weight:400;}
-.pilot-lapcount{font-size:11px;}
-.rssi-mini-bar{display:flex;align-items:center;gap:6px;padding:5px 11px;background:var(--surface2);}
-.rssi-mini-label{font-size:11px;color:var(--muted);min-width:30px;}
-.rssi-mini-track{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
-.rssi-mini-fill{height:100%;border-radius:3px;transition:width .25s;width:0%;}
-.p0-fill{background:var(--p0);}
-.p1-fill{background:var(--p1);}
-.p2-fill{background:var(--p2);}
-.p3-fill{background:var(--p3);}
-.rssi-mini-val{font-size:12px;min-width:24px;text-align:right;}
-.pilot-total-row{display:flex;align-items:center;gap:6px;padding:4px 11px;font-size:12px;color:var(--muted);}
-.pilot-total{color:var(--warn);font-weight:700;}
-.lap-table-wrap{max-height:160px;overflow-y:auto;}
-.lapTable{width:100%;border-collapse:collapse;font-size:11px;}
-.lapTable thead th{background:var(--surface2);color:var(--muted);padding:3px 5px;text-align:center;font-weight:400;font-size:10px;position:sticky;top:0;}
-.lapTable tbody td{padding:3px 5px;text-align:center;border-bottom:1px solid var(--border);}
-.lap-time{font-size:13px;font-weight:700;}
-.hs-row td{color:var(--warn);font-style:italic;}
-.best-row td{color:var(--ok);}
-.page-footer{text-align:center;padding:14px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);margin-top:16px;}
-
-/* ── Config tab ───────────────────────────────────── */
-.global-config-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;}
-.global-title{font-size:13px;font-weight:600;margin-bottom:12px;}
-.config-items{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;}
-.config-row{display:flex;align-items:center;gap:8px;}
-.config-row label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;min-width:170px;}
-.slider-num{display:flex;align-items:center;gap:6px;flex:1;}
-.slider-num input[type=range]{flex:1;accent-color:var(--accent);}
-.slider-num input[type=number],.slider-num input[type=text]{width:58px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 7px;border-radius:5px;font-size:13px;text-align:center;}
-.unit{font-size:12px;color:var(--muted);}
-.voice-row{display:flex;gap:8px;margin-bottom:10px;}
-.config-pilots-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
-.config-pilot-card{background:var(--surface);border-radius:8px;overflow:hidden;}
-.p0-border{border-top:3px solid var(--p0);}
-.p1-border{border-top:3px solid var(--p1);}
-.p2-border{border-top:3px solid var(--p2);}
-.p3-border{border-top:3px solid var(--p3);}
-.config-pilot-header{padding:8px 12px;font-size:13px;font-weight:700;}
-.config-pilot-header.p0{color:var(--p0);}
-.config-pilot-header.p1{color:var(--p1);}
-.config-pilot-header.p2{color:var(--p2);}
-.config-pilot-header.p3{color:var(--p3);}
-.config-pilot-body{padding:10px 12px;}
-.config-pilot-body .config-row{margin-bottom:8px;}
-.config-pilot-body .config-row label{min-width:80px;}
-.config-pilot-body input[type=text]{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:5px;font-size:13px;flex:1;}
-.config-pilot-body input[type=text]:focus{outline:none;border-color:var(--accent);}
-.mac-display{font-size:11px;color:var(--muted);flex:1;font-family:monospace;}
-.danger-zone{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:10px;}
-
-/* ── Calibration tab ──────────────────────────────── */
-.calib-desc{font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6;}
-.calib-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
-.calib-card{background:var(--surface);border-radius:8px;overflow:hidden;}
-.calib-header{display:flex;align-items:center;justify-content:space-between;padding:7px 11px;font-size:13px;font-weight:700;}
-.calib-header.p0{background:var(--p0-bg);color:var(--p0);}
-.calib-header.p1{background:var(--p1-bg);color:var(--p1);}
-.calib-header.p2{background:var(--p2-bg);color:var(--p2);}
-.calib-header.p3{background:var(--p3-bg);color:var(--p3);}
-.rssi-live-badge{font-size:12px;font-weight:400;}
-.calib-card canvas{display:block;width:100%;height:130px;}
-.calib-sliders{padding:10px 11px;display:flex;flex-direction:column;gap:8px;}
-.calib-sliders .config-row label{min-width:100px;font-size:11px;}
-.calib-sliders input[type=range]{flex:1;accent-color:inherit;}
-.calib-sliders input[type=number]{width:52px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:5px;font-size:13px;text-align:center;}
-.calib-footer{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
-
-/* ── Buttons ──────────────────────────────────────── */
-.btn-success{background:var(--ok);color:#000;border:none;padding:8px 18px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;}
-.btn-danger {background:var(--err);color:#fff;border:none;padding:8px 18px;border-radius:6px;font-size:13px;cursor:pointer;}
-.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer;}
-.btn-save{width:100%;background:var(--accent);color:#000;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;}
-.btn-voice{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:7px 14px;border-radius:6px;font-size:13px;cursor:pointer;min-width:120px;}
-.btn-voice.on{background:var(--ok);color:#000;border-color:var(--ok);}
-
-/* Countdown overlay */
-#countdownOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;align-items:center;justify-content:center;}
-#countdownNum{font-size:120px;font-weight:900;color:var(--accent);font-family:monospace;animation:none;}
-@keyframes cdPulse{0%{transform:scale(1.5);opacity:.5}100%{transform:scale(1);opacity:1}}
-.cd-anim{animation:cdPulse .35s ease-out forwards;}
-.cd-go{color:var(--ok)!important;}
-
-/* Toast */
-#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:8px 16px;border-radius:8px;font-size:13px;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;}
-#toast.show{opacity:1;}
-
-/* Responsive */
-@media(max-width:900px){
-  .pilot-race-grid{grid-template-columns:repeat(2,1fr);}
-  .calib-grid{grid-template-columns:repeat(2,1fr);}
-}
-@media(max-width:520px){
-  #timer{font-size:32px;}
-  .pilot-race-grid{grid-template-columns:1fr;}
-  .calib-grid{grid-template-columns:1fr;}
-  .config-pilots-grid{grid-template-columns:1fr;}
-  .config-row{flex-wrap:wrap;}
-  .config-row label{min-width:unset;width:100%;}
-}
-</style>
 </head>
 <body>
 
@@ -253,7 +104,6 @@ header{background:#0d1117;border-bottom:1px solid var(--border);position:sticky;
   </div>
 </section>
 
-<!-- JavaScript will be added in Part 2 -->
 <script src="app.js"></script>
 </body>
 </html>

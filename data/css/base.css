@@ -1,0 +1,30 @@
+/* ── CSS Variables & Reset ───────────────────────────────── */
+:root {
+  --bg:       #0d1117;
+  --surface:  #161b22;
+  --surface2: #21262d;
+  --border:   #30363d;
+  --text:     #e6edf3;
+  --muted:    #8b949e;
+  --accent:   #58a6ff;
+  --accent-d: #1f6feb;
+  --ok:       #3fb950;
+  --err:      #f85149;
+  --warn:     #d29922;
+  --p0: #58a6ff; --p0-bg: rgba(88,166,255,.12);
+  --p1: #f85149; --p1-bg: rgba(248,81,73,.12);
+  --p2: #3fb950; --p2-bg: rgba(63,185,80,.12);
+  --p3: #d29922; --p3-bg: rgba(210,153,34,.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+a { color: inherit; text-decoration: none; }

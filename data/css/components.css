@@ -1,0 +1,84 @@
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn-success {
+  background: var(--ok); color: #000;
+  border: none; padding: 8px 18px;
+  border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.btn-danger {
+  background: var(--err); color: #fff;
+  border: none; padding: 8px 18px;
+  border-radius: 6px; font-size: 13px; cursor: pointer;
+}
+.btn-secondary {
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); padding: 8px 14px;
+  border-radius: 6px; font-size: 13px; cursor: pointer;
+}
+.btn-save {
+  width: 100%; background: var(--accent); color: #000;
+  border: none; padding: 10px;
+  border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 8px;
+}
+.btn-voice {
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); padding: 7px 14px;
+  border-radius: 6px; font-size: 13px; cursor: pointer; min-width: 120px;
+}
+.btn-voice.on { background: var(--ok); color: #000; border-color: var(--ok); }
+
+/* ── Countdown Overlay ───────────────────────────────────── */
+#countdownOverlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.85);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+
+#countdownNum {
+  font-size: 120px;
+  font-weight: 900;
+  color: var(--accent);
+  font-family: monospace;
+}
+
+@keyframes cdPulse {
+  0%   { transform: scale(1.5); opacity: .5; }
+  100% { transform: scale(1);   opacity: 1;  }
+}
+.cd-anim { animation: cdPulse .35s ease-out forwards; }
+.cd-go   { color: var(--ok) !important; }
+
+/* ── Toast ───────────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: 20px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 300;
+  opacity: 0;
+  transition: opacity .3s;
+  pointer-events: none;
+}
+#toast.show { opacity: 1; }
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .pilot-race-grid { grid-template-columns: repeat(2, 1fr); }
+  .calib-grid      { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 520px) {
+  #timer                 { font-size: 32px; }
+  .pilot-race-grid       { grid-template-columns: 1fr; }
+  .calib-grid            { grid-template-columns: 1fr; }
+  .config-pilots-grid    { grid-template-columns: 1fr; }
+  .config-row            { flex-wrap: wrap; }
+  .config-row label      { min-width: unset; width: 100%; }
+}

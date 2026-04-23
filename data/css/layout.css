@@ -1,0 +1,59 @@
+/* ── Header ──────────────────────────────────────────────── */
+header {
+  background: #0d1117;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo h1 { font-size: 16px; color: var(--accent); font-weight: 700; letter-spacing: .5px; }
+
+.sse-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  transition: background .3s;
+}
+.sse-dot.connected    { background: var(--ok);   box-shadow: 0 0 5px var(--ok); }
+.sse-dot.disconnected { background: var(--muted); }
+
+/* ── Tab Bar ─────────────────────────────────────────────── */
+.tab-bar { display: flex; gap: 4px; }
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 6px 13px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.tab-btn:hover  { background: var(--surface2); color: var(--text); }
+.tab-btn.active { background: var(--accent-d); color: #fff; }
+
+/* ── Sections ────────────────────────────────────────────── */
+.tab-pane { display: none; padding: 14px; max-width: 1200px; margin: 0 auto; }
+.tab-pane.active { display: block; }
+
+/* ── Footer ──────────────────────────────────────────────── */
+.page-footer {
+  text-align: center;
+  padding: 14px;
+  color: var(--muted);
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+}

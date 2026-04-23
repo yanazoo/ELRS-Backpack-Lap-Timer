@@ -1,0 +1,143 @@
+/* ── Race Controls ───────────────────────────────────────── */
+.race-controls {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 16px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+#timer {
+  font-size: 44px;
+  font-family: monospace;
+  color: var(--accent);
+  letter-spacing: 3px;
+  margin-bottom: 16px;
+}
+
+.race-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.race-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.race-meta input {
+  width: 52px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 7px;
+  border-radius: 5px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ── Pilot Race Cards ────────────────────────────────────── */
+.pilot-race-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.pilot-race-card {
+  background: var(--surface);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pilot-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 11px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.pilot-card-header.p0 { background: var(--p0-bg); color: var(--p0); }
+.pilot-card-header.p1 { background: var(--p1-bg); color: var(--p1); }
+.pilot-card-header.p2 { background: var(--p2-bg); color: var(--p2); }
+.pilot-card-header.p3 { background: var(--p3-bg); color: var(--p3); }
+
+.pilot-freq-badge { font-size: 11px; color: var(--muted); font-weight: 400; }
+.pilot-lapcount   { font-size: 11px; }
+
+/* ── RSSI Bar ────────────────────────────────────────────── */
+.rssi-mini-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  background: var(--surface2);
+}
+
+.rssi-mini-label { font-size: 11px; color: var(--muted); min-width: 30px; }
+
+.rssi-mini-track {
+  flex: 1;
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.rssi-mini-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .25s;
+  width: 0%;
+}
+.p0-fill { background: var(--p0); }
+.p1-fill { background: var(--p1); }
+.p2-fill { background: var(--p2); }
+.p3-fill { background: var(--p3); }
+
+.rssi-mini-val { font-size: 12px; min-width: 24px; text-align: right; }
+
+/* ── Pilot Total Row ─────────────────────────────────────── */
+.pilot-total-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.pilot-total { color: var(--warn); font-weight: 700; }
+
+/* ── Lap Table ───────────────────────────────────────────── */
+.lap-table-wrap { max-height: 160px; overflow-y: auto; }
+
+.lapTable { width: 100%; border-collapse: collapse; font-size: 11px; }
+
+.lapTable thead th {
+  background: var(--surface2);
+  color: var(--muted);
+  padding: 3px 5px;
+  text-align: center;
+  font-weight: 400;
+  font-size: 10px;
+  position: sticky;
+  top: 0;
+}
+
+.lapTable tbody td {
+  padding: 3px 5px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.lap-time { font-size: 13px; font-weight: 700; }
+.hs-row td  { color: var(--warn); font-style: italic; }
+.best-row td { color: var(--ok); }
