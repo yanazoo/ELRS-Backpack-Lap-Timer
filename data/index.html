@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ELRS RSSI Logger</title>
+<style>
+:root {
+  --bg:  #0a0a0a;
+  --bg2: #111;
+  --bd:  #222;
+  --txt: #ccc;
+  --dim: #555;
+  --c1: #00fff5;
+  --c2: #ff7700;
+  --c3: #00ff44;
+  --c4: #ff00cc;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: 'Courier New', Courier, monospace;
+  min-height: 100vh;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--bd);
+}
+h1 { font-size: 0.95rem; letter-spacing: 3px; text-transform: uppercase; color: #fff; }
+.dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: #333;
+  transition: background 0.3s;
+}
+.dot.on { background: #0f0; box-shadow: 0 0 6px #0f0; }
+
+nav { display: flex; border-bottom: 1px solid var(--bd); }
+.tab {
+  padding: 10px 20px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  color: var(--dim);
+  user-select: none;
+}
+.tab.active { color: var(--c1); border-bottom-color: var(--c1); }
+
+.sec { display: none; padding: 16px; }
+.sec.active { display: block; }
+
+/* ── Pilot cards ── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px; height: 100%;
+  background: var(--accent, #fff);
+}
+.pnum {
+  font-size: 0.68rem;
+  letter-spacing: 3px;
+  color: var(--accent, #fff);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.pname { font-size: 1.05rem; font-weight: bold; color: #fff; margin-bottom: 2px; }
+.pmac  { font-size: 0.68rem; color: var(--dim); margin-bottom: 10px; }
+
+.rssi-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.rssi-val {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--accent, #fff);
+  min-width: 72px;
+  line-height: 1;
+}
+.badge {
+  font-size: 0.65rem;
+  letter-spacing: 2px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: #1a1a1a;
+  color: var(--dim);
+}
+.badge.cross {
+  background: var(--accent, #fff);
+  color: #000;
+  animation: pulse 0.4s ease;
+}
+@keyframes pulse {
+  0%   { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.bar-bg {
+  height: 5px;
+  background: #1a1a1a;
+  border-radius: 3px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent, #fff);
+  transition: width 0.1s linear;
+}
+canvas.wv {
+  width: 100%;
+  height: 80px;
+  display: block;
+  border-radius: 3px;
+}
+
+/* ── Thresholds ── */
+.thresh {
+  margin-top: 16px;
+  background: var(--bg2);
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  padding: 14px;
+}
+.thresh-title { font-size: 0.7rem; color: var(--dim); letter-spacing: 2px; margin-bottom: 10px; }
+.trow { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.trow label { font-size: 0.72rem; min-width: 72px; color: var(--dim); }
+.trow input[type=range] { flex: 1; accent-color: var(--c1); }
+.trow span  { font-size: 0.78rem; min-width: 56px; text-align: right; }
+
+/* ── Actions ── */
+.actions { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+button {
+  background: #1a1a1a;
+  color: var(--txt);
+  border: 1px solid var(--bd);
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+button:hover { background: #252525; }
+button.danger { color: #f55; border-color: #f55; background: transparent; }
+button.danger:hover { background: #f55; color: #000; }
+
+/* ── Config tab ── */
+.cfg-card {
+  background: var(--bg2);
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  padding: 14px;
+  position: relative;
+}
+.cfg-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px; height: 100%;
+  background: var(--accent, #fff);
+}
+.lbl { font-size: 0.68rem; color: var(--dim); letter-spacing: 1px; margin-bottom: 3px; }
+.cfg-card input[type=text] {
+  width: 100%;
+  background: #1a1a1a;
+  border: 1px solid var(--bd);
+  color: #fff;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+.cfg-card input[type=text]:focus { outline: none; border-color: var(--accent, #888); }
+.save-btn {
+  width: 100%;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 2px;
+  cursor: pointer;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent, #888);
+  color: #000;
+}
+.save-btn:hover { opacity: 0.85; }
+
+.empty { color: var(--dim); font-size: 0.85rem; padding: 40px; text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ELRS RSSI Logger</h1>
+  <div id="dot" class="dot" title="WebSocket disconnected"></div>
+</header>
+
+<nav>
+  <div class="tab active" onclick="showTab('live')">LIVE</div>
+  <div class="tab" onclick="showTab('config')">CONFIG</div>
+</nav>
+
+<!-- ═══ LIVE tab ═══════════════════════════════════════ -->
+<section id="live" class="sec active">
+  <div id="pgrid" class="grid">
+    <div class="empty">Waiting for ELRS ESP-NOW packets…</div>
+  </div>
+
+  <div class="thresh">
+    <div class="thresh-title">THRESHOLD OVERLAY (visual only)</div>
+    <div class="trow">
+      <label>EnterAt</label>
+      <input type="range" id="enterAt" min="-120" max="-30" value="-80" step="1">
+      <span id="enterVal">-80 dBm</span>
+    </div>
+    <div class="trow">
+      <label>ExitAt</label>
+      <input type="range" id="exitAt"  min="-120" max="-30" value="-90" step="1">
+      <span id="exitVal">-90 dBm</span>
+    </div>
+  </div>
+
+  <div class="actions">
+    <a href="/api/csv" download="rssi_log.csv" style="text-decoration:none">
+      <button>&#11015; Download CSV</button>
+    </a>
+  </div>
+</section>
+
+<!-- ═══ CONFIG tab ════════════════════════════════════ -->
+<section id="config" class="sec">
+  <div style="font-size:0.78rem;color:var(--dim);margin-bottom:12px">
+    Rename detected pilots. Names are saved to ESP32 NVS.
+  </div>
+  <div id="cgrid" class="grid">
+    <div class="empty">No pilots detected yet.</div>
+  </div>
+  <div class="actions">
+    <button class="danger" onclick="resetAll()">&#10005; Reset All Pilots</button>
+  </div>
+</section>
+
+<script>
+// ── Accent colours (matches PhobosLT 4-channel palette) ──────────────────
+const HEX = ['#00fff5', '#ff7700', '#00ff44', '#ff00cc'];
+const CSS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)'];
+
+// ── Global state ─────────────────────────────────────────────────────────
+let pilots = [];
+let charts = {};
+let enterAt = -80, exitAt = -90;
+let lastPilotCnt = -1;
+
+// ── Tab switching ─────────────────────────────────────────────────────────
+function showTab(name) {
+  ['live', 'config'].forEach(id => {
+    document.getElementById(id).classList.toggle('active', id === name);
+  });
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', ['live', 'config'][i] === name);
+  });
+}
+
+// ── Scrolling canvas chart ────────────────────────────────────────────────
+class RssiChart {
+  constructor(canvas, hex) {
+    this.cvs    = canvas;
+    this.ctx    = canvas.getContext('2d');
+    this.hex    = hex;
+    this.data   = [];
+    this.maxPts = 300;
+    this.enter  = -80;
+    this.exit_  = -90;
+  }
+  push(v) {
+    this.data.push(v);
+    if (this.data.length > this.maxPts) this.data.shift();
+    this.draw();
+  }
+  setThr(en, ex) { this.enter = en; this.exit_ = ex; this.draw(); }
+  draw() {
+    const cvs = this.cvs;
+    const ctx = this.ctx;
+    const W = cvs.width  = cvs.offsetWidth  || 300;
+    const H = cvs.height = cvs.offsetHeight || 80;
+    const RMIN = -120, RMAX = -30;
+    const toY = v => H - ((v - RMIN) / (RMAX - RMIN)) * H;
+    const toX = i => (i / Math.max(this.maxPts - 1, 1)) * W;
+    const { data, hex, enter, exit_ } = this;
+
+    // Background
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid lines
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
+    [-40, -60, -80, -100, -120].forEach(v => {
+      ctx.strokeStyle = '#1e1e1e';
+      ctx.beginPath(); ctx.moveTo(0, toY(v)); ctx.lineTo(W, toY(v)); ctx.stroke();
+    });
+
+    // EnterAt dashed line (accent colour)
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = hex + '99';
+    ctx.beginPath(); ctx.moveTo(0, toY(enter)); ctx.lineTo(W, toY(enter)); ctx.stroke();
+
+    // ExitAt dashed line (white dim)
+    ctx.strokeStyle = '#ffffff44';
+    ctx.beginPath(); ctx.moveTo(0, toY(exit_)); ctx.lineTo(W, toY(exit_)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (data.length < 2) return;
+
+    // Shaded fill when CROSSING
+    if (data[data.length - 1] > enter) {
+      ctx.fillStyle = hex + '1a';
+      ctx.beginPath();
+      ctx.moveTo(toX(0), H);
+      data.forEach((v, i) => ctx.lineTo(toX(i), toY(v)));
+      ctx.lineTo(toX(data.length - 1), H);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // RSSI line
+    ctx.strokeStyle = hex;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    data.forEach((v, i) =>
+      i === 0 ? ctx.moveTo(toX(i), toY(v)) : ctx.lineTo(toX(i), toY(v))
+    );
+    ctx.stroke();
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function rssiPct(rssi) {
+  return Math.max(0, Math.min(100, ((rssi + 120) / 90) * 100));
+}
+
+// ── Live tab: create pilot card DOM ──────────────────────────────────────
+function createCard(p) {
+  const acc = CSS[p.id % 4];
+  const hex = HEX[p.id % 4];
+
+  // Remove the "waiting" placeholder on first detection
+  const empty = document.querySelector('#pgrid .empty');
+  if (empty) empty.remove();
+
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.id = `c${p.id}`;
+  div.style.setProperty('--accent', acc);
+  div.innerHTML = `
+    <div class="pnum">PILOT ${p.id + 1}</div>
+    <div class="pname" id="pn${p.id}">${p.name}</div>
+    <div class="pmac">${p.mac}</div>
+    <div class="rssi-row">
+      <div class="rssi-val" id="rv${p.id}">${p.rssi}</div>
+      <div class="badge" id="bd${p.id}">CLEAR</div>
+    </div>
+    <div class="bar-bg"><div class="bar" id="br${p.id}" style="width:0%"></div></div>
+    <canvas class="wv" id="cv${p.id}"></canvas>
+  `;
+  document.getElementById('pgrid').appendChild(div);
+
+  const chart = new RssiChart(document.getElementById(`cv${p.id}`), hex);
+  chart.setThr(enterAt, exitAt);
+  charts[p.id] = chart;
+}
+
+// ── Live tab: update existing card values ─────────────────────────────────
+function updateCard(p) {
+  const rv = document.getElementById(`rv${p.id}`);
+  if (!rv) return;
+  document.getElementById(`pn${p.id}`).textContent = p.name;
+  rv.textContent = p.rssi;
+  document.getElementById(`br${p.id}`).style.width = rssiPct(p.rssi) + '%';
+
+  const cross = p.rssi > enterAt;
+  const bd = document.getElementById(`bd${p.id}`);
+  bd.textContent = cross ? 'CROSSING' : 'CLEAR';
+  bd.className   = 'badge' + (cross ? ' cross' : '');
+
+  charts[p.id]?.push(p.rssi);
+}
+
+// ── Config tab: add card (only once per pilot) ───────────────────────────
+function ensureConfigCard(p) {
+  if (document.getElementById(`cc${p.id}`)) return;
+
+  const empty = document.querySelector('#cgrid .empty');
+  if (empty) empty.remove();
+
+  const acc = CSS[p.id % 4];
+  const hex = HEX[p.id % 4];
+  const div = document.createElement('div');
+  div.className = 'cfg-card';
+  div.id = `cc${p.id}`;
+  div.style.setProperty('--accent', acc);
+  div.innerHTML = `
+    <div class="pnum" style="color:${hex}">PILOT ${p.id + 1}</div>
+    <div class="lbl" style="margin-top:6px">MAC</div>
+    <div style="font-size:0.78rem;color:#777;margin-bottom:10px">${p.mac}</div>
+    <div class="lbl">NAME</div>
+    <input type="text" id="cn${p.id}" value="${p.name}" maxlength="31" autocomplete="off">
+    <button class="save-btn" style="background:${hex}" onclick="savePilot(${p.id})">SAVE</button>
+  `;
+  document.getElementById('cgrid').appendChild(div);
+}
+
+// ── Render from WebSocket payload ─────────────────────────────────────────
+function render(data) {
+  if (!data.pilots) return;
+  const ps = data.pilots;
+
+  ps.forEach(p => {
+    if (!document.getElementById(`c${p.id}`)) createCard(p);
+    updateCard(p);
+  });
+
+  pilots = ps;
+
+  // Config tab: only add new cards, preserve existing inputs
+  if (ps.length !== lastPilotCnt) {
+    lastPilotCnt = ps.length;
+    ps.forEach(ensureConfigCard);
+  }
+}
+
+// ── Config: save name ────────────────────────────────────────────────────
+async function savePilot(id) {
+  const inp = document.getElementById(`cn${id}`);
+  if (!inp) return;
+  const name = inp.value.trim() || `Pilot ${id + 1}`;
+  try {
+    const r = await fetch('/api/pilots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name })
+    });
+    if (r.ok) {
+      const el = document.getElementById(`pn${id}`);
+      if (el) el.textContent = name;
+      inp.value = name;
+    }
+  } catch (e) { console.error(e); }
+}
+
+// ── Config: reset all ─────────────────────────────────────────────────────
+async function resetAll() {
+  if (!confirm('Clear all detected pilots and NVS data?')) return;
+  try {
+    await fetch('/api/reset', { method: 'POST' });
+    pilots = []; charts = {}; lastPilotCnt = -1;
+    document.getElementById('pgrid').innerHTML = '<div class="empty">Waiting for ELRS ESP-NOW packets…</div>';
+    document.getElementById('cgrid').innerHTML = '<div class="empty">No pilots detected yet.</div>';
+  } catch (e) { console.error(e); }
+}
+
+// ── Threshold sliders ─────────────────────────────────────────────────────
+document.getElementById('enterAt').addEventListener('input', function () {
+  enterAt = +this.value;
+  document.getElementById('enterVal').textContent = enterAt + ' dBm';
+  Object.values(charts).forEach(c => c.setThr(enterAt, exitAt));
+});
+document.getElementById('exitAt').addEventListener('input', function () {
+  exitAt = +this.value;
+  document.getElementById('exitVal').textContent = exitAt + ' dBm';
+  Object.values(charts).forEach(c => c.setThr(enterAt, exitAt));
+});
+
+// ── WebSocket (auto-reconnect) ────────────────────────────────────────────
+let sock, reconTimer;
+
+function connect() {
+  sock = new WebSocket('ws://' + location.host + '/ws');
+  sock.onopen  = () => {
+    document.getElementById('dot').classList.add('on');
+    document.getElementById('dot').title = 'Connected';
+    clearTimeout(reconTimer);
+  };
+  sock.onclose = () => {
+    document.getElementById('dot').classList.remove('on');
+    document.getElementById('dot').title = 'Disconnected';
+    reconTimer = setTimeout(connect, 2000);
+  };
+  sock.onerror = () => sock.close();
+  sock.onmessage = e => { try { render(JSON.parse(e.data)); } catch {} };
+}
+
+connect();
+</script>
+</body>
+</html>
