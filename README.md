@@ -1,7 +1,3 @@
-# ELRS-Backpack-Lap-Timer
-ELRS Backpack Lap Timer
-
-
 # ELRS Backpack ラップタイマー — Claude Code 引継ぎ文書
 
 作成日時: 2026-04-23 (JST)
