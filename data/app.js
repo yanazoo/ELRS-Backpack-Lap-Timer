@@ -1,9 +1,11 @@
 'use strict';
 
 // ── Constants ─────────────────────────────────────────────────
-const NUM_PILOTS = 4;
-const P_CLASS    = ['p0', 'p1', 'p2', 'p3'];
-const P_COLOR    = ['#58a6ff', '#f85149', '#3fb950', '#d29922'];
+const NUM_PILOTS    = 4;
+const P_CLASS       = ['p0', 'p1', 'p2', 'p3'];
+const P_COLOR       = ['#58a6ff', '#f85149', '#3fb950', '#d29922'];
+// パイロットごとの検知音 (CLEAR→CROSSING): C6/D6/E6/F6
+const DETECT_FREQ   = [1047, 1175, 1319, 1397];
 
 // ── State ─────────────────────────────────────────────────────
 let g_pilots     = [];
@@ -275,7 +277,12 @@ function processData(data) {
       exN.value = p.exitAt;
     }
 
-    // Lap detection: CROSSING → CLEAR transition
+    // CLEAR → CROSSING: 検知音 (レース中・外問わず常に鳴らす)
+    if (!prevCrossing[i] && p.crossing) {
+      beep(DETECT_FREQ[i], 0.12);
+    }
+
+    // CROSSING → CLEAR: ラップ検出 (レース中のみ)
     if (raceActive) {
       if (prevCrossing[i] && !p.crossing) {
         const nowMs        = Date.now();
