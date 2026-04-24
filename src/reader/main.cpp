@@ -3,7 +3,6 @@
 #include <esp_wifi.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
-#include <math.h>
 
 // ── Config ────────────────────────────────────────────────────
 #define LISTEN_CHANNEL  1
@@ -11,7 +10,6 @@
 #define UART_TX_PIN     17      // → Server GPIO16
 #define UART_BAUD       115200
 #define MAX_PILOTS      4
-#define EMA_ALPHA       0.3f
 #define RSSI_PERIOD_MS  100
 
 // ── Pilot State ───────────────────────────────────────────────
@@ -22,7 +20,6 @@ struct PilotState {
     bool     macSet;
     int8_t   enterAt;
     int8_t   exitAt;
-    float    emaRssi;
     bool     crossing;
     int8_t   peakRssi;
     uint32_t peakTs;
@@ -139,7 +136,6 @@ static void processPkt(const uint8_t* mac, int8_t rawRssi) {
                 if (g_pilots[i].uidSet && memcmp(g_pilots[i].uid, mac, 6) == 0) {
                     memcpy(g_pilots[i].mac, mac, 6);
                     g_pilots[i].macSet  = true;
-                    g_pilots[i].emaRssi = (float)rawRssi;
                     idx = i;
                     Serial.printf("[UID] P%d matched %s\n", i, macStr(mac).c_str());
                     break;
@@ -152,7 +148,6 @@ static void processPkt(const uint8_t* mac, int8_t rawRssi) {
             idx = g_nAuto++;
             memcpy(g_pilots[idx].mac, mac, 6);
             g_pilots[idx].macSet   = true;
-            g_pilots[idx].emaRssi  = (float)rawRssi;
             g_pilots[idx].crossing = false;
             g_pilots[idx].peakRssi = -127;
             Serial.printf("[Auto] P%d=%s\n", idx, macStr(mac).c_str());
@@ -166,11 +161,8 @@ static void processPkt(const uint8_t* mac, int8_t rawRssi) {
 
     PilotState& p = g_pilots[idx];
 
-    // EMA filter (α=0.3): smoothes noise before state machine
-    p.emaRssi = EMA_ALPHA * rawRssi + (1.0f - EMA_ALPHA) * p.emaRssi;
-    const int8_t rssi = (int8_t)roundf(p.emaRssi);
-
-    const uint32_t now = millis();
+    const int8_t   rssi = rawRssi;
+    const uint32_t now  = millis();
 
     // RotorHazard state machine: CLEAR → CROSSING → CLEAR
     if (!p.crossing) {
@@ -244,7 +236,6 @@ static void processCommand(const char* line) {
             memset(g_pilots[i].mac, 0, 6);
             g_pilots[i].macSet   = false;
             g_pilots[i].crossing = false;
-            g_pilots[i].emaRssi  = -100.0f;
             g_pilots[i].peakRssi = -127;
         }
         Serial.println("[CMD] reset");
@@ -272,7 +263,6 @@ void setup() {
 
     memset(g_pilots, 0, sizeof(g_pilots));
     for (int i = 0; i < MAX_PILOTS; i++) {
-        g_pilots[i].emaRssi  = -100.0f;
         g_pilots[i].peakRssi = -127;
         g_pilots[i].enterAt  = -80;
         g_pilots[i].exitAt   = -90;
