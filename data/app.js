@@ -1,11 +1,9 @@
 'use strict';
 
 // ── Constants ─────────────────────────────────────────────────
-const NUM_PILOTS    = 4;
-const P_CLASS       = ['p0', 'p1', 'p2', 'p3'];
-const P_COLOR       = ['#58a6ff', '#f85149', '#3fb950', '#d29922'];
-// パイロットごとの検知音 (CLEAR→CROSSING): C6/D6/E6/F6
-const DETECT_FREQ   = [1047, 1175, 1319, 1397];
+const NUM_PILOTS = 4;
+const P_CLASS    = ['p0', 'p1', 'p2', 'p3'];
+const P_COLOR    = ['#58a6ff', '#f85149', '#3fb950', '#d29922'];
 
 // ── State ─────────────────────────────────────────────────────
 let g_pilots     = [];
@@ -18,7 +16,6 @@ let totalLapGoal = 0;
 let lapNos       = [0, 0, 0, 0];
 let lapBest      = [Infinity, Infinity, Infinity, Infinity];
 let lapTimesArr  = [[], [], [], []];
-let lapLastMs    = [0, 0, 0, 0];
 let prevCrossing = [false, false, false, false];
 
 let voiceOn  = true;
@@ -50,6 +47,17 @@ function fmtLap(ms) {
   const s = Math.floor((ms % 60000) / 1000);
   const c = Math.floor((ms % 1000) / 10);
   return `${pad(m)}:${pad(s)}.${pad(c)}`;
+}
+
+// ── SHA-256 → UID (first 6 bytes of hash) ────────────────────
+async function bindPhraseToUID(phrase) {
+  if (!phrase) return '';
+  const data = new TextEncoder().encode(phrase);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .slice(0, 6)
+    .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+    .join(':');
 }
 
 // ── Card HTML Builders ────────────────────────────────────────
@@ -97,12 +105,15 @@ function buildConfigCard(i) {
       <span class="mac-display" id="cfgMac${i}">未検出</span>
     </div>
     <div class="config-row">
-      <label>UID (バインド)</label>
-      <input type="text" id="cfgUid${i}" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17"
-             style="font-family:monospace;text-transform:uppercase"
-             oninput="this.value=this.value.toUpperCase()">
+      <label>バインドフレーズ</label>
+      <input type="text" id="cfgPhrase${i}" placeholder="bind phrase"
+             oninput="onPhraseInput(${i})" autocomplete="off" spellcheck="false">
       <button class="btn-secondary" style="padding:4px 8px;font-size:11px"
               onclick="clearUid(${i})">✕</button>
+    </div>
+    <div class="config-row">
+      <label>UID (自動計算)</label>
+      <span class="mac-display" id="cfgUidDisp${i}">未設定</span>
     </div>
     <button class="btn-save" onclick="savePilotConfig(${i})">💾 保存</button>
   </div>
@@ -180,8 +191,8 @@ function createRssiChart(i) {
     },
     labels          : { disabled: true },
     horizontalLines : [
-      { value: toDisp(-80), color: color,                 lineWidth: 1 },
-      { value: toDisp(-90), color: hexRgba(color, 0.5),  lineWidth: 1 },
+      { value: toDisp(-80), color: color,                lineWidth: 1 },
+      { value: toDisp(-90), color: hexRgba(color, 0.5), lineWidth: 1 },
     ],
   });
 
@@ -200,7 +211,7 @@ function updateChartLines(i) {
   const en = toDisp(parseInt(el(`enterRssiN${i}`).value) || -80);
   const ex = toDisp(parseInt(el(`exitRssiN${i}`).value)  || -90);
   chart.options.horizontalLines = [
-    { value: en, color: P_COLOR[i],                  lineWidth: 1 },
+    { value: en, color: P_COLOR[i],                 lineWidth: 1 },
     { value: ex, color: hexRgba(P_COLOR[i], 0.5), lineWidth: 1 },
   ];
 }
@@ -220,7 +231,11 @@ function wsConnect() {
     wsReconnTimer = null;
   };
   ws.onmessage = ({ data }) => {
-    try { processData(JSON.parse(data)); } catch (_) {}
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed.type === 'lap') handleLapEvent(parsed);
+      else processData(parsed);
+    } catch (_) {}
   };
   ws.onclose = ws.onerror = () => {
     el('sseStatus').className = 'sse-dot disconnected';
@@ -264,15 +279,21 @@ function processData(data) {
     if (cfgN && document.activeElement !== cfgN) cfgN.value = p.name;
     const cfgM = el(`cfgMac${i}`);
     if (cfgM) cfgM.textContent = p.active ? p.mac : '未検出';
-    const cfgU = el(`cfgUid${i}`);
-    if (cfgU && document.activeElement !== cfgU) cfgU.value = p.uid || '';
+    // Show server UID only when user is not typing a bind phrase
+    const cfgUidDisp = el(`cfgUidDisp${i}`);
+    const phraseEl   = el(`cfgPhrase${i}`);
+    if (cfgUidDisp && (!phraseEl || document.activeElement !== phraseEl)) {
+      if (!phraseEl || !phraseEl.value.trim()) {
+        cfgUidDisp.textContent = p.uid || '未設定';
+      }
+    }
     const pmac = el(`pmac${i}`);
     if (pmac) pmac.textContent = p.active ? p.mac.slice(-8) : '---';
 
     // RSSI display
-    const bar  = el(`rssiBar${i}`);   if (bar)  bar.style.width    = barPct;
-    const num  = el(`rssiNum${i}`);   if (num)  num.textContent    = `${p.rssi} dBm`;
-    const crssi = el(`calibRssi${i}`); if (crssi) crssi.textContent = `${p.rssi} dBm`;
+    const bar   = el(`rssiBar${i}`);    if (bar)   bar.style.width    = barPct;
+    const num   = el(`rssiNum${i}`);    if (num)   num.textContent    = `${p.rssi} dBm`;
+    const crssi = el(`calibRssi${i}`);  if (crssi) crssi.textContent = `${p.rssi} dBm`;
 
     // SmoothieChart
     if (rssiSeries[i]) rssiSeries[i].append(Date.now(), dispVal);
@@ -289,24 +310,25 @@ function processData(data) {
       exN.value = p.exitAt;
     }
 
-    // CLEAR → CROSSING: 検知音 (レース中・外問わず常に鳴らす)
+    // CLEAR → CROSSING: gate detection sound (220 Hz square, 0.05 s)
     if (!prevCrossing[i] && p.crossing) {
-      beep(DETECT_FREQ[i], 0.12);
-    }
-
-    // CROSSING → CLEAR: ラップ検出 (レース中のみ)
-    if (raceActive) {
-      if (prevCrossing[i] && !p.crossing) {
-        const nowMs        = Date.now();
-        const sinceLastLap = lapLastMs[i] === 0 ? (nowMs - raceStartMs) : (nowMs - lapLastMs[i]);
-        if (sinceLastLap >= g_minLapMs) {
-          lapLastMs[i] = nowMs;
-          addLap(i, nowMs - raceStartMs);
-        }
-      }
+      beep(220, 0.05, 'square');
     }
     prevCrossing[i] = p.crossing;
+
+    // Crossing visual indicator on race card
+    const card = el(`raceCard${i}`);
+    if (card) card.classList.toggle('crossing-active', p.crossing);
   });
+}
+
+// ── Lap event from server (Reader detected gate exit) ─────────
+function handleLapEvent(evt) {
+  const i = evt.pilot;
+  if (i < 0 || i >= NUM_PILOTS || !raceActive) return;
+  const nowMs = Date.now();
+  if (nowMs - raceStartMs < g_minLapMs) return;
+  addLap(i, nowMs - raceStartMs);
 }
 
 // ── Race Control ──────────────────────────────────────────────
@@ -315,25 +337,25 @@ function startRace() {
   clearAllLaps();
   totalLapGoal = parseInt(el('totalLaps').value) || 0;
   showCountdown(() => {
-    raceActive   = true;
-    raceStartMs  = Date.now();
-    lapLastMs    = [0, 0, 0, 0];
+    raceActive  = true;
+    raceStartMs = Date.now();
     prevCrossing = [false, false, false, false];
     tick();
   });
 }
 
 function stopRace() {
+  if (!raceActive) return;
   raceActive = false;
   if (raceRafId) { cancelAnimationFrame(raceRafId); raceRafId = null; }
   el('timer').textContent = '00:00:00';
+  beepRaceEnd();
 }
 
 function clearAllLaps() {
   lapNos      = [0, 0, 0, 0];
   lapBest     = [Infinity, Infinity, Infinity, Infinity];
   lapTimesArr = [[], [], [], []];
-  lapLastMs   = [0, 0, 0, 0];
   for (let i = 0; i < NUM_PILOTS; i++) {
     const tb = document.querySelector(`#lapTable${i} tbody`);
     if (tb) tb.innerHTML = '';
@@ -360,17 +382,17 @@ function showCountdown(cb) {
   let cnt = 3;
   (function step() {
     numEl.className = '';
-    void numEl.offsetWidth; // force reflow for animation restart
+    void numEl.offsetWidth;
     if (cnt > 0) {
       numEl.textContent = cnt;
       numEl.classList.add('cd-anim');
-      beep(880, 0.12);
+      beep(440, 0.15);   // 3, 2, 1 beeps at 440 Hz
       cnt--;
       setTimeout(step, 1000);
     } else {
       numEl.textContent = 'GO!';
       numEl.classList.add('cd-anim', 'cd-go');
-      beep(1320, 0.4);
+      beep(880, 0.4);    // GO at 880 Hz
       setTimeout(() => { overlay.style.display = 'none'; cb(); }, 700);
     }
   })();
@@ -405,14 +427,24 @@ function addLap(i, raceElapsedMs) {
   const pb = el(`pilotBest${i}`);  if (pb) pb.textContent = fmtLap(lapBest[i]);
   const pt = el(`pilotTotal${i}`); if (pt) pt.textContent = lapN;
 
-  beep(1320, 0.25);
-  if (voiceOn) speakJa(`${lapN}周`);
+  // Lap flash animation on race card
+  const card = el(`raceCard${i}`);
+  if (card) {
+    card.classList.remove('lap-flash');
+    void card.offsetWidth;
+    card.classList.add('lap-flash');
+    card.addEventListener('animationend', () => card.classList.remove('lap-flash'), { once: true });
+  }
 
+  // Sound: ascending triad for best lap, single tone otherwise
+  if (isBest) beepBestLap();
+  else beep(880, 0.15);
+
+  if (voiceOn) speakJa(`${lapN}周`);
   if (totalLapGoal > 0 && lapN >= totalLapGoal) stopRace();
 }
 
 // ── Slider Sync ───────────────────────────────────────────────
-// グローバル最小ラップ (seconds, 1:1)
 function syncSN(slId, numId) {
   const e = el(numId); if (e) e.value = el(slId).value;
 }
@@ -421,7 +453,6 @@ function syncNS(numId, slId, minV, maxV) {
   if (e) e.value = clamp(parseFloat(el(numId).value) || minV, minV, maxV);
 }
 
-// RSSIスライダー (display 0-150 ↔ dBm)
 function onRssiSlider(i, type) {
   const prefix = type === 'enter' ? 'enter' : 'exit';
   el(`${prefix}RssiN${i}`).value = toDbm(parseInt(el(`${prefix}Rssi${i}`).value));
@@ -462,16 +493,20 @@ async function saveGlobalConfig() {
   }
 }
 
+async function onPhraseInput(i) {
+  const phrase  = (el(`cfgPhrase${i}`) || {}).value?.trim() || '';
+  const dispEl  = el(`cfgUidDisp${i}`);
+  if (!dispEl) return;
+  dispEl.textContent = phrase ? await bindPhraseToUID(phrase) : '未設定';
+}
+
 async function savePilotConfig(i) {
-  const nameEl = el(`cfgName${i}`);
-  const uidEl  = el(`cfgUid${i}`);
-  const name   = nameEl ? nameEl.value.trim() : '';
-  const uid    = uidEl  ? uidEl.value.trim()  : '';
+  const nameEl   = el(`cfgName${i}`);
+  const phraseEl = el(`cfgPhrase${i}`);
+  const name = nameEl ? nameEl.value.trim() : '';
   if (!name) { showToast('名前を入力してください', true); return; }
-  // UID形式チェック (空 or "XX:XX:XX:XX:XX:XX")
-  if (uid && !/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(uid)) {
-    showToast('UID形式: AA:BB:CC:DD:EE:FF', true); return;
-  }
+  const phrase = phraseEl ? phraseEl.value.trim() : '';
+  const uid = phrase ? await bindPhraseToUID(phrase) : '';
   if (await apiFetch('/api/pilots', 'POST', { id: i, name, uid })) {
     showToast(`Pilot ${i + 1} 保存しました`);
     const pn = el(`pname${i}`);     if (pn) pn.textContent = name;
@@ -480,8 +515,12 @@ async function savePilotConfig(i) {
 }
 
 async function clearUid(i) {
-  if (await apiFetch('/api/pilots', 'POST', { id: i, name: el(`cfgName${i}`).value.trim(), uid: '' })) {
-    const ue = el(`cfgUid${i}`); if (ue) ue.value = '';
+  const phraseEl = el(`cfgPhrase${i}`);
+  if (phraseEl) phraseEl.value = '';
+  const dispEl = el(`cfgUidDisp${i}`);
+  if (dispEl) dispEl.textContent = '未設定';
+  const name = el(`cfgName${i}`)?.value?.trim() || '';
+  if (await apiFetch('/api/pilots', 'POST', { id: i, name, uid: '' })) {
     showToast(`Pilot ${i + 1} UID をクリアしました`);
   }
 }
@@ -505,18 +544,19 @@ async function resetAllPilots() {
   }
 }
 
-// ── Voice ─────────────────────────────────────────────────────
+// ── Voice / Sound ─────────────────────────────────────────────
 function getAudioCtx() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   return audioCtx;
 }
 
-function beep(freq = 880, dur = 0.15) {
+function beep(freq = 880, dur = 0.15, type = 'sine') {
   if (!voiceOn) return;
   try {
     const ctx  = getAudioCtx();
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
+    osc.type = type;
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.frequency.value = freq;
@@ -524,6 +564,46 @@ function beep(freq = 880, dur = 0.15) {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
     osc.start();
     osc.stop(ctx.currentTime + dur);
+  } catch (_) {}
+}
+
+// Best lap: ascending triad 880 → 1320 → 1760 Hz
+function beepBestLap() {
+  if (!voiceOn) return;
+  try {
+    const ctx = getAudioCtx();
+    [880, 1320, 1760].forEach((freq, i) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.12;
+      gain.gain.setValueAtTime(0.35, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      osc.start(t);
+      osc.stop(t + 0.1);
+    });
+  } catch (_) {}
+}
+
+// Race end: descending 880 → 440 → 220 Hz
+function beepRaceEnd() {
+  if (!voiceOn) return;
+  try {
+    const ctx = getAudioCtx();
+    [880, 440, 220].forEach((freq, i) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0.35, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    });
   } catch (_) {}
 }
 

@@ -11,25 +11,21 @@
 #define HISTORY_SIZE   500
 #define WS_INTERVAL_MS 100
 
-// ── UART from Reader ──────────────────────────────────────────
-// フレーム: [0xAA][MAC 6][RSSI uint8][XOR校験][0x55] = 10 bytes
-#define UART_RX_PIN  16     // ← Reader GPIO17
+// ── UART to/from Reader ───────────────────────────────────────
+// Reader GPIO17(TX) → Server GPIO16(RX), Server GPIO17(TX) → Reader GPIO16(RX)
+#define UART_RX_PIN  16
+#define UART_TX_PIN  17
 #define UART_BAUD    115200
-#define FRAME_LEN    10
-#define FRAME_START  0xAA
-#define FRAME_END    0x55
 
 struct Pilot {
     uint8_t  mac[6];
-    uint8_t  uid[6];     // ELRSバインドUID (ホワイトリスト用)
-    bool     uidSet;     // uid が設定済みかどうか
+    uint8_t  uid[6];
+    bool     uidSet;
     char     name[32];
     int8_t   rssi;
     uint32_t lastSeen;
     bool     active;
     bool     crossing;
-    int8_t   peakRssi;
-    uint32_t peakTs;
     int8_t   enterAt;
     int8_t   exitAt;
 };
@@ -54,6 +50,10 @@ static Preferences    prefs;
 static uint32_t       g_lastWs = 0;
 static Record         g_csvSnap[HISTORY_SIZE];
 
+// ── UART RX line buffer ───────────────────────────────────────
+static char     g_rxLine[512];
+static uint16_t g_rxLen = 0;
+
 static String macStr(const uint8_t* m) {
     char buf[18];
     snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -61,116 +61,120 @@ static String macStr(const uint8_t* m) {
     return String(buf);
 }
 
-static int findPilot(const uint8_t* mac) {
-    for (int i = 0; i < MAX_PILOTS; i++)
-        if (g_pilots[i].active && memcmp(g_pilots[i].mac, mac, 6) == 0) return i;
-    return -1;
-}
-
 static bool parseMAC(const char* str, uint8_t* out) {
     return sscanf(str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
                   &out[0], &out[1], &out[2], &out[3], &out[4], &out[5]) == 6;
 }
 
-// ── UARTフレーム処理 (onPromiscuousの代替) ────────────────────
-static void processFrame(const uint8_t* frame) {
-    const uint8_t* mac  = frame + 1;
-    const int8_t   rssi = static_cast<int8_t>(frame[7]);
-    const uint32_t now  = millis();
-
-    portENTER_CRITICAL(&g_mux);
-    int idx = findPilot(mac);
-
-    if (idx < 0) {
-        // UID ホワイトリスト照合
-        bool anyUid = false;
-        for (int i = 0; i < MAX_PILOTS; i++)
-            if (g_pilots[i].uidSet) { anyUid = true; break; }
-
-        if (anyUid) {
-            // UID設定あり → 一致するスロットにのみ割り当て
-            for (int i = 0; i < MAX_PILOTS; i++) {
-                if (g_pilots[i].uidSet && memcmp(g_pilots[i].uid, mac, 6) == 0) {
-                    memcpy(g_pilots[i].mac, mac, 6);
-                    g_pilots[i].active = true;
-                    if (i >= g_nPilots) g_nPilots = i + 1;
-                    idx = i;
-                    Serial.printf("[UID] P%d matched %02X:%02X:%02X:%02X:%02X:%02X\n",
-                                  i, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-                    break;
-                }
-            }
-            // 未登録MACは無視
-        } else {
-            // UID未設定 → 先着順で自動割り当て
-            if (g_nPilots < MAX_PILOTS) {
-                idx = g_nPilots++;
-                memcpy(g_pilots[idx].mac, mac, 6);
-                snprintf(g_pilots[idx].name, sizeof(g_pilots[idx].name), "Pilot %d", idx + 1);
-                g_pilots[idx].active   = true;
-                g_pilots[idx].crossing = false;
-                g_pilots[idx].peakRssi = -127;
-                g_pilots[idx].enterAt  = -80;
-                g_pilots[idx].exitAt   = -90;
-            }
-        }
-    }
-    if (idx >= 0) {
-        g_pilots[idx].rssi     = rssi;
-        g_pilots[idx].lastSeen = now;
-
-        // RotorHazard 状態機械
-        if (!g_pilots[idx].crossing) {
-            if (rssi > g_pilots[idx].enterAt) {
-                g_pilots[idx].crossing = true;
-                g_pilots[idx].peakRssi = rssi;
-                g_pilots[idx].peakTs   = now;
-            }
-        } else {
-            if (rssi > g_pilots[idx].peakRssi) {
-                g_pilots[idx].peakRssi = rssi;
-                g_pilots[idx].peakTs   = now;
-            }
-            if (rssi < g_pilots[idx].exitAt) {
-                g_pilots[idx].crossing = false;
-            }
-        }
-
-        g_hist[g_histHead] = {now, static_cast<uint8_t>(idx), rssi};
-        g_histHead         = (g_histHead + 1) % HISTORY_SIZE;
-        if (g_histCnt < HISTORY_SIZE) g_histCnt++;
-    }
-    portEXIT_CRITICAL(&g_mux);
+// ── Push commands to Reader via UART ─────────────────────────
+static void pushToReader(JsonDocument& doc) {
+    String out;
+    serializeJson(doc, out);
+    Serial2.println(out);
 }
 
-// ── UARTパーサー ──────────────────────────────────────────────
-static uint8_t g_rxBuf[FRAME_LEN];
-static uint8_t g_rxPos   = 0;
-static bool    g_inFrame = false;
+static void pushUidToReader(int pilot) {
+    JsonDocument doc;
+    doc["cmd"]   = "setuid";
+    doc["pilot"] = pilot;
+    doc["uid"]   = g_pilots[pilot].uidSet ? macStr(g_pilots[pilot].uid) : String("");
+    pushToReader(doc);
+}
+
+static void pushThreshToReader(int pilot) {
+    JsonDocument doc;
+    doc["cmd"]     = "setthresh";
+    doc["pilot"]   = pilot;
+    doc["enterAt"] = g_pilots[pilot].enterAt;
+    doc["exitAt"]  = g_pilots[pilot].exitAt;
+    pushToReader(doc);
+}
+
+static void pushAllToReader() {
+    for (int i = 0; i < MAX_PILOTS; i++) {
+        pushUidToReader(i);
+        pushThreshToReader(i);
+    }
+    Serial.println("[Server] pushed config to reader");
+}
+
+// ── JSON line processing (from Reader) ────────────────────────
+static void processLine(const char* line) {
+    JsonDocument doc;
+    if (deserializeJson(doc, line)) return;
+    const char* type  = doc["type"] | "";
+    int         pilot = doc["pilot"] | -1;
+
+    if (strcmp(type, "ready") == 0) {
+        // Reader just booted — push all stored config
+        pushAllToReader();
+        Serial.println("[Reader] ready, config pushed");
+        return;
+    }
+
+    if (pilot < 0 || pilot >= MAX_PILOTS) return;
+
+    if (strcmp(type, "rssi") == 0) {
+        const int8_t rssi     = (int8_t)(doc["rssi"] | -100);
+        const bool   crossing = doc["crossing"] | false;
+        portENTER_CRITICAL(&g_mux);
+        g_pilots[pilot].rssi     = rssi;
+        g_pilots[pilot].crossing = crossing;
+        g_pilots[pilot].lastSeen = millis();
+        g_pilots[pilot].active   = true;
+        g_hist[g_histHead] = {millis(), (uint8_t)pilot, rssi};
+        g_histHead         = (g_histHead + 1) % HISTORY_SIZE;
+        if (g_histCnt < HISTORY_SIZE) g_histCnt++;
+        portEXIT_CRITICAL(&g_mux);
+
+    } else if (strcmp(type, "lap") == 0) {
+        const int8_t  rssi = (int8_t)(doc["rssi"] | -100);
+        const uint32_t ts  = (uint32_t)(doc["ts"]  | 0u);
+        portENTER_CRITICAL(&g_mux);
+        g_pilots[pilot].crossing = false;
+        portEXIT_CRITICAL(&g_mux);
+
+        // Immediate WS broadcast for lap (before next periodic update)
+        JsonDocument lapDoc;
+        lapDoc["type"]  = "lap";
+        lapDoc["pilot"] = pilot;
+        lapDoc["uid"]   = g_pilots[pilot].uidSet
+                            ? macStr(g_pilots[pilot].uid)
+                            : macStr(g_pilots[pilot].mac);
+        lapDoc["rssi"]  = rssi;
+        lapDoc["ts"]    = ts;
+        String lapJson;
+        serializeJson(lapDoc, lapJson);
+        ws.textAll(lapJson);
+        Serial.printf("[LAP] P%d rssi=%d ts=%lu\n", pilot, rssi, (unsigned long)ts);
+
+    } else if (strcmp(type, "new") == 0) {
+        const char* uid = doc["uid"] | "";
+        portENTER_CRITICAL(&g_mux);
+        if (!g_pilots[pilot].active) {
+            uint8_t mac[6];
+            if (parseMAC(uid, mac)) {
+                memcpy(g_pilots[pilot].mac, mac, 6);
+                g_pilots[pilot].active = true;
+                if (pilot >= (int)g_nPilots) g_nPilots = pilot + 1;
+            }
+        }
+        portEXIT_CRITICAL(&g_mux);
+        Serial.printf("[New] P%d=%s\n", pilot, uid);
+    }
+}
 
 static void pollUart() {
     while (Serial2.available()) {
-        const uint8_t b = static_cast<uint8_t>(Serial2.read());
-        if (!g_inFrame) {
-            if (b == FRAME_START) {
-                g_rxBuf[0] = b;
-                g_rxPos    = 1;
-                g_inFrame  = true;
+        char c = (char)Serial2.read();
+        if (c == '\n' || c == '\r') {
+            if (g_rxLen > 0) {
+                g_rxLine[g_rxLen] = '\0';
+                processLine(g_rxLine);
+                g_rxLen = 0;
             }
-        } else {
-            g_rxBuf[g_rxPos++] = b;
-            if (g_rxPos == FRAME_LEN) {
-                g_inFrame = false;
-                g_rxPos   = 0;
-                if (g_rxBuf[FRAME_LEN - 1] == FRAME_END) {
-                    uint8_t cs = 0;
-                    for (int i = 1; i <= 7; i++) cs ^= g_rxBuf[i];
-                    if (cs == g_rxBuf[8])
-                        processFrame(g_rxBuf);
-                    else
-                        Serial.println("[WARN] UART checksum error");
-                }
-            }
+        } else if (g_rxLen < sizeof(g_rxLine) - 1) {
+            g_rxLine[g_rxLen++] = c;
         }
     }
 }
@@ -180,7 +184,7 @@ struct PilotSnap { Pilot data[MAX_PILOTS]; uint8_t n; };
 static PilotSnap snapPilots() {
     PilotSnap s{};
     portENTER_CRITICAL(&g_mux);
-    s.n = MAX_PILOTS;   // 常に4スロット全て送出
+    s.n = MAX_PILOTS;
     memcpy(s.data, g_pilots, sizeof(Pilot) * MAX_PILOTS);
     portEXIT_CRITICAL(&g_mux);
     return s;
@@ -195,7 +199,7 @@ static String buildJson(const PilotSnap& s) {
         o["id"]       = i;
         o["name"]     = s.data[i].name;
         o["mac"]      = s.data[i].active ? macStr(s.data[i].mac) : "";
-        o["uid"]      = s.data[i].uidSet  ? macStr(s.data[i].uid)  : "";
+        o["uid"]      = s.data[i].uidSet  ? macStr(s.data[i].uid) : "";
         o["rssi"]     = s.data[i].rssi;
         o["ts"]       = s.data[i].lastSeen;
         o["crossing"] = s.data[i].crossing;
@@ -211,7 +215,6 @@ static String buildJson(const PilotSnap& s) {
 static void loadPilotPrefs() {
     prefs.begin("pilots", true);
 
-    // 全スロット初期化
     for (int i = 0; i < MAX_PILOTS; i++) {
         memset(g_pilots[i].mac, 0, 6);
         memset(g_pilots[i].uid, 0, 6);
@@ -220,21 +223,22 @@ static void loadPilotPrefs() {
         g_pilots[i].rssi     = -100;
         g_pilots[i].active   = false;
         g_pilots[i].crossing = false;
-        g_pilots[i].peakRssi = -127;
         g_pilots[i].enterAt  = -80;
         g_pilots[i].exitAt   = -90;
     }
 
-    // UID設定を全スロットから読み込む (MAC到着前から設定可能)
     for (int i = 0; i < MAX_PILOTS; i++) {
         char k[12];
         snprintf(k, sizeof(k), "uid%d", i);
         prefs.getBytes(k, g_pilots[i].uid, 6);
         snprintf(k, sizeof(k), "us%d", i);
-        g_pilots[i].uidSet = prefs.getBool(k, false);
+        g_pilots[i].uidSet  = prefs.getBool(k, false);
+        snprintf(k, sizeof(k), "en%d", i);
+        g_pilots[i].enterAt = (int8_t)prefs.getChar(k, -80);
+        snprintf(k, sizeof(k), "ex%d", i);
+        g_pilots[i].exitAt  = (int8_t)prefs.getChar(k, -90);
     }
 
-    // 過去に検出済みのパイロットデータを読み込む
     uint8_t n = min((unsigned)prefs.getUChar("n", 0), (unsigned)MAX_PILOTS);
     for (int i = 0; i < n; i++) {
         char k[12];
@@ -242,11 +246,7 @@ static void loadPilotPrefs() {
         prefs.getBytes(k, g_pilots[i].mac, 6);
         snprintf(k, sizeof(k), "name%d", i);
         prefs.getString(k, g_pilots[i].name, sizeof(g_pilots[i].name));
-        snprintf(k, sizeof(k), "en%d", i);
-        g_pilots[i].enterAt  = (int8_t)prefs.getChar(k, -80);
-        snprintf(k, sizeof(k), "ex%d", i);
-        g_pilots[i].exitAt   = (int8_t)prefs.getChar(k, -90);
-        g_pilots[i].active   = true;
+        g_pilots[i].active = true;
     }
     g_nPilots = n;
 
@@ -257,7 +257,6 @@ static void loadPilotPrefs() {
 static void savePilotPrefs(const PilotSnap& s) {
     prefs.begin("pilots", false);
 
-    // アクティブパイロット数を記録
     uint8_t n = 0;
     for (int i = 0; i < MAX_PILOTS; i++)
         if (s.data[i].active) n = i + 1;
@@ -265,21 +264,19 @@ static void savePilotPrefs(const PilotSnap& s) {
 
     for (int i = 0; i < MAX_PILOTS; i++) {
         char k[12];
-        // UID設定は全スロット常に保存
         snprintf(k, sizeof(k), "uid%d", i);
         prefs.putBytes(k, s.data[i].uid, 6);
         snprintf(k, sizeof(k), "us%d", i);
         prefs.putBool(k, s.data[i].uidSet);
-
+        snprintf(k, sizeof(k), "en%d", i);
+        prefs.putChar(k, s.data[i].enterAt);
+        snprintf(k, sizeof(k), "ex%d", i);
+        prefs.putChar(k, s.data[i].exitAt);
         if (s.data[i].active) {
             snprintf(k, sizeof(k), "mac%d", i);
             prefs.putBytes(k, s.data[i].mac, 6);
             snprintf(k, sizeof(k), "name%d", i);
             prefs.putString(k, s.data[i].name);
-            snprintf(k, sizeof(k), "en%d", i);
-            prefs.putChar(k, s.data[i].enterAt);
-            snprintf(k, sizeof(k), "ex%d", i);
-            prefs.putChar(k, s.data[i].exitAt);
         }
     }
     prefs.end();
@@ -302,8 +299,8 @@ void setup() {
     Serial.begin(115200);
     Serial.println("\n=== ELRS Server ===");
 
-    Serial2.begin(UART_BAUD, SERIAL_8N1, UART_RX_PIN, -1);  // RX only
-    Serial.printf("UART RX on GPIO%d @ %d baud\n", UART_RX_PIN, UART_BAUD);
+    Serial2.begin(UART_BAUD, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
+    Serial.printf("UART RX=%d TX=%d @ %d baud\n", UART_RX_PIN, UART_TX_PIN, UART_BAUD);
 
     if (!LittleFS.begin(true))
         Serial.println("[WARN] LittleFS mount failed");
@@ -348,10 +345,8 @@ void setup() {
             const char* name   = doc["name"] | "";
             const char* uidStr = doc["uid"]  | "";
             portENTER_CRITICAL(&g_mux);
-            // 名前更新
             if (strlen(name) > 0)
                 strncpy(g_pilots[id].name, name, sizeof(g_pilots[id].name) - 1);
-            // UID更新: "AA:BB:CC:DD:EE:FF" 形式 or "" でクリア
             if (strlen(uidStr) == 17) {
                 uint8_t uid[6];
                 if (parseMAC(uidStr, uid)) {
@@ -365,6 +360,7 @@ void setup() {
                 Serial.printf("[UID] P%d cleared\n", id);
             }
             portEXIT_CRITICAL(&g_mux);
+            pushUidToReader(id);
             savePilotPrefs(snapPilots());
             req->send(200, "application/json", R"({"ok":true})");
         });
@@ -393,11 +389,10 @@ void setup() {
                 return;
             }
             portENTER_CRITICAL(&g_mux);
-            if (id < g_nPilots) {
-                g_pilots[id].enterAt = en;
-                g_pilots[id].exitAt  = ex;
-            }
+            g_pilots[id].enterAt = en;
+            g_pilots[id].exitAt  = ex;
             portEXIT_CRITICAL(&g_mux);
+            pushThreshToReader(id);
             savePilotPrefs(snapPilots());
             Serial.printf("[Thresh] P%d EnterAt=%d ExitAt=%d\n", id, en, ex);
             req->send(200, "application/json", R"({"ok":true})");
@@ -457,10 +452,21 @@ void setup() {
         g_histHead = 0;
         g_histCnt  = 0;
         memset(g_pilots, 0, sizeof(g_pilots));
+        for (int i = 0; i < MAX_PILOTS; i++) {
+            snprintf(g_pilots[i].name, sizeof(g_pilots[i].name), "Pilot %d", i + 1);
+            g_pilots[i].rssi    = -100;
+            g_pilots[i].enterAt = -80;
+            g_pilots[i].exitAt  = -90;
+        }
         portEXIT_CRITICAL(&g_mux);
         prefs.begin("pilots", false);
         prefs.clear();
         prefs.end();
+        JsonDocument doc;
+        doc["cmd"] = "reset";
+        String out;
+        serializeJson(doc, out);
+        Serial2.println(out);
         req->send(200, "application/json", R"({"ok":true})");
     });
 

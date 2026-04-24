@@ -68,6 +68,26 @@
 }
 #toast.show { opacity: 1; }
 
+/* ── Lap Flash Animation ─────────────────────────────────── */
+@keyframes lapFlash {
+  0%   { box-shadow: 0 0 0 4px var(--ok), inset 0 0 16px rgba(63,185,80,.25); }
+  100% { box-shadow: 0 0 0 0   transparent; }
+}
+.lap-flash { animation: lapFlash 0.7s ease-out forwards; }
+
+/* ── Crossing Pulse ──────────────────────────────────────── */
+@keyframes crossPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+.crossing-active {
+  outline: 2px solid var(--warn);
+  outline-offset: -2px;
+}
+.crossing-active .rssi-mini-fill {
+  animation: crossPulse 0.5s ease-in-out infinite;
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 900px) {
   .pilot-race-grid { grid-template-columns: repeat(2, 1fr); }
