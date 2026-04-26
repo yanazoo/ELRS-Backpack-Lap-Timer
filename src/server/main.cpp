@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <DNSServer.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
@@ -44,6 +45,7 @@ static uint16_t     g_histCnt   = 0;
 static uint16_t     g_minLapMs  = 3000;
 static portMUX_TYPE g_mux       = portMUX_INITIALIZER_UNLOCKED;
 
+static DNSServer      dns;
 static AsyncWebServer server(80);
 static AsyncWebSocket ws("/ws");
 static Preferences    prefs;
@@ -310,8 +312,11 @@ void setup() {
 
     WiFi.mode(WIFI_AP);
     WiFi.softAP(AP_SSID, "", AP_CHANNEL);
-    Serial.printf("AP: %s  CH: %d  IP: %s\n",
-                  AP_SSID, AP_CHANNEL, WiFi.softAPIP().toString().c_str());
+    const IPAddress apIP = WiFi.softAPIP();
+    Serial.printf("AP: %s  CH: %d  IP: %s\n", AP_SSID, AP_CHANNEL, apIP.toString().c_str());
+
+    // キャプティブポータル: 全ドメインをAP IPへ向ける
+    dns.start(53, "*", apIP);
 
     ws.onEvent([](AsyncWebSocket*, AsyncWebSocketClient* c,
                   AwsEventType t, void*, uint8_t*, size_t) {
@@ -323,6 +328,31 @@ void setup() {
     server.addHandler(&ws);
 
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
+
+    // ── Captive portal ────────────────────────────────────────
+    // iOS: /hotspot-detect.html → redirect
+    server.on("/hotspot-detect.html", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->redirect("http://192.168.4.1/");
+    });
+    // iOS (older): /library/test/success.html
+    server.on("/library/test/success.html", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->redirect("http://192.168.4.1/");
+    });
+    // Android: /generate_204
+    server.on("/generate_204", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->redirect("http://192.168.4.1/");
+    });
+    server.on("/gen_204", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->redirect("http://192.168.4.1/");
+    });
+    // Windows: /ncsi.txt
+    server.on("/ncsi.txt", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->redirect("http://192.168.4.1/");
+    });
+    // 未マッチは全てトップへリダイレクト
+    server.onNotFound([](AsyncWebServerRequest* req) {
+        req->redirect("http://192.168.4.1/");
+    });
 
     server.on("/api/pilots", HTTP_GET, [](AsyncWebServerRequest* req) {
         req->send(200, "application/json", buildJson(snapPilots()));
@@ -475,6 +505,7 @@ void setup() {
 }
 
 void loop() {
+    dns.processNextRequest();
     pollUart();
     ws.cleanupClients();
     const uint32_t now = millis();
