@@ -1,0 +1,90 @@
+/* ── Global Config Card ──────────────────────────────────── */
+.global-config-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.global-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+
+.config-items { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+
+/* ── Config Row (shared with calib sliders) ──────────────── */
+.config-row { display: flex; align-items: center; gap: 8px; }
+
+.config-row label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  min-width: 170px;
+}
+
+.slider-num { display: flex; align-items: center; gap: 6px; flex: 1; }
+.slider-num input[type=range] { flex: 1; accent-color: var(--accent); }
+.slider-num input[type=number],
+.slider-num input[type=text] {
+  width: 58px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 7px;
+  border-radius: 5px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.unit { font-size: 12px; color: var(--muted); }
+
+.voice-row { display: flex; gap: 8px; margin-bottom: 10px; }
+
+/* ── Pilot Config Cards ──────────────────────────────────── */
+.config-pilots-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.config-pilot-card { background: var(--surface); border-radius: 8px; overflow: hidden; }
+
+.p0-border { border-top: 3px solid var(--p0); }
+.p1-border { border-top: 3px solid var(--p1); }
+.p2-border { border-top: 3px solid var(--p2); }
+.p3-border { border-top: 3px solid var(--p3); }
+
+.config-pilot-header { padding: 8px 12px; font-size: 13px; font-weight: 700; }
+.config-pilot-header.p0 { color: var(--p0); }
+.config-pilot-header.p1 { color: var(--p1); }
+.config-pilot-header.p2 { color: var(--p2); }
+.config-pilot-header.p3 { color: var(--p3); }
+
+.config-pilot-body { padding: 10px 12px; }
+.config-pilot-body .config-row { margin-bottom: 8px; }
+.config-pilot-body .config-row label { min-width: 80px; }
+
+.config-pilot-body input[type=text] {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 13px;
+  flex: 1;
+}
+.config-pilot-body input[type=text]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.mac-display { font-size: 11px; color: var(--muted); flex: 1; font-family: monospace; }
+
+/* ── Danger Zone ─────────────────────────────────────────── */
+.danger-zone {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-top: 10px;
+}

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>ELRS-Logger</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/race.css">
+<link rel="stylesheet" href="css/config.css">
+<link rel="stylesheet" href="css/calib.css">
+<link rel="stylesheet" href="css/components.css">
+<script src="smoothie.js"></script>
+</head>
+<body>
+
+<div id="toast"></div>
+<div id="countdownOverlay"><div id="countdownNum">3</div></div>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <h1>ELRS-Logger</h1>
+      <span id="sseStatus" class="sse-dot disconnected"></span>
+    </div>
+    <nav class="tab-bar">
+      <button class="tab-btn" data-tab="race"   onclick="switchTab('race')">🏁 レース</button>
+      <button class="tab-btn" data-tab="config" onclick="switchTab('config')">⚙️ 設定</button>
+      <button class="tab-btn active" data-tab="calib" onclick="switchTab('calib')">📡 キャリブ</button>
+    </nav>
+  </div>
+</header>
+
+<!-- ═══ RACE ═══════════════════════════════════════════ -->
+<section id="race" class="tab-pane">
+  <div class="race-controls">
+    <div id="timer">00:00:00</div>
+    <div class="race-buttons">
+      <button class="btn-success" id="startRaceButton" onclick="startRace()">▶ スタート</button>
+      <button class="btn-danger"  id="stopRaceButton"  onclick="stopRace()">■ ストップ</button>
+      <button class="btn-secondary" onclick="clearAllLaps()">クリア</button>
+    </div>
+    <div class="race-meta">
+      <span>総周回数:</span>
+      <input id="totalLaps" type="number" value="0" min="0">
+      <span>(0=無制限)</span>
+      <span>| 🔋 <span id="bvoltRace">--.-</span>v</span>
+    </div>
+  </div>
+
+  <div class="pilot-race-grid" id="raceGrid">
+    <!-- 4 pilot cards injected by JS -->
+  </div>
+  <footer class="page-footer">ELRS Backpack Lap Timer</footer>
+</section>
+
+<!-- ═══ CONFIG ══════════════════════════════════════════ -->
+<section id="config" class="tab-pane">
+  <div class="global-config-card">
+    <div class="global-title">グローバル設定</div>
+    <div class="config-items">
+      <div class="config-row">
+        <label>最小ラップ時間（全パイロット共通）</label>
+        <div class="slider-num">
+          <input type="range"  id="globalMinLap"  min="0.5" max="30" step="0.5" value="3"
+                 oninput="syncSN('globalMinLap','globalMinLapN',1)">
+          <input type="number" id="globalMinLapN" min="0.5" max="30" step="0.5" value="3"
+                 oninput="syncNS('globalMinLapN','globalMinLap',1,30)">
+          <span class="unit">s</span>
+        </div>
+      </div>
+      <div class="config-row">
+        <label>バッテリー電圧</label>
+        <span style="color:var(--ok);font-weight:700">🔋 <span id="bvolt">--.-</span>v</span>
+      </div>
+    </div>
+    <div class="voice-row">
+      <button id="voiceToggleBtn" class="btn-voice on" onclick="toggleVoice()">🔊 音声 ON</button>
+      <button class="btn-secondary" onclick="testVoice()">🔊 テスト</button>
+    </div>
+    <button class="btn-save" onclick="saveGlobalConfig()">💾 グローバル設定を保存</button>
+  </div>
+
+  <div class="config-pilots-grid" id="configGrid">
+    <!-- 4 pilot config cards injected by JS -->
+  </div>
+
+  <div class="danger-zone">
+    <button class="btn-danger" style="width:100%" onclick="resetAllPilots()">✕ 全パイロットをリセット</button>
+  </div>
+</section>
+
+<!-- ═══ CALIB ════════════════════════════════════════════ -->
+<section id="calib" class="tab-pane active">
+  <p class="calib-desc">
+    RSSIリアルタイム波形と検知閾値の設定。機体を近づけてピーク値を確認し、
+    Enter閾値（入）とExit閾値（出）を調整してください。
+  </p>
+  <div class="calib-grid" id="calibGrid">
+    <!-- 4 calib cards injected by JS -->
+  </div>
+  <div class="calib-footer">
+    <a href="/api/csv" download="rssi_log.csv" class="btn-secondary">⬇ CSV ダウンロード</a>
+  </div>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>
