@@ -6,8 +6,8 @@
 
 // ── Config ────────────────────────────────────────────────────
 #define LISTEN_CHANNEL  1
-#define UART_RX_PIN     16      // ← Server GPIO17
-#define UART_TX_PIN     17      // → Server GPIO16
+#define UART_RX_PIN     25      // ← Server D6/GPIO43
+#define UART_TX_PIN     26      // → Server D7/GPIO44
 #define UART_BAUD       115200
 #define MAX_PILOTS      4
 #define RSSI_PERIOD_MS  100

@@ -13,9 +13,10 @@
 #define WS_INTERVAL_MS 100
 
 // ── UART to/from Reader ───────────────────────────────────────
-// Reader GPIO17(TX) → Server GPIO16(RX), Server GPIO17(TX) → Reader GPIO16(RX)
-#define UART_RX_PIN  16
-#define UART_TX_PIN  17
+// Reader GPIO26(TX) → Server D7/GPIO44(RX)
+// Server D6/GPIO43(TX) → Reader GPIO25(RX)
+#define UART_RX_PIN  44      // D7 on XIAO ESP32-S3
+#define UART_TX_PIN  43      // D6 on XIAO ESP32-S3
 #define UART_BAUD    115200
 
 struct Pilot {
