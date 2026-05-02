@@ -1,25 +1,30 @@
 /* ── Calibration Tab ─────────────────────────────────────── */
 .calib-desc {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
-  margin-bottom: 12px;
-  line-height: 1.6;
+  margin-bottom: 14px;
+  line-height: 1.65;
 }
 
 .calib-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  gap: 10px;
 }
 
-.calib-card { background: var(--surface); border-radius: 8px; overflow: hidden; }
+.calib-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
 
 .calib-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 11px;
-  font-size: 13px;
+  padding: 9px 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 .calib-header.p0 { background: var(--p0-bg); color: var(--p0); }
@@ -27,30 +32,40 @@
 .calib-header.p2 { background: var(--p2-bg); color: var(--p2); }
 .calib-header.p3 { background: var(--p3-bg); color: var(--p3); }
 
-.rssi-live-badge { font-size: 12px; font-weight: 400; }
+.rssi-live-badge { font-size: 13px; font-weight: 400; }
 
-.calib-card canvas { display: block; width: 100%; height: 130px; }
+.calib-card canvas { display: block; width: 100%; height: 140px; }
 
 /* ── Calib Sliders ───────────────────────────────────────── */
 .calib-sliders {
-  padding: 10px 11px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .calib-sliders .config-row label { min-width: 100px; font-size: 11px; }
 .calib-sliders input[type=range]  { flex: 1; accent-color: inherit; }
 
 .calib-sliders input[type=number] {
-  width: 52px;
+  width: 58px;
+  min-height: 40px;
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 4px 6px;
-  border-radius: 5px;
+  padding: 5px 7px;
+  border-radius: 6px;
   font-size: 13px;
   text-align: center;
 }
 
-.calib-footer { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.calib-footer { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+
+/* ── Responsive: calib ───────────────────────────────────── */
+@media (max-width: 900px) {
+  .calib-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px) {
+  .calib-card canvas { height: 110px; }
+  .calib-sliders .config-row label { min-width: 60px; font-size: 10px; }
+}

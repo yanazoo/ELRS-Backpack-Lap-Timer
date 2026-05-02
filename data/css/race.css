@@ -2,25 +2,26 @@
 .race-controls {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 20px 16px;
   margin-bottom: 14px;
   text-align: center;
 }
 
 #timer {
-  font-size: 44px;
+  font-size: 52px;
   font-family: monospace;
   color: var(--accent);
-  letter-spacing: 3px;
-  margin-bottom: 16px;
+  letter-spacing: 4px;
+  margin-bottom: 18px;
+  line-height: 1;
 }
 
 .race-buttons {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 14px;
   flex-wrap: wrap;
 }
 
@@ -29,18 +30,19 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   flex-wrap: wrap;
 }
 .race-meta input {
-  width: 52px;
+  width: 60px;
+  min-height: 44px;
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 4px 7px;
-  border-radius: 5px;
-  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 15px;
   text-align: center;
 }
 
@@ -48,21 +50,22 @@
 .pilot-race-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  gap: 10px;
 }
 
 .pilot-race-card {
   background: var(--surface);
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
+  border: 1px solid var(--border);
 }
 
 .pilot-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 11px;
-  font-size: 13px;
+  padding: 9px 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 .pilot-card-header.p0 { background: var(--p0-bg); color: var(--p0); }
@@ -71,22 +74,22 @@
 .pilot-card-header.p3 { background: var(--p3-bg); color: var(--p3); }
 
 .pilot-freq-badge { font-size: 11px; color: var(--muted); font-weight: 400; }
-.pilot-lapcount   { font-size: 11px; }
+.pilot-lapcount   { font-size: 12px; }
 
 /* ── RSSI Bar ────────────────────────────────────────────── */
 .rssi-mini-bar {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 11px;
+  padding: 6px 12px;
   background: var(--surface2);
 }
 
-.rssi-mini-label { font-size: 11px; color: var(--muted); min-width: 30px; }
+.rssi-mini-label { font-size: 11px; color: var(--muted); min-width: 32px; }
 
 .rssi-mini-track {
   flex: 1;
-  height: 5px;
+  height: 6px;
   background: var(--border);
   border-radius: 3px;
   overflow: hidden;
@@ -103,37 +106,37 @@
 .p2-fill { background: var(--p2); }
 .p3-fill { background: var(--p3); }
 
-.rssi-mini-val { font-size: 12px; min-width: 24px; text-align: right; }
+.rssi-mini-val { font-size: 12px; min-width: 28px; text-align: right; }
 
 /* ── Pilot Total Row ─────────────────────────────────────── */
 .pilot-total-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 11px;
+  padding: 5px 12px;
   font-size: 12px;
   color: var(--muted);
 }
 .pilot-total { color: var(--warn); font-weight: 700; }
 
 /* ── Lap Table ───────────────────────────────────────────── */
-.lap-table-wrap { max-height: 160px; overflow-y: auto; }
+.lap-table-wrap { max-height: 180px; overflow-y: auto; }
 
-.lapTable { width: 100%; border-collapse: collapse; font-size: 11px; }
+.lapTable { width: 100%; border-collapse: collapse; font-size: 12px; }
 
 .lapTable thead th {
   background: var(--surface2);
   color: var(--muted);
-  padding: 3px 5px;
+  padding: 4px 6px;
   text-align: center;
-  font-weight: 400;
-  font-size: 10px;
+  font-weight: 500;
+  font-size: 11px;
   position: sticky;
   top: 0;
 }
 
 .lapTable tbody td {
-  padding: 3px 5px;
+  padding: 4px 6px;
   text-align: center;
   border-bottom: 1px solid var(--border);
 }

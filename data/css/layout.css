@@ -1,6 +1,6 @@
 /* ── Header ──────────────────────────────────────────────── */
 header {
-  background: #0d1117;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -14,18 +14,20 @@ header {
   padding: 10px 16px;
   max-width: 1200px;
   margin: 0 auto;
+  gap: 8px;
 }
 
-.logo { display: flex; align-items: center; gap: 8px; }
+.logo { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .logo h1 { font-size: 16px; color: var(--accent); font-weight: 700; letter-spacing: .5px; }
 
 .sse-dot {
-  width: 9px; height: 9px;
+  width: 10px; height: 10px;
   border-radius: 50%;
   display: inline-block;
   transition: background .3s;
+  flex-shrink: 0;
 }
-.sse-dot.connected    { background: var(--ok);   box-shadow: 0 0 5px var(--ok); }
+.sse-dot.connected    { background: var(--ok);   box-shadow: 0 0 6px var(--ok); }
 .sse-dot.disconnected { background: var(--muted); }
 
 /* ── Tab Bar ─────────────────────────────────────────────── */
@@ -35,11 +37,14 @@ header {
   background: transparent;
   border: none;
   color: var(--muted);
-  padding: 6px 13px;
-  border-radius: 6px;
-  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
   cursor: pointer;
   transition: background .15s, color .15s;
+  min-height: 44px;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
 }
 .tab-btn:hover  { background: var(--surface2); color: var(--text); }
 .tab-btn.active { background: var(--accent-d); color: #fff; }
@@ -56,4 +61,27 @@ header {
   font-size: 12px;
   border-top: 1px solid var(--border);
   margin-top: 16px;
+}
+
+/* ── Mobile Header ───────────────────────────────────────── */
+@media (max-width: 600px) {
+  .header-inner {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .logo { justify-content: space-between; }
+  .tab-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+  .tab-btn {
+    text-align: center;
+    padding: 10px 4px;
+    font-size: 13px;
+    min-height: 44px;
+  }
+  .tab-pane { padding: 10px 10px; }
 }

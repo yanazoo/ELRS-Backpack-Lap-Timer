@@ -2,43 +2,44 @@
 .global-config-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 14px;
-  margin-bottom: 12px;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 14px;
 }
 
-.global-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+.global-title { font-size: 14px; font-weight: 600; margin-bottom: 14px; color: var(--text); }
 
-.config-items { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.config-items { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
 
 /* ── Config Row (shared with calib sliders) ──────────────── */
-.config-row { display: flex; align-items: center; gap: 8px; }
+.config-row { display: flex; align-items: center; gap: 10px; }
 
 .config-row label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: .4px;
   min-width: 170px;
 }
 
-.slider-num { display: flex; align-items: center; gap: 6px; flex: 1; }
-.slider-num input[type=range] { flex: 1; accent-color: var(--accent); }
+.slider-num { display: flex; align-items: center; gap: 8px; flex: 1; }
+.slider-num input[type=range] { flex: 1; accent-color: var(--accent); height: 4px; }
 .slider-num input[type=number],
 .slider-num input[type=text] {
-  width: 58px;
+  width: 64px;
+  min-height: 40px;
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 4px 7px;
-  border-radius: 5px;
-  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 14px;
   text-align: center;
 }
 
 .unit { font-size: 12px; color: var(--muted); }
 
-.voice-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.voice-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 
 /* ── Pilot Config Cards ──────────────────────────────────── */
 .config-pilots-grid {
@@ -47,31 +48,37 @@
   gap: 10px;
 }
 
-.config-pilot-card { background: var(--surface); border-radius: 8px; overflow: hidden; }
+.config-pilot-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
 
 .p0-border { border-top: 3px solid var(--p0); }
 .p1-border { border-top: 3px solid var(--p1); }
 .p2-border { border-top: 3px solid var(--p2); }
 .p3-border { border-top: 3px solid var(--p3); }
 
-.config-pilot-header { padding: 8px 12px; font-size: 13px; font-weight: 700; }
+.config-pilot-header { padding: 10px 14px; font-size: 14px; font-weight: 700; }
 .config-pilot-header.p0 { color: var(--p0); }
 .config-pilot-header.p1 { color: var(--p1); }
 .config-pilot-header.p2 { color: var(--p2); }
 .config-pilot-header.p3 { color: var(--p3); }
 
-.config-pilot-body { padding: 10px 12px; }
-.config-pilot-body .config-row { margin-bottom: 8px; }
+.config-pilot-body { padding: 12px 14px; }
+.config-pilot-body .config-row { margin-bottom: 10px; }
 .config-pilot-body .config-row label { min-width: 80px; }
 
 .config-pilot-body input[type=text] {
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 5px 8px;
-  border-radius: 5px;
-  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 14px;
   flex: 1;
+  min-height: 40px;
 }
 .config-pilot-body input[type=text]:focus {
   outline: none;
@@ -84,45 +91,59 @@
 .detected-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 12px;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
 }
-.detected-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.detected-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text); }
 .detected-list { display: flex; flex-direction: column; gap: 6px; }
-.detected-empty { color: var(--muted); font-size: 12px; padding: 8px; text-align: center; }
+.detected-empty { color: var(--muted); font-size: 13px; padding: 10px; text-align: center; }
 
 .detected-row {
   display: flex; align-items: center; gap: 8px;
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  flex-wrap: wrap;
 }
-.detected-mac    { font-family: monospace; flex: 1; color: var(--accent); }
+.detected-mac    { font-family: monospace; flex: 1; color: var(--accent); min-width: 140px; }
 .detected-rssi   { color: var(--ok); min-width: 60px; text-align: right; font-family: monospace; }
-.detected-age    { color: var(--muted); min-width: 36px; text-align: right; font-size: 10px; }
-.detected-assign { display: flex; gap: 4px; }
+.detected-age    { color: var(--muted); min-width: 36px; text-align: right; font-size: 11px; }
+.detected-assign { display: flex; gap: 4px; flex-wrap: wrap; }
 .detected-assign button {
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 3px 8px;
-  font-size: 11px;
-  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
   cursor: pointer;
+  min-height: 36px;
+  -webkit-tap-highlight-color: transparent;
 }
 .detected-assign button.p0 { border-color: var(--p0); color: var(--p0); }
 .detected-assign button.p1 { border-color: var(--p1); color: var(--p1); }
 .detected-assign button.p2 { border-color: var(--p2); color: var(--p2); }
 .detected-assign button.p3 { border-color: var(--p3); color: var(--p3); }
 
+/* channel select */
+#chSelect {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  min-height: 40px;
+}
+
 /* ── Danger Zone ─────────────────────────────────────────── */
 .danger-zone {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 14px;
   margin-top: 10px;
 }
