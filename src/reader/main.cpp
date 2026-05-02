@@ -11,6 +11,8 @@
 #define UART_BAUD       115200
 #define MAX_PILOTS      4
 #define RSSI_PERIOD_MS  100
+#define DETECT_LOG_SIZE  16
+#define DETECT_REPEAT_MS 3000
 
 // ── Pilot State ───────────────────────────────────────────────
 struct PilotState {
@@ -28,6 +30,14 @@ struct PilotState {
 
 static PilotState g_pilots[MAX_PILOTS];
 static uint8_t    g_nAuto = 0;
+
+// ── Detected MAC log (for diagnostic UI) ──────────────────────
+struct DetectLog {
+    uint8_t  mac[6];
+    int8_t   rssi;
+    uint32_t lastReport;
+};
+static DetectLog g_detectLog[DETECT_LOG_SIZE];
 
 // ── ISR FIFO ──────────────────────────────────────────────────
 struct Pkt { uint8_t mac[6]; int8_t rssi; };
@@ -115,6 +125,43 @@ static void loadPrefs() {
     prefs.end();
 }
 
+// ── MAC matching (with ELRS bit-manipulation tolerance) ──────
+// ELRS Backpack may set bit 1 (LAA) and clear bit 0 (unicast) on MAC[0]
+// when applying the firmware UID as the actual STA MAC. Accept both forms.
+static bool macMatchesUid(const uint8_t* mac, const uint8_t* uid) {
+    if (memcmp(mac, uid, 6) == 0) return true;
+    const uint8_t adj0 = (uid[0] | 0x02) & 0xFE;
+    return mac[0] == adj0 && memcmp(mac + 1, uid + 1, 5) == 0;
+}
+
+// ── Diagnostic: report any detected MAC to server (throttled) ─
+static void reportDetected(const uint8_t* mac, int8_t rssi) {
+    const uint32_t now = millis();
+    int slot = -1, oldestIdx = 0;
+    uint32_t oldestTs = UINT32_MAX;
+    for (int i = 0; i < DETECT_LOG_SIZE; i++) {
+        if (memcmp(g_detectLog[i].mac, mac, 6) == 0) { slot = i; break; }
+        if (g_detectLog[i].lastReport < oldestTs) {
+            oldestTs   = g_detectLog[i].lastReport;
+            oldestIdx  = i;
+        }
+    }
+    if (slot < 0) {
+        slot = oldestIdx;
+        memcpy(g_detectLog[slot].mac, mac, 6);
+        g_detectLog[slot].lastReport = 0;
+    }
+    g_detectLog[slot].rssi = rssi;
+    if (now - g_detectLog[slot].lastReport >= DETECT_REPEAT_MS) {
+        g_detectLog[slot].lastReport = now;
+        JsonDocument doc;
+        doc["type"] = "detect";
+        doc["uid"]  = macStr(mac);
+        doc["rssi"] = rssi;
+        sendJson(doc);
+    }
+}
+
 // ── Packet processing ─────────────────────────────────────────
 static int findByMac(const uint8_t* mac) {
     for (int i = 0; i < MAX_PILOTS; i++)
@@ -123,6 +170,9 @@ static int findByMac(const uint8_t* mac) {
 }
 
 static void processPkt(const uint8_t* mac, int8_t rawRssi) {
+    // Always report what we see for diagnostic purposes
+    reportDetected(mac, rawRssi);
+
     int idx = findByMac(mac);
 
     if (idx < 0) {
@@ -133,7 +183,7 @@ static void processPkt(const uint8_t* mac, int8_t rawRssi) {
         if (anyUid) {
             // UID mode: only accept MACs matching a configured UID slot
             for (int i = 0; i < MAX_PILOTS; i++) {
-                if (g_pilots[i].uidSet && memcmp(g_pilots[i].uid, mac, 6) == 0) {
+                if (g_pilots[i].uidSet && macMatchesUid(mac, g_pilots[i].uid)) {
                     memcpy(g_pilots[i].mac, mac, 6);
                     g_pilots[i].macSet  = true;
                     idx = i;
@@ -230,6 +280,15 @@ static void processCommand(const char* line) {
         savePrefs();
         Serial.printf("[CMD] P%d thresh en=%d ex=%d\n", pilot,
                       g_pilots[pilot].enterAt, g_pilots[pilot].exitAt);
+    } else if (strcmp(cmd, "setchannel") == 0) {
+        int ch = doc["channel"] | -1;
+        if (ch >= 1 && ch <= 13) {
+            esp_wifi_set_channel((uint8_t)ch, WIFI_SECOND_CHAN_NONE);
+            prefs.begin("reader", false);
+            prefs.putUChar("channel", (uint8_t)ch);
+            prefs.end();
+            Serial.printf("[CMD] channel=%d\n", ch);
+        }
     } else if (strcmp(cmd, "reset") == 0) {
         g_nAuto = 0;
         for (int i = 0; i < MAX_PILOTS; i++) {
@@ -276,9 +335,13 @@ void setup() {
     WiFi.disconnect();
     esp_wifi_set_promiscuous(true);
     esp_wifi_set_promiscuous_rx_cb(onPromiscuous);
-    esp_wifi_set_channel(LISTEN_CHANNEL, WIFI_SECOND_CHAN_NONE);
+    // Use saved channel (defaults to LISTEN_CHANNEL on first boot)
+    prefs.begin("reader", true);
+    const uint8_t savedCh = prefs.getUChar("channel", LISTEN_CHANNEL);
+    prefs.end();
+    esp_wifi_set_channel(savedCh, WIFI_SECOND_CHAN_NONE);
 
-    Serial.println("Listening for ESP-NOW frames...");
+    Serial.printf("Listening for ESP-NOW frames on channel %d...\n", savedCh);
 
     // Signal server that reader is ready to receive config push
     JsonDocument doc;

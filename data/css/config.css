@@ -80,6 +80,44 @@
 
 .mac-display { font-size: 11px; color: var(--muted); flex: 1; font-family: monospace; }
 
+/* ── Detected Devices Panel ──────────────────────────────── */
+.detected-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.detected-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.detected-list { display: flex; flex-direction: column; gap: 6px; }
+.detected-empty { color: var(--muted); font-size: 12px; padding: 8px; text-align: center; }
+
+.detected-row {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.detected-mac    { font-family: monospace; flex: 1; color: var(--accent); }
+.detected-rssi   { color: var(--ok); min-width: 60px; text-align: right; font-family: monospace; }
+.detected-age    { color: var(--muted); min-width: 36px; text-align: right; font-size: 10px; }
+.detected-assign { display: flex; gap: 4px; }
+.detected-assign button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.detected-assign button.p0 { border-color: var(--p0); color: var(--p0); }
+.detected-assign button.p1 { border-color: var(--p1); color: var(--p1); }
+.detected-assign button.p2 { border-color: var(--p2); color: var(--p2); }
+.detected-assign button.p3 { border-color: var(--p3); color: var(--p3); }
+
 /* ── Danger Zone ─────────────────────────────────────────── */
 .danger-zone {
   background: var(--surface);

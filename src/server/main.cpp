@@ -11,6 +11,8 @@
 #define MAX_PILOTS     4
 #define HISTORY_SIZE   500
 #define WS_INTERVAL_MS 100
+#define DETECT_SIZE    16
+#define DETECT_TTL_MS  15000
 
 // ── UART to/from Reader ───────────────────────────────────────
 // Reader GPIO26(TX) → Server D3/GPIO4(RX)
@@ -38,8 +40,16 @@ struct Record {
     int8_t   rssi;
 };
 
+struct Detected {
+    uint8_t  mac[6];
+    int8_t   rssi;
+    uint32_t lastSeen;   // millis()
+    bool     valid;
+};
+
 static Pilot        g_pilots[MAX_PILOTS];
 static uint8_t      g_nPilots  = 0;
+static Detected     g_detected[DETECT_SIZE];
 static Record       g_hist[HISTORY_SIZE];
 static uint16_t     g_histHead  = 0;
 static uint16_t     g_histCnt   = 0;
@@ -112,6 +122,39 @@ static void processLine(const char* line) {
         // Reader just booted — push all stored config
         pushAllToReader();
         Serial.println("[Reader] ready, config pushed");
+        return;
+    }
+
+    if (strcmp(type, "detect") == 0) {
+        const char* uidStr = doc["uid"] | "";
+        const int8_t rssi  = (int8_t)(doc["rssi"] | -100);
+        uint8_t mac[6];
+        if (!parseMAC(uidStr, mac)) return;
+
+        portENTER_CRITICAL(&g_mux);
+        int slot = -1;
+        for (int i = 0; i < DETECT_SIZE; i++) {
+            if (g_detected[i].valid && memcmp(g_detected[i].mac, mac, 6) == 0) {
+                slot = i; break;
+            }
+        }
+        if (slot < 0) {
+            int oldest = 0;
+            uint32_t oldestTs = UINT32_MAX;
+            for (int i = 0; i < DETECT_SIZE; i++) {
+                if (!g_detected[i].valid) { oldest = i; break; }
+                if (g_detected[i].lastSeen < oldestTs) {
+                    oldestTs = g_detected[i].lastSeen;
+                    oldest = i;
+                }
+            }
+            slot = oldest;
+            memcpy(g_detected[slot].mac, mac, 6);
+            g_detected[slot].valid = true;
+        }
+        g_detected[slot].rssi     = rssi;
+        g_detected[slot].lastSeen = millis();
+        portEXIT_CRITICAL(&g_mux);
         return;
     }
 
@@ -210,6 +253,21 @@ static String buildJson(const PilotSnap& s) {
         o["exitAt"]   = s.data[i].exitAt;
         o["active"]   = s.data[i].active;
     }
+
+    // Detected MACs (for diagnostic UI)
+    JsonArray det = doc["detected"].to<JsonArray>();
+    const uint32_t now = millis();
+    portENTER_CRITICAL(&g_mux);
+    for (int i = 0; i < DETECT_SIZE; i++) {
+        if (!g_detected[i].valid) continue;
+        if (now - g_detected[i].lastSeen > DETECT_TTL_MS) continue;
+        JsonObject o = det.add<JsonObject>();
+        o["mac"]  = macStr(g_detected[i].mac);
+        o["rssi"] = g_detected[i].rssi;
+        o["age"]  = now - g_detected[i].lastSeen;
+    }
+    portEXIT_CRITICAL(&g_mux);
+
     String out;
     serializeJson(doc, out);
     return out;
@@ -435,6 +493,28 @@ void setup() {
         String out; serializeJson(doc, out);
         req->send(200, "application/json", out);
     });
+
+    server.on("/api/channel", HTTP_POST,
+        [](AsyncWebServerRequest*) {},
+        nullptr,
+        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t, size_t) {
+            JsonDocument doc;
+            if (deserializeJson(doc, data, len)) {
+                req->send(400, "application/json", R"({"error":"invalid JSON"})");
+                return;
+            }
+            int ch = doc["channel"] | -1;
+            if (ch < 1 || ch > 13) {
+                req->send(400, "application/json", R"({"error":"channel must be 1..13"})");
+                return;
+            }
+            JsonDocument cmd;
+            cmd["cmd"]     = "setchannel";
+            cmd["channel"] = ch;
+            pushToReader(cmd);
+            Serial.printf("[Channel] set to %d\n", ch);
+            req->send(200, "application/json", R"({"ok":true})");
+        });
 
     server.on("/api/settings", HTTP_POST,
         [](AsyncWebServerRequest*) {},

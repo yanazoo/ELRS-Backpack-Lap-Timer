@@ -81,6 +81,24 @@
     <button class="btn-save" onclick="saveGlobalConfig()">💾 グローバル設定を保存</button>
   </div>
 
+  <div class="detected-panel">
+    <div class="detected-title">📡 検出デバイス（受信中の全MAC）</div>
+    <div class="config-row" style="margin-bottom:8px">
+      <label>WiFiチャンネル</label>
+      <select id="chSelect" onchange="setChannel(this.value)" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:4px 8px;border-radius:5px;font-size:13px">
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+        <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+        <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+        <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+        <option value="13">13</option>
+      </select>
+      <span class="unit">受信が無ければ別チャンネルを試す</span>
+    </div>
+    <div class="detected-list" id="detectedList">
+      <div class="detected-empty">未受信。Reader電源・WiFiチャンネル・ELRSバックパック設定を確認してください。</div>
+    </div>
+  </div>
+
   <div class="config-pilots-grid" id="configGrid">
     <!-- 4 pilot config cards injected by JS -->
   </div>
