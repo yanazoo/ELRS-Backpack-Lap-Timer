@@ -99,6 +99,39 @@
     </div>
   </div>
 
+  <!-- ── Pilot Roster ────────────────────────────────────── -->
+  <div class="roster-panel">
+    <div class="roster-head">
+      <span class="roster-title">🏁 パイロット登録 (<span id="rosterCount">0/100</span>)</span>
+      <div class="roster-head-right">
+        <input type="text" id="rosterSearch" class="roster-search" placeholder="名前で検索"
+               oninput="filterRoster()">
+        <button class="btn-success" onclick="openAddRoster()">＋ 追加</button>
+      </div>
+    </div>
+
+    <!-- 追加/編集フォーム -->
+    <div id="rosterAddForm" class="roster-add-form hidden">
+      <div class="roster-form-title" id="rosterFormTitle">新規パイロット追加</div>
+      <div class="roster-form-fields">
+        <input type="text" id="rosterFormName"   placeholder="パイロット名 *" autocomplete="off">
+        <input type="text" id="rosterFormPhrase" placeholder="バインドフレーズ（任意）"
+               autocomplete="off" spellcheck="false" oninput="updateRosterUidPreview()">
+        <input type="text" id="rosterFormMac"    placeholder="MACアドレス（フレーズ未入力時）"
+               autocomplete="off" oninput="updateRosterUidPreview()">
+        <span id="rosterFormUidPreview" class="roster-uid-preview">UID: --</span>
+      </div>
+      <div class="roster-form-btns">
+        <button class="btn-save" onclick="saveRosterForm()">💾 保存</button>
+        <button class="btn-secondary" onclick="closeAddRoster()">キャンセル</button>
+      </div>
+    </div>
+
+    <div class="roster-list" id="rosterList">
+      <div class="roster-empty">読み込み中...</div>
+    </div>
+  </div>
+
   <div class="config-pilots-grid" id="configGrid">
     <!-- 4 pilot config cards injected by JS -->
   </div>

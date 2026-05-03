@@ -147,3 +147,154 @@
   padding: 14px;
   margin-top: 10px;
 }
+
+/* ── Pilot Roster ────────────────────────────────────────── */
+.roster-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.roster-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.roster-title { font-size: 14px; font-weight: 600; }
+.roster-head-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.roster-search {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  min-height: 40px;
+  width: 160px;
+}
+
+/* 追加/編集フォーム */
+.roster-add-form {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.roster-add-form.hidden { display: none; }
+.roster-form-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--accent); }
+.roster-form-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.roster-form-fields input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  min-height: 40px;
+}
+.roster-form-fields input:focus { outline: none; border-color: var(--accent); }
+.roster-uid-preview {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--accent);
+  font-family: monospace;
+  padding: 4px 2px;
+}
+.roster-form-btns { display: flex; gap: 8px; }
+
+/* リスト */
+.roster-list { display: flex; flex-direction: column; gap: 4px; max-height: 400px; overflow-y: auto; }
+.roster-empty { color: var(--muted); font-size: 13px; padding: 10px; text-align: center; }
+
+.roster-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.roster-name { font-weight: 600; min-width: 80px; flex: 1; }
+.roster-uid  { font-size: 11px; color: var(--muted); font-family: monospace; flex: 2; min-width: 0; }
+
+.roster-slots { display: flex; gap: 3px; flex-shrink: 0; }
+.roster-slot-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 5px;
+  cursor: pointer;
+  min-height: 30px;
+  -webkit-tap-highlight-color: transparent;
+}
+.roster-slot-btn.p0 { border-color: var(--p0); color: var(--p0); }
+.roster-slot-btn.p1 { border-color: var(--p1); color: var(--p1); }
+.roster-slot-btn.p2 { border-color: var(--p2); color: var(--p2); }
+.roster-slot-btn.p3 { border-color: var(--p3); color: var(--p3); }
+.roster-slot-btn.active-slot { font-weight: 700; }
+.roster-slot-btn.p0.active-slot { background: var(--p0-bg); }
+.roster-slot-btn.p1.active-slot { background: var(--p1-bg); }
+.roster-slot-btn.p2.active-slot { background: var(--p2-bg); }
+.roster-slot-btn.p3.active-slot { background: var(--p3-bg); }
+
+.roster-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.roster-edit-btn, .roster-del-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  min-height: 30px;
+  -webkit-tap-highlight-color: transparent;
+}
+.roster-del-btn:hover { color: var(--err); border-color: var(--err); }
+.roster-edit-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* 検出パネルの追加ボタン */
+.detected-add-roster, .detected-del {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  min-height: 30px;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.detected-add-roster:hover { color: var(--ok); border-color: var(--ok); }
+.detected-del:hover        { color: var(--err); border-color: var(--err); }
+
+/* 割り当て済みスロットボタンの強調 */
+.detected-assign button.slot-active {
+  font-weight: 700;
+}
+.detected-assign button.p0.slot-active { background: var(--p0-bg); }
+.detected-assign button.p1.slot-active { background: var(--p1-bg); }
+.detected-assign button.p2.slot-active { background: var(--p2-bg); }
+.detected-assign button.p3.slot-active { background: var(--p3-bg); }
+
+/* ── ロスターフォームのスマホ対応 ────────────────────────── */
+@media (max-width: 600px) {
+  .roster-form-fields { grid-template-columns: 1fr; }
+  .roster-row { gap: 6px; }
+  .roster-name { min-width: 60px; }
+}

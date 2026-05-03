@@ -3,7 +3,7 @@
 // ── Constants ─────────────────────────────────────────────────
 const NUM_PILOTS = 4;
 const P_CLASS    = ['p0', 'p1', 'p2', 'p3'];
-const P_COLOR    = ['#58a6ff', '#f85149', '#3fb950', '#d29922'];
+const P_COLOR    = ['#79c0ff', '#ff7b72', '#56d364', '#e3b341'];
 
 // ── State ─────────────────────────────────────────────────────
 let g_pilots     = [];
@@ -27,9 +27,13 @@ let wsReconnTimer = null;
 const rssiSeries = new Array(NUM_PILOTS).fill(null);
 const rssiCharts = new Array(NUM_PILOTS).fill(null);
 
+let g_roster     = [];  // pilot roster (up to 100)
+
 // ── Utilities ─────────────────────────────────────────────────
-const el    = id => document.getElementById(id);
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const el      = id => document.getElementById(id);
+const clamp   = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const escHtml = s => String(s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const pad   = (n, w = 2) => String(Math.floor(Math.abs(n))).padStart(w, '0');
 
 const toDisp = dbm => clamp(Math.round((dbm + 120) * 150 / 90), 0, 150);
@@ -393,20 +397,26 @@ function renderDetected(list) {
     wrap.innerHTML = '<div class="detected-empty">未受信。Reader電源・WiFiチャンネル・ELRSバックパック設定を確認してください。</div>';
     return;
   }
-  // Sort by RSSI (strongest first)
   const sorted = list.slice().sort((a, b) => b.rssi - a.rssi);
-  wrap.innerHTML = sorted.map(d => `
+  wrap.innerHTML = sorted.map(d => {
+    // 各スロットに割り当て済みか確認
+    const slotBtns = [0,1,2,3].map(s => {
+      const assigned = g_pilots[s]?.uid === d.mac;
+      return `<button class="p${s}${assigned ? ' slot-active' : ''}"
+                onclick="toggleDetectedSlot('${d.mac}',${s})"
+                title="${assigned ? 'スロット'+(s+1)+'から外す' : 'スロット'+(s+1)+'に割り当て'}">
+                P${s+1}${assigned ? '✓' : ''}</button>`;
+    }).join('');
+    return `
     <div class="detected-row">
-      <span class="detected-mac">${d.mac}</span>
+      <span class="detected-mac">${escHtml(d.mac)}</span>
       <span class="detected-rssi">${d.rssi} dBm</span>
       <span class="detected-age">${Math.round((d.age || 0) / 1000)}s</span>
-      <span class="detected-assign">
-        <button class="p0" onclick="assignDetectedToPilot('${d.mac}',0)">P1</button>
-        <button class="p1" onclick="assignDetectedToPilot('${d.mac}',1)">P2</button>
-        <button class="p2" onclick="assignDetectedToPilot('${d.mac}',2)">P3</button>
-        <button class="p3" onclick="assignDetectedToPilot('${d.mac}',3)">P4</button>
-      </span>
-    </div>`).join('');
+      <span class="detected-assign">${slotBtns}</span>
+      <button class="detected-add-roster" onclick="openAddRoster('${d.mac}')" title="ロスターに追加">＋</button>
+      <button class="detected-del" onclick="deleteDetected('${d.mac}')" title="削除">✕</button>
+    </div>`;
+  }).join('');
 }
 
 async function setChannel(ch) {
@@ -415,10 +425,171 @@ async function setChannel(ch) {
   }
 }
 
-async function assignDetectedToPilot(mac, pilot) {
-  const name = el(`cfgName${pilot}`)?.value?.trim() || `Pilot ${pilot + 1}`;
-  if (await apiFetch('/api/pilots', 'POST', { id: pilot, name, uid: mac })) {
-    showToast(`${mac} を Pilot ${pilot + 1} に割り当てました`);
+async function toggleDetectedSlot(mac, slot) {
+  const already = g_pilots[slot]?.uid === mac;
+  if (already) {
+    const name = g_pilots[slot]?.name || `Pilot ${slot + 1}`;
+    if (await apiFetch('/api/pilots', 'POST', { id: slot, name, uid: '' }))
+      showToast(`スロット${slot + 1}の割り当てを解除しました`);
+  } else {
+    const name = el(`cfgName${slot}`)?.value?.trim() || g_pilots[slot]?.name || `Pilot ${slot + 1}`;
+    if (await apiFetch('/api/pilots', 'POST', { id: slot, name, uid: mac }))
+      showToast(`${mac} をP${slot + 1}に割り当てました`);
+  }
+}
+
+async function deleteDetected(mac) {
+  const enc = encodeURIComponent(mac);
+  if (await apiFetch(`/api/detected?mac=${enc}`, 'DELETE'))
+    showToast('検出リストから削除しました');
+}
+
+// ── Pilot Roster ──────────────────────────────────────────────
+async function loadRoster() {
+  try {
+    const res = await fetch('/api/roster');
+    if (!res.ok) return;
+    const data = await res.json();
+    g_roster = data.pilots || [];
+    renderRoster();
+  } catch (_) {}
+}
+
+function filterRoster() { renderRoster(); }
+
+function renderRoster() {
+  const wrap = el('rosterList');
+  if (!wrap) return;
+  const q = (el('rosterSearch')?.value || '').toLowerCase();
+  const items = g_roster.filter(p => !q || p.name.toLowerCase().includes(q));
+
+  const count = el('rosterCount');
+  if (count) count.textContent = `${g_roster.length}/100`;
+
+  if (!items.length) {
+    wrap.innerHTML = `<div class="roster-empty">${q ? '該当なし' : 'パイロット未登録'}</div>`;
+    return;
+  }
+  wrap.innerHTML = items.map(p => {
+    const uid = p.uid || '';
+    const uidDisp = p.phrase
+      ? `<span title="${escHtml(p.phrase)}">🔑 ${escHtml(p.phrase.slice(0,14))}${p.phrase.length>14?'…':''}</span>`
+      : `<span>${escHtml(uid) || '未設定'}</span>`;
+    const slotBtns = [0,1,2,3].map(s => {
+      const active = uid && g_pilots[s]?.uid === uid;
+      return `<button class="roster-slot-btn p${s}${active?' active-slot':''}"
+                onclick="toggleRosterSlot(${p.id},${s})"
+                title="${active?'スロット'+(s+1)+'から外す':'スロット'+(s+1)+'に割り当て'}">
+                S${s+1}${active?'✓':''}</button>`;
+    }).join('');
+    return `
+    <div class="roster-row" id="rosterRow${p.id}">
+      <span class="roster-name">${escHtml(p.name)}</span>
+      <span class="roster-uid">${uidDisp}</span>
+      <span class="roster-slots">${slotBtns}</span>
+      <span class="roster-actions">
+        <button class="roster-edit-btn" onclick="editRoster(${p.id})" title="編集">✎</button>
+        <button class="roster-del-btn"  onclick="deleteRoster(${p.id})" title="削除">✕</button>
+      </span>
+    </div>`;
+  }).join('');
+}
+
+// ── ロスター追加フォーム ──────────────────────────────────────
+let _editRosterId = -1;
+
+function openAddRoster(prefillMac) {
+  _editRosterId = -1;
+  el('rosterFormTitle').textContent = '新規パイロット追加';
+  el('rosterFormName').value   = '';
+  el('rosterFormPhrase').value = '';
+  el('rosterFormMac').value    = prefillMac || '';
+  el('rosterFormUidPreview').textContent = prefillMac ? 'UID: ' + prefillMac : 'UID: --';
+  el('rosterAddForm').classList.remove('hidden');
+  el('rosterFormName').focus();
+}
+
+function editRoster(id) {
+  const p = g_roster.find(r => r.id === id);
+  if (!p) return;
+  _editRosterId = id;
+  el('rosterFormTitle').textContent = '編集: ' + p.name;
+  el('rosterFormName').value   = p.name;
+  el('rosterFormPhrase').value = p.phrase || '';
+  el('rosterFormMac').value    = (!p.phrase && p.uid) ? p.uid : '';
+  el('rosterFormUidPreview').textContent = 'UID: ' + (p.uid || '--');
+  el('rosterAddForm').classList.remove('hidden');
+  el('rosterFormName').focus();
+}
+
+function closeAddRoster() {
+  el('rosterAddForm').classList.add('hidden');
+  _editRosterId = -1;
+}
+
+function updateRosterUidPreview() {
+  const phrase = el('rosterFormPhrase').value.trim();
+  const mac    = el('rosterFormMac').value.trim();
+  if (phrase) {
+    el('rosterFormUidPreview').textContent = 'UID: ' + bindPhraseToUID(phrase);
+  } else if (mac) {
+    el('rosterFormUidPreview').textContent = 'UID: ' + mac;
+  } else {
+    el('rosterFormUidPreview').textContent = 'UID: --';
+  }
+}
+
+async function saveRosterForm() {
+  const name   = el('rosterFormName').value.trim();
+  const phrase = el('rosterFormPhrase').value.trim();
+  const mac    = el('rosterFormMac').value.trim();
+  if (!name) { showToast('名前を入力してください', true); return; }
+
+  // バインドフレーズがある場合は優先してUIDを計算
+  let uid = '';
+  if (phrase)     uid = bindPhraseToUID(phrase);
+  else if (mac)   uid = mac;
+
+  const body = { name };
+  if (phrase) body.phrase = phrase;
+  if (uid)    body.uid    = uid;
+  if (_editRosterId >= 0) body.id = _editRosterId;
+
+  const res = await fetch('/api/roster', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (res.ok) {
+    showToast(_editRosterId >= 0 ? '更新しました' : `${name} を登録しました`);
+    closeAddRoster();
+    await loadRoster();
+  } else {
+    const j = await res.json().catch(() => ({}));
+    showToast(j.error || '保存失敗', true);
+  }
+}
+
+async function deleteRoster(id) {
+  if (!confirm('このパイロットをロスターから削除しますか？')) return;
+  if (await apiFetch(`/api/roster?id=${id}`, 'DELETE')) {
+    g_roster = g_roster.filter(p => p.id !== id);
+    renderRoster();
+    showToast('削除しました');
+  }
+}
+
+async function toggleRosterSlot(rosterId, slot) {
+  const p = g_roster.find(r => r.id === rosterId);
+  if (!p || !p.uid) { showToast('UIDが未設定です', true); return; }
+  const already = g_pilots[slot]?.uid === p.uid;
+  if (already) {
+    const name = g_pilots[slot]?.name || `Pilot ${slot + 1}`;
+    if (await apiFetch('/api/pilots', 'POST', { id: slot, name, uid: '' }))
+      showToast(`スロット${slot + 1}の割り当てを解除しました`);
+  } else {
+    if (await apiFetch('/api/pilots', 'POST', { id: slot, name: p.name, uid: p.uid }))
+      showToast(`${p.name} をS${slot + 1}に割り当てました`);
   }
 }
 
@@ -756,4 +927,5 @@ document.addEventListener('DOMContentLoaded', () => {
   for (let i = 0; i < NUM_PILOTS; i++) createRssiChart(i);
   switchTab('calib');
   wsConnect();
+  loadRoster();
 });

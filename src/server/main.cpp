@@ -9,6 +9,7 @@
 #define AP_SSID        "ELRS-Logger"
 #define AP_CHANNEL     1
 #define MAX_PILOTS     4
+#define MAX_ROSTER     100
 #define HISTORY_SIZE   500
 #define WS_INTERVAL_MS 100
 #define DETECT_SIZE    16
@@ -43,12 +44,22 @@ struct Record {
 struct Detected {
     uint8_t  mac[6];
     int8_t   rssi;
-    uint32_t lastSeen;   // millis()
+    uint32_t lastSeen;
     bool     valid;
+};
+
+// ── Pilot Roster (100-pilot database, persisted to LittleFS) ──
+struct RosterEntry {
+    bool    used;
+    char    name[32];
+    char    phrase[64];  // bind phrase (may be empty)
+    uint8_t uid[6];
+    bool    hasUid;
 };
 
 static Pilot        g_pilots[MAX_PILOTS];
 static uint8_t      g_nPilots  = 0;
+static RosterEntry  g_roster[MAX_ROSTER];
 static Detected     g_detected[DETECT_SIZE];
 static Record       g_hist[HISTORY_SIZE];
 static uint16_t     g_histHead  = 0;
@@ -273,6 +284,45 @@ static String buildJson(const PilotSnap& s) {
     return out;
 }
 
+// ── Roster LittleFS persistence ───────────────────────────────
+static void saveRoster() {
+    JsonDocument doc;
+    JsonArray arr = doc["p"].to<JsonArray>();
+    for (int i = 0; i < MAX_ROSTER; i++) {
+        if (!g_roster[i].used) continue;
+        JsonObject o = arr.add<JsonObject>();
+        o["i"] = i;
+        o["n"] = g_roster[i].name;
+        o["r"] = g_roster[i].phrase;
+        if (g_roster[i].hasUid) o["u"] = macStr(g_roster[i].uid);
+    }
+    File f = LittleFS.open("/roster.json", "w");
+    if (f) { serializeJson(doc, f); f.close(); }
+}
+
+static void loadRoster() {
+    memset(g_roster, 0, sizeof(g_roster));
+    File f = LittleFS.open("/roster.json", "r");
+    if (!f) return;
+    JsonDocument doc;
+    if (!deserializeJson(doc, f)) {
+        for (JsonObject o : doc["p"].as<JsonArray>()) {
+            int i = o["i"] | -1;
+            if (i < 0 || i >= MAX_ROSTER) continue;
+            g_roster[i].used = true;
+            strncpy(g_roster[i].name,   o["n"] | "", 31);
+            strncpy(g_roster[i].phrase, o["r"] | "", 63);
+            const char* u = o["u"] | "";
+            if (strlen(u) == 17 && parseMAC(u, g_roster[i].uid))
+                g_roster[i].hasUid = true;
+        }
+    }
+    f.close();
+    int cnt = 0;
+    for (int i = 0; i < MAX_ROSTER; i++) if (g_roster[i].used) cnt++;
+    Serial.printf("[Roster] loaded %d pilots\n", cnt);
+}
+
 static void loadPilotPrefs() {
     prefs.begin("pilots", true);
 
@@ -366,6 +416,7 @@ void setup() {
     if (!LittleFS.begin(true))
         Serial.println("[WARN] LittleFS mount failed");
 
+    loadRoster();
     loadPilotPrefs();
     loadSettings();
 
@@ -555,6 +606,92 @@ void setup() {
         auto* resp = req->beginResponse(200, "text/csv", csv);
         resp->addHeader("Content-Disposition", "attachment; filename=rssi_log.csv");
         req->send(resp);
+    });
+
+    // ── Roster CRUD ───────────────────────────────────────────
+    server.on("/api/roster", HTTP_GET, [](AsyncWebServerRequest* req) {
+        JsonDocument doc;
+        JsonArray arr = doc["pilots"].to<JsonArray>();
+        for (int i = 0; i < MAX_ROSTER; i++) {
+            if (!g_roster[i].used) continue;
+            JsonObject o = arr.add<JsonObject>();
+            o["id"]     = i;
+            o["name"]   = g_roster[i].name;
+            o["phrase"] = g_roster[i].phrase;
+            o["uid"]    = g_roster[i].hasUid ? macStr(g_roster[i].uid) : String("");
+        }
+        String out; serializeJson(doc, out);
+        req->send(200, "application/json", out);
+    });
+
+    server.on("/api/roster", HTTP_POST,
+        [](AsyncWebServerRequest*) {},
+        nullptr,
+        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t, size_t) {
+            JsonDocument doc;
+            if (deserializeJson(doc, data, len)) {
+                req->send(400, "application/json", R"({"error":"json"})");
+                return;
+            }
+            int id = doc["id"] | -1;
+            if (id < 0) {
+                for (int i = 0; i < MAX_ROSTER; i++)
+                    if (!g_roster[i].used) { id = i; break; }
+            }
+            if (id < 0 || id >= MAX_ROSTER) {
+                req->send(400, "application/json", R"({"error":"roster full"})");
+                return;
+            }
+            g_roster[id].used = true;
+            strncpy(g_roster[id].name,   doc["name"]   | "", 31);
+            strncpy(g_roster[id].phrase, doc["phrase"]  | "", 63);
+            g_roster[id].name[31]   = '\0';
+            g_roster[id].phrase[63] = '\0';
+            const char* u = doc["uid"] | "";
+            if (strlen(u) == 17 && parseMAC(u, g_roster[id].uid)) {
+                g_roster[id].hasUid = true;
+            } else if (strlen(u) == 0) {
+                g_roster[id].hasUid = false;
+            }
+            saveRoster();
+            JsonDocument resp;
+            resp["ok"] = true;
+            resp["id"] = id;
+            String out; serializeJson(resp, out);
+            req->send(200, "application/json", out);
+        });
+
+    server.on("/api/roster", HTTP_DELETE, [](AsyncWebServerRequest* req) {
+        int id = req->hasParam("id") ? req->getParam("id")->value().toInt() : -1;
+        if (id < 0 || id >= MAX_ROSTER || !g_roster[id].used) {
+            req->send(400, "application/json", R"({"error":"invalid id"})");
+            return;
+        }
+        memset(&g_roster[id], 0, sizeof(RosterEntry));
+        saveRoster();
+        req->send(200, "application/json", R"({"ok":true})");
+    });
+
+    // DELETE /api/detected?mac=XX:XX:XX:XX:XX:XX
+    server.on("/api/detected", HTTP_DELETE, [](AsyncWebServerRequest* req) {
+        if (!req->hasParam("mac")) {
+            req->send(400, "application/json", R"({"error":"missing mac"})");
+            return;
+        }
+        uint8_t mac[6];
+        if (!parseMAC(req->getParam("mac")->value().c_str(), mac)) {
+            req->send(400, "application/json", R"({"error":"invalid mac"})");
+            return;
+        }
+        portENTER_CRITICAL(&g_mux);
+        for (int i = 0; i < DETECT_SIZE; i++) {
+            if (g_detected[i].valid && memcmp(g_detected[i].mac, mac, 6) == 0) {
+                g_detected[i].valid = false;
+                break;
+            }
+        }
+        portEXIT_CRITICAL(&g_mux);
+        req->send(200, "application/json", R"({"ok":true})");
     });
 
     server.on("/api/reset", HTTP_POST, [](AsyncWebServerRequest* req) {
