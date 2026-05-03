@@ -53,13 +53,15 @@ static uint8_t g_rxLen = 0;
 static Preferences prefs;
 
 // ── Promiscuous callback (IRAM) ───────────────────────────────
+// ESP-IDF によっては ESP-NOW action frame が WIFI_PKT_MGMT ではなく
+// WIFI_PKT_MISC で届くため、両方を受け入れてフレーム内容で判別する。
 static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type) {
-    if (type != WIFI_PKT_MGMT) return;
+    if (type != WIFI_PKT_MGMT && type != WIFI_PKT_MISC) return;
     const auto*    pkt = reinterpret_cast<const wifi_promiscuous_pkt_t*>(buf);
     const uint8_t* p   = pkt->payload;
     const uint16_t len = pkt->rx_ctrl.sig_len;
-    // 802.11 Action frame + Espressif ESP-NOW OUI
-    if (len < 28 || p[0] != 0xD0) return;
+    // 802.11 Action frame (FC=0xD0) + Espressif ESP-NOW OUI (0x7F 18:FE:34)
+    if (len < 32 || p[0] != 0xD0) return;
     if (p[24] != 0x7F || p[25] != 0x18 || p[26] != 0xFE || p[27] != 0x34) return;
     const uint8_t* mac  = p + 10;
     const int8_t   rssi = static_cast<int8_t>(pkt->rx_ctrl.rssi);
@@ -331,17 +333,30 @@ void setup() {
     Serial2.begin(UART_BAUD, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
     Serial.printf("\n=== ELRS Reader  ch.%d ===\n", LISTEN_CHANNEL);
 
+    // WiFi初期化: 自動再接続・バックグラウンドスキャンを無効にしてから開始
+    WiFi.setAutoReconnect(false);
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    esp_wifi_set_promiscuous(true);
-    esp_wifi_set_promiscuous_rx_cb(onPromiscuous);
-    // Use saved channel (defaults to LISTEN_CHANNEL on first boot)
+    WiFi.disconnect(true);
+    delay(200);  // WiFiドライバが安定するまで待機
+
+    // 保存チャンネルを読み込んでからpromiscuousを有効化
     prefs.begin("reader", true);
     const uint8_t savedCh = prefs.getUChar("channel", LISTEN_CHANNEL);
     prefs.end();
     esp_wifi_set_channel(savedCh, WIFI_SECOND_CHAN_NONE);
 
-    Serial.printf("Listening for ESP-NOW frames on channel %d...\n", savedCh);
+    // MGMT + MISC を両方受信 (ESP-IDFバージョンによってESP-NOWがMISCで届く場合がある)
+    wifi_promiscuous_filter_t flt = {
+        .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_MISC
+    };
+    esp_wifi_set_promiscuous_filter(&flt);
+    esp_wifi_set_promiscuous(true);
+    esp_wifi_set_promiscuous_rx_cb(onPromiscuous);
+
+    uint8_t actualCh = 0;
+    wifi_second_chan_t sec = WIFI_SECOND_CHAN_NONE;
+    esp_wifi_get_channel(&actualCh, &sec);
+    Serial.printf("Listening on ch %d (actual=%d)\n", savedCh, actualCh);
 
     // Signal server that reader is ready to receive config push
     JsonDocument doc;
