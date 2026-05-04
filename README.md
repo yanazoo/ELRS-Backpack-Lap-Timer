@@ -1,453 +1,180 @@
-# ELRS Backpack ラップタイマー — Claude Code 引継ぎ文書
+# ELRS Backpack Lap Timer
 
-作成日時: 2026-04-23 (JST)
+ELRSのBackpack ESP-NOW通信を活用した、FPVドローンレース用ラップタイマー。
 
------
-
-## プロジェクト概要
-
-ELRSのBackpack ESP-NOW通信を活用して、RotorHazardのような
-FPVドローンレース用ラップタイマーを開発する。
-
-**最大の特徴：**
-
-- 機体側の改造不要（参加者はELRS TX BackpackのTelemetry=ESP-NOWをONにするだけ）
+**特徴:**
+- 機体側の改造不要（ELRS TX Backpack の Telemetry=ESP-NOW をONにするだけ）
 - バインドフレーズ由来のUIDでパイロットを自動識別
-- RSSIピーク検出でゲート通過タイミングを計測
+- RSSIピーク検出 + RotorHazard準拠の状態機械でゲート通過を計測
+- PhobosLT_4ch スタイルのWeb UI（GitHub Darkテーマ、日本語TTS、Canvas波形グラフ）
 
------
+---
 
 ## RotorHazardとの比較
 
-|項目      |RotorHazard   |本システム                   |
-|--------|--------------|------------------------|
-|検出方式    |5.8GHz映像電波RSSI|2.4GHz ELRS ESP-NOW RSSI|
-|パイロット識別 |映像送信機の周波数     |ELRSバインドUID（より確実）       |
-|映像送信機   |必須            |不要                      |
-|デジタル映像対応|別途必要          |ネイティブ対応                 |
-|ゲートノード  |専用ハード         |ESP32-WROVER-E と　XIAO EPS32-S3        |
+| 項目 | RotorHazard | 本システム |
+|------|-------------|-----------|
+| 検出方式 | 5.8GHz映像電波RSSI | 2.4GHz ELRS ESP-NOW RSSI |
+| パイロット識別 | 映像送信機の周波数 | ELRSバインドUID（より確実） |
+| 映像送信機 | 必須 | 不要 |
+| デジタル映像対応 | 別途必要 | ネイティブ対応 |
+| ゲートノード | 専用ハード | ESP32-WROVER-E + XIAO ESP32-S3 |
 
------
-
-## システムアーキテクチャ
-
-```
-[Pilot TX] (ELRS Backpack Telemetry=ESP-NOW ON)
-    ↓ 2.4GHz ESP-NOW broadcast（UID含むパケット）
-[Gate Node: ESP32]
-    - Promiscuousモードで全パケット受信
-    - 送信元MACアドレスでパイロット識別
-    - EMAフィルタ + ピークホールド検出でゲート通過判定
-    ↓ ESP-NOW
-[PhobosLT or タイマーサーバー: ESP32]
-    ↓ WebSocket
-[Web UI / HDZero OSD]
-```
-
------
+---
 
 ## ハードウェア構成
 
-### ESP32の役割分担（2台構成）
-
 ```
-┌─────────────────────────┐        UART        ┌─────────────────────────┐
-│   ESP32-WROVER-E-A  　  │ ─────────────────→ │   XIAO EPS32-S3-B 　  │
-│    （信号解析）          │  ラップトリガー送信  │    （Web/WiFi）         │
-│ - ESP-NOWパケット受信    │                    │ - WiFi APモード         │
-│   (Promiscuousモード)   │                    │ - WebサーバーホストUI   │
-│ - EMAフィルタ処理       │                    │ - WebSocketでスマホ配信 │
-│ - RSSIピーク検出        │                    │ - ラップタイム管理      │
-│ - パイロットUID識別      │                    │ - パイロット設定保存    │
-│                         │                    │   (Preferences/NVS)    │
-└─────────────────────────┘                    └─────────────────────────┘
-       ゲート設置                                      ピット・手元に設置
+┌──────────────────────────┐    UART (双方向)    ┌──────────────────────────┐
+│   ESP32-WROVER-E-A       │ ←────────────────→ │   XIAO ESP32-S3-B        │
+│     (Gate Node)          │                    │     (Web Node)           │
+│                          │                    │                          │
+│ - WiFi NULLモード        │                    │ - WiFi AP モード         │
+│ - Promiscuousモード       │                    │   SSID: ELRS bp-LT       │
+│   ESP-NOW パケット受信   │                    │   PASS: elrsbp-lt        │
+│ - EMAフィルタ処理        │                    │   IP:   20.0.0.1         │
+│ - RSSI状態機械           │                    │ - ESPAsyncWebServer      │
+│ - パイロットUID識別       │                    │ - WebSocket /ws          │
+│ - パイロット別閾値管理    │                    │ - LittleFS (index.html)  │
+│                          │                    │ - NVS設定保存            │
+└──────────────────────────┘                    └──────────────────────────┘
+       ゲートに設置                                    ピット・手元に設置
   アンテナ: パッチアンテナ推奨                        スマホからWiFi接続
 ```
 
-### 分割理由
+### ピン配線
 
-ESP32はWiFi使用中にPromiscuousモードとの干渉が発生する可能性がある。
-役割を完全分離することで：
+| ESP32-WROVER-E-A | 方向 | XIAO ESP32-S3-B |
+|-----------------|------|-----------------|
+| GPIO26 (TX1) | → | GPIO3 / D2 (RX1) |
+| GPIO25 (RX1) | ← | GPIO2 / D1 (TX1) |
+| GND | — | GND |
 
-- ESP32-WROVER-E-A: WiFi無効化してPromiscuousに専念 → 受信安定性向上
-- XIAO EPS32-S3-B: WiFiに専念 → Web UIの安定性向上
+---
 
-### UART通信仕様
+## UART プロトコル
 
-|項目   |内容                     |
-|-----|-----------------------|
-|ボーレート|115200 bps             |
-|接続ピン |ESP32-WROVER-E-A TX →XIAO EPS32-S3-B RX|
-|プロトコル|JSON（1行1パケット、改行区切り）    |
-
-**ESP32-WROVER-E-A → XIAO EPS32-S3-B 送信フォーマット:**
+### Gate → Web（ラップ・テレメトリ）
 
 ```json
-{"type":"lap","pilot":0,"uid":"AA:BB:CC:DD:EE:FF","rssi":-72,"ts":123456}\n
-{"type":"rssi","pilot":0,"rssi":-85,"ts":123460}\n
+{"type":"lap",  "pilot":0,"uid":"AA:BB:CC:DD:EE:FF","rssi":-72,"ts":123456}
+{"type":"rssi", "pilot":0,"uid":"AA:BB:CC:DD:EE:FF","rssi":-85,"raw":-87,"crossing":false,"ts":123460}
+{"type":"ready","pilots":4}
 ```
 
-- `lap`: ゲート通過イベント（ラップトリガー）
-- `rssi`: RSSIリアルタイム値（Calibrationタブの波形表示用、間引き送信可）
+### Web → Gate（レース制御・閾値設定）
 
-### ハードウェアリスト
+```json
+{"type":"cmd","action":"race_start"}
+{"type":"cmd","action":"set_threshold","pilot":0,"enter":-80,"exit":-90}
+```
 
-- **ESP32-WROVER-E-A（信号解析）:** または同等品
-  - アンテナ: 指向性パッチアンテナ推奨
-  - 電源: バッテリー or USB（ゲートに設置）
-- **XIAO EPS32-S3-B（Web/WiFi）:** または同等品
-  - 電源: バッテリー or USB（ピットに設置）
-- **接続:** UARTケーブル（TX-RX、GND共通）
-- 参加者側: ELRS TX Backpack搭載のプロポ（改造不要）
+---
 
------
-
-## 参加者の設定（機体側）
-
-1. TX BackpackのLuaスクリプトを開く
-1. `Telemetry` → `ESP-NOW` に設定
-1. 以上。バインドフレーズはそのまま使用
-
------
-
-## UID（パイロット識別）の仕組み
-
-- ELRSのバインドフレーズ → SHA256 → 6バイトUID
-- TX BackpackがESP-NOWパケットを送信するとき、MACアドレスがUID由来
-- ゲートノードはパケットの送信元MACを見るだけでパイロット識別可能
-- 事前にパイロットのバインドフレーズ→UIDをWeb UIで登録しておく
-
-UIDの生成確認: https://expresslrs.github.io/web-flasher/
-
------
-
-## RSSIピーク検出アルゴリズム（設計済み）
-
-### RotorHazardの思想を参考にする
-
-RotorHazardはノードを **Crossing（通過中）** と **Clear（クリア）** の2状態で管理する。
-RSSIが低い状態がClear、RSSIが高い状態がCrossing。
-Crossingが終了してClearに戻った時点でラップを確定記録する。
-
-この思想を本システムに適用する：
-
-- **EnterAt** → `ENTRY_THRESHOLD`（ドローンが近づいたと判断するRSSI値）
-- **ExitAt** → `EXIT_THRESHOLD`（ドローンが離れたと判断するRSSI値）
-- ラップ確定タイミングは **ピーク時刻**（RotorHazard同様、通過の中心点）
+## RSSIピーク検出アルゴリズム
 
 ```
-生RSSI → EMAフィルタ（α=0.3）→ EnterAt/ExitAt状態機械 → ゲート通過イベント
+生RSSI → EMAフィルタ (α=0.3) → EnterAt/ExitAt 状態機械 → ゲート通過イベント
 ```
 
 ### 状態機械（RotorHazard準拠）
 
 ```
 CLEAR（待機）
- └─(rssi > EnterAt)→ CROSSING（通過中）
-      ├─(rssi > peak) → ピーク更新・ピーク時刻記録
-      └─(rssi < ExitAt)→ triggerLap(peakTime) → CLEAR（確定）
+ └─(ema > EnterAt)→ CROSSING（通過中）
+      ├─(ema > peak) → ピーク更新・ピーク時刻記録
+      └─(ema < ExitAt)→ triggerLap(peakTime) → CLEAR（確定）
 ```
 
-RotorHazardと同様、**ExitAtをEnterAtより低く**設定することでヒステリシスを持たせ、
-ノイズによる誤検出を防ぐ。
+### 調整パラメータ
 
-### 調整パラメータ（実測で決定する）
+| パラメータ | 対応RotorHazard | デフォルト値 | 説明 |
+|-----------|----------------|------------|------|
+| EnterAt | EnterAt | -80 dBm | 通過開始判定RSSI |
+| ExitAt | ExitAt | -90 dBm | 通過終了判定RSSI |
+| EMA_ALPHA | — | 0.3 | 平滑化係数 |
+| COOLDOWN_MS | MinLapTime | 3000 ms | 最小ラップ時間 |
 
-|パラメータ          |対応RotorHazard|初期値    |説明            |
-|---------------|-------------|-------|--------------|
-|ENTRY_THRESHOLD|EnterAt      |-80 dBm|通過開始判定RSSI    |
-|EXIT_THRESHOLD |ExitAt       |-90 dBm|通過終了判定RSSI    |
-|EMA_ALPHA      |（内部フィルタ）     |0.3    |平滑化係数         |
-|COOLDOWN_MS    |MinLapTime   |3000 ms|最小ラップ時間（誤検出抑制）|
+**パイロット別にランタイムで変更可能**（Calibタブのスライダーで設定→Gate Nodeへ即時反映）。
 
-## Web UI 演出仕様（視覚・音響）
+---
 
-### 基本方針
+## Web UI（PhobosLT_4ch スタイル）
 
-RotorHazardのシンプルな通知に加え、**レース現場の興奮を高める演出**を実装する。
-すべてブラウザのWeb APIのみで実現（外部ライブラリ不要）。
+**デザイン:**
+- GitHub Darkテーマ（`#0d1117` ベース）
+- システムフォント（`-apple-system, BlinkMacSystemFont, "Segoe UI", Arial`）
+- パイロット4色：`#58a6ff` (青) / `#f85149` (赤) / `#3fb950` (緑) / `#d29922` (琥珀)
 
------
+### Race タブ
 
-### 視覚演出
+- レースタイマー、開始 / 停止 / クリアボタン
+- パイロット4列グリッド：COSSINGバッジ、RSSSIミニバー、ベストラップ＋デルタ表示
+- パイロット別ラップ表（周回 / タイム / 累計列）、ベストラップ行グリーンハイライト
+- **ビープカウントダウン**（フルスクリーンオーバーレイなし）：3×440Hz → 880Hz
 
-#### ① RSSIリアルタイムバー（Calibrationタブ）
+### Config タブ
 
-```
-Pilot 1  ████████████░░░░░░  -72dBm  CROSSING
-Pilot 2  ██░░░░░░░░░░░░░░░░  -95dBm  CLEAR
-```
+- グローバル設定：アナウンスモード選択、発話速度スライダー
+- パイロット別：名前・バインドフレーズ入力 → UID自動表示（`/api/uid` 経由）
 
-- バーの色がCLEAR（暗）→ CROSSING（アクセントカラーで発光）に変化
-- EnterAt / ExitAt ラインをバー上にオーバーレイ表示
-- CROSSINGの瞬間にカード全体がパルスアニメーション（CSS `@keyframes`）
+### Calib タブ
 
-#### ② ゲート通過フラッシュ（Raceタブ）
+- パイロット別 Canvas RSSI波形グラフ（Enter ライン=緑、Exit ライン=赤）
+- Enter / Exit 閾値スライダー（-120〜-40 dBm）
+- 保存時にGate Nodeへ即時反映
 
-- ラップ確定時、該当パイロットのカードが**一瞬フラッシュ**（白→アクセントカラー）
-- 画面全体に薄いフラッシュオーバーレイ（0.3秒）
-- ラップタイムが大きく表示されてフェードイン
+---
 
-```css
-/* ラップ確定アニメーション例 */
-@keyframes lapFlash {
-  0%   { background: #ffffff; transform: scale(1.03); }
-  30%  { background: var(--accent); }
-  100% { background: var(--card-bg); transform: scale(1.0); }
-}
-```
+## REST API（Web Node）
 
-#### ③ ラップタイム表示
+| エンドポイント | 説明 |
+|-------------|------|
+| `GET/POST /api/pilots` | パイロット設定（名前・UID）— NVS保存 |
+| `GET /api/uid?phrase=...` | バインドフレーズ → UID（SHA-256、ESP32側で計算） |
+| `GET/POST /api/calib` | Enter/Exit閾値 — NVS保存＋Gate Node反映 |
+| `POST /api/race/start` | レース開始（Gate Nodeにrace_start送信） |
+| `POST /api/race/stop` | レース停止 |
+| `GET /api/laps` | ラップ履歴 |
 
-- 最新ラップ: **超大フォント**（Orbitron、中央に1〜2秒表示後フェードアウト）
-- ベストラップ更新時: ゴールドカラーで `🏆 BEST LAP!` テキストアニメーション
-- 前ラップ比較: `▲ +0.32s` / `▼ -0.18s` をカラーで表示（遅い=赤、速い=緑）
+---
 
-#### ④ RSSI波形グラフ（Calibrationタブ）
+## UID（パイロット識別）の仕組み
 
-- SmoothieChartでリアルタイムスクロール波形
-- EnterAt / ExitAtをグラフ上に水平破線で表示
-- CROSSING区間を背景色で塗りつぶし（半透明アクセントカラー）
-- パイロットごとに異なる色の波形
+- ELRSバインドフレーズ → SHA-256 → 先頭6バイト = UID
+- TX BackpackがESP-NOWパケットを送信するときのMACアドレスがUID由来
+- Gate NodeはパケットのMACを見るだけでパイロットを識別
+- Web UIのConfigタブでバインドフレーズを入力するとUIDが自動計算される
 
------
+> **注:** `crypto.subtle.digest` はHTTPS必須のため、HTTP環境では動作しない。  
+> 本システムは `GET /api/uid` エンドポイントでESP32側（mbedTLS）のSHA-256を使用。
 
-### 音響演出（Web Audio API）
+---
 
-すべて`AudioContext`で生成するビープ音。音源ファイル不要。
+## ビルド・書き込み手順
 
-```javascript
-const ctx = new AudioContext();
+```bash
+# Gate Node ビルド＋書き込み
+pio run -e gate_node -t upload
 
-function beep(freq, duration, type = 'sine', vol = 0.3) {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = freq;
-    osc.type = type;
-    gain.gain.setValueAtTime(vol, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + duration);
-}
+# Web Node ビルド＋書き込み
+pio run -e web_node -t upload
+
+# LittleFS（Web UI）書き込み
+pio run -e web_node -t uploadfs
 ```
 
-#### イベント別サウンド
+---
 
-|イベント        |音                        |説明                  |
-|------------|-------------------------|--------------------|
-|ゲート通過（通常ラップ）|880Hz・0.15秒・sine         |短い高音ビープ             |
-|ベストラップ更新    |880Hz→1320Hz→1760Hz・各0.1秒|上昇3音                |
-|レース開始カウントダウン|440Hz×3回→880Hz           |RotorHazard準拠の3+1ビープ|
-|レース終了       |880Hz→440Hz→220Hz・各0.2秒  |下降3音                |
-|CROSSING検出開始|220Hz・0.05秒・square       |低い短音（任意でON/OFF）     |
+## 参加者の設定（機体側）
 
-#### 音量・ON/OFF設定
+1. TX BackpackのLuaスクリプトを開く
+2. `Telemetry` → `ESP-NOW` に設定
+3. 以上。バインドフレーズはそのまま使用
 
-- Web UI右上にスピーカーアイコンでミュートトグル
-- 音量スライダー（0〜100%）
-- 設定はlocalStorageに保存
-
------
-
-### 実装ライブラリ
-
-|用途         |ライブラリ                  |CDN          |
-|-----------|-----------------------|-------------|
-|RSSI波形グラフ  |SmoothieChart          |`smoothie.js`|
-|ラップ表アニメーション|CSS Animations（ライブラリ不要）|—            |
-|音響         |Web Audio API（ブラウザ標準）  |—            |
-
------
-
-### ユーザー操作メモ
-
-- **iOSのSafari**: `AudioContext`はユーザー操作後（タップ後）でないと音が出ない
-  → 「START RACE」ボタンタップ時に`ctx.resume()`を呼ぶことで対処
-- **音の遅延**: WebSocketでラップイベントを受信後即座に`beep()`を呼ぶことで
-  体感遅延を最小化（UARTのレイテンシ＋WebSocket配信遅延は合計10〜20ms程度）
-
------
-
-## 開発フェーズ
-
-### フェーズ1（最初にやること）：RSSIロギング ← **ここから開始**
-
-**目的:** 実際のゲート通過時のRSSI波形を確認してパラメータを決める
-
-**作成ファイル:**
-
-- `src/main.cpp` — ESP32 PlatformIOスケッチ
-- `data/index.html` — リアルタイム波形表示Web UI（LittleFS配信）
-
-**機能:**
-
-- ESP32がAPモードで起動（SSID: `ELRS-Logger`）
-- Promiscuousモードで全ESP-NOWパケット受信
-- 送信元MACを自動検出・パイロット登録
-- WebSocket経由でRSSI履歴をリアルタイム配信
-- Web UIで波形グラフ表示（SmoothieChart使用）
-- Web UIでパイロット名を設定（MAC→名前のマッピング）
-- CSVダウンロード機能（波形データの保存・分析用）
-
-**スタック:**
-
-- PlatformIO + ESP32 Arduino framework
-- ESPAsyncWebServer + AsyncWebSocket
-- LittleFS（index.html配信）
-- ArduinoJson
-- SmoothieChart（Web UI）
-
-### フェーズ2：ピーク検出実装
-
-- フェーズ1の波形データをもとにパラメータ決定
-- ピークホールド状態機械実装
-- シリアルログでトリガーイベント確認
-
-### フェーズ3：PhobosLT統合
-
-- ESP-NOWでゲートノード → PhobosLTへラップトリガー送信
-- PhobosLTのパイロット管理UIにUID/名前登録機能追加
-- 既存のWebSocket/OSDラップ表示と接続
-
------
-
-## パイロット登録 Web UI 仕様
-
-### 概要
-
-バインドフレーズを入力するとUID（6バイト）を自動計算し、
-ESP32のNVS（Preferences）に保存するWeb UI。
-
-### 対象ファイル
-
-`data/index.html` のConfigタブ内に実装する。
-
-### デザイン
-
-**PhobosLTの4chカードレイアウトを踏襲する。**
-
-- ダークテーマ（背景: #0a0a0a 〜 #111）
-- フォント: `Orbitron`（見出し・UID表示）＋ `Share Tech Mono`（入力・数値）
-- 4つのパイロットカードを2×2グリッド（モバイル時は1列）で配置
-- 各カードにPilot番号をアクセントカラーで大きく表示
-- アクセントカラー: Pilot1=シアン / Pilot2=オレンジ / Pilot3=グリーン / Pilot4=マゼンタ
-  （PhobosLTの4ch配色に合わせる）
-
-### 各カードの入力項目
-
-```
-┌─────────────────────────────┐
-│  ① PILOT 1                  │  ← アクセントカラーで強調
-│                             │
-│  Name                       │
-│  [________________]         │  ← テキスト入力
-│                             │
-│  Bind Phrase                │
-│  [________________]         │  ← テキスト入力
-│                             │
-│  UID                        │
-│  AA:BB:CC:DD:EE:FF          │  ← 自動計算・読み取り専用表示
-│                             │
-│  [    SAVE    ]             │  ← 保存ボタン
-└─────────────────────────────┘
-```
-
-### UID自動計算ロジック（ELRS準拠）
-
-ELRSのバインドフレーズ → UID変換はSHA256ベース。
-**JavaScriptで実装する。**
-
-```javascript
-// ELRS公式アルゴリズム（ExpressLRS/src/lib/SX1280Driver/SX1280.cpp参照）
-// bindPhrase → UTF-8バイト列 → SHA256 → 先頭6バイトがUID
-
-async function bindPhraseToUID(phrase) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(phrase);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    // 先頭6バイトをUIDとして使用
-    const uid = hashArray.slice(0, 6);
-    return uid.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
-}
-
-// バインドフレーズ入力のたびにリアルタイム計算
-phraseInput.addEventListener('input', async () => {
-    const uid = await bindPhraseToUID(phraseInput.value);
-    uidDisplay.textContent = uid;
-});
-```
-
-**検証方法:** https://expresslrs.github.io/web-flasher/ で同じフレーズを入力して
-表示されるUIDと一致することを確認すること。
-
-### API（ESP32側）
-
-```
-GET  /api/pilots          → 全パイロット設定をJSON返却
-POST /api/pilots          → パイロット設定を保存
-     Body: {"id":0,"name":"Taro","bindPhrase":"my-phrase","uid":[0xAA,...]}
-```
-
-### 保存先
-
-ESP32の `Preferences`（NVS）に保存。キー例:
-
-- `pilot0_name`
-- `pilot0_uid` （6バイトのバイナリ or HEX文字列）
-
-### 動作フロー
-
-1. ページロード時に `/api/pilots` で既存設定を取得・表示
-1. バインドフレーズ入力 → リアルタイムでUID計算・表示
-1. SAVEボタン → `/api/pilots` にPOST → ESP32がNVSに保存
-1. 保存成功でカードにチェックマーク表示
-1. 保存されたUIDはゲートノードのパイロット識別に使用される
-
------
-
-## platformio.ini
-
-```ini
-[env:elrs_logger]
-platform = espressif32
-board = esp32dev
-framework = arduino
-monitor_speed = 115200
-board_build.filesystem = littlefs
-lib_deps =
-    ESP Async WebServer
-    ArduinoJson
-```
-
------
-
-## 注意事項
-
-- ⚠️ WiFi SSID/Passwordをコードにハードコードする場合は
-  GitHubにUPする前に必ず公開用ダミー値に変更すること
-- ESP-NOWのPromiscuousモードはWiFi APモードと共存可能（要検証）
-- PromiscuousコールバックはISRコンテキスト → portENTER_CRITICAL_ISR使用
-- パケットフィルタ（ActionFrame判定）は実測で調整が必要
-
------
+---
 
 ## 関連リポジトリ
 
-- PhobosLT（既存ラップタイマー）: yanazoo/PhobosLT
-- ELRS Backpack例: druckgott/ELRS-Backpack-Example-ESPNOW
-- ELRS Backpack公式: ExpressLRS/Backpack
-
------
-
-## 参考情報
-
-- ESP-NOW Promiscuousパケット構造:
-  `wifi_promiscuous_pkt_t` → `rx_ctrl.rssi` でRSSI取得
-  送信元MAC: `payload[10..15]`（ActionFrame）
-- ELRS Backpack v3.4以降でTelemetry ESP-NOW対応
-- Generic Race Timer Backpackターゲットがすでに公式に存在する
-  （RotorHazard→ELRS OSD送信用。本プロジェクトはその逆方向）
+- PhobosLT（既存ラップタイマー）: [yanazoo/PhobosLT_4ch](https://github.com/yanazoo/PhobosLT_4ch)
+- ELRS Backpack公式: [ExpressLRS/Backpack](https://github.com/ExpressLRS/Backpack)
