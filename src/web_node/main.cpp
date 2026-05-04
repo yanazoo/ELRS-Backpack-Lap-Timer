@@ -7,11 +7,14 @@
  *   - Serve index.html from LittleFS
  *   - WebSocket /ws — real-time push to browsers
  *   - REST API /api/pilots  /api/race/start|stop  /api/laps  /api/config
- *   - Receive JSON lines from Gate Node via Serial1 (UART RX = GPIO44/D7)
+ *   - Receive JSON lines from Gate Node via Serial1 (UART RX = GPIO3/D2)
+ *   - Send sync commands to Gate Node via Serial1  (UART TX = GPIO2/D1)
  *   - Store pilot config in NVS (Preferences)
+ *   - GET /api/uid?phrase=...  compute ELRS UID (mbedTLS SHA-256)
  *
  * Wiring
- *   XIAO ESP32-S3 GPIO44 (D7/RX1) ← ESP32-WROVER-E GPIO17 (TX1)
+ *   XIAO ESP32-S3 GPIO3 (D2/RX1) ← ESP32-WROVER-E GPIO26 (TX1)
+ *   XIAO ESP32-S3 GPIO2 (D1/TX1) → ESP32-WROVER-E GPIO25 (RX1)
  *   Common GND
  */
 
@@ -22,6 +25,7 @@
 #include <LittleFS.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
+#include <mbedtls/sha256.h>
 
 // ── Network ────────────────────────────────────────────────────────────────
 static const char*  AP_SSID    = "ELRS bp-LT";
@@ -30,8 +34,9 @@ static const IPAddress AP_IP      (20, 0, 0, 1);
 static const IPAddress AP_GATEWAY (20, 0, 0, 1);
 static const IPAddress AP_SUBNET  (255, 255, 255, 0);
 
-// ── UART from Gate Node ────────────────────────────────────────────────────
-#define GATE_RX_PIN   44    // D7 on XIAO ESP32-S3
+// ── UART ↔ Gate Node ──────────────────────────────────────────────────────
+#define GATE_RX_PIN   3     // D2 on XIAO ESP32-S3 ← Gate Node GPIO26 (TX)
+#define GATE_TX_PIN   2     // D1 on XIAO ESP32-S3 → Gate Node GPIO25 (RX)
 #define GATE_BAUD     115200
 
 // ── Pilot data ─────────────────────────────────────────────────────────────
@@ -152,6 +157,14 @@ static String lapsJson() {
         o["name"]    = cfg[laps[i].pilotIdx].name;
     }
     String s; serializeJson(doc, s); return s;
+}
+
+// ── Send command to Gate Node ─────────────────────────────────────────────
+static void sendGateCmd(const char* action) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), R"({"type":"cmd","action":"%s"})", action);
+    Serial1.println(buf);
+    Serial.printf("[Web] → Gate: %s\n", buf);
 }
 
 // ── WebSocket broadcast ────────────────────────────────────────────────────
@@ -275,8 +288,8 @@ void setup() {
     Serial.begin(115200);
     Serial.println("\n[Web] ELRS Backpack Lap Timer — Web Node");
 
-    // UART from Gate Node
-    Serial1.begin(GATE_BAUD, SERIAL_8N1, GATE_RX_PIN, -1);
+    // UART ↔ Gate Node (bidirectional)
+    Serial1.begin(GATE_BAUD, SERIAL_8N1, GATE_RX_PIN, GATE_TX_PIN);
 
     // Pilot config from NVS
     loadConfig();
@@ -347,6 +360,9 @@ void setup() {
             rt[i].bestLapMs  = 0;
             rt[i].lastLapTs  = 0;
         }
+        // Sync: tell gate node to reset pilot detection state
+        sendGateCmd("race_start");
+
         JsonDocument doc;
         doc["type"] = "race_start";
         doc["ts"]   = raceStartMs;
@@ -368,6 +384,25 @@ void setup() {
     // ── GET /api/laps ──────────────────────────────────────────────────────
     server.on("/api/laps", HTTP_GET, [](AsyncWebServerRequest* req) {
         req->send(200, "application/json", lapsJson());
+    });
+
+    // ── GET /api/uid?phrase=... ────────────────────────────────────────────
+    // Compute ELRS UID (SHA-256 of bind phrase, first 6 bytes) server-side.
+    // Avoids Web Crypto API which requires HTTPS (secure context).
+    server.on("/api/uid", HTTP_GET, [](AsyncWebServerRequest* req) {
+        if (!req->hasParam("phrase")) {
+            req->send(400, "text/plain", "missing phrase");
+            return;
+        }
+        String phrase = req->getParam("phrase")->value();
+        uint8_t hash[32];
+        mbedtls_sha256(
+            reinterpret_cast<const unsigned char*>(phrase.c_str()),
+            phrase.length(), hash, 0);
+        char uid[18];
+        snprintf(uid, sizeof(uid), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 hash[0], hash[1], hash[2], hash[3], hash[4], hash[5]);
+        req->send(200, "text/plain", uid);
     });
 
     // ── GET /api/status ───────────────────────────────────────────────────

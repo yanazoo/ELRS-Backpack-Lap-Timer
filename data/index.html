@@ -330,12 +330,19 @@ function updateCalibCard(p){
 }
 
 /* Config cards */
+// UID is computed server-side via /api/uid to avoid Web Crypto API
+// which requires a secure context (HTTPS) not available on plain HTTP.
 async function bindPhraseToUID(phrase){
   if(!phrase) return '';
   try{
-    var buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(phrase));
-    return Array.from(new Uint8Array(buf).slice(0,6)).map(function(b){return b.toString(16).padStart(2,'0').toUpperCase();}).join(':');
-  }catch(e){return '';}
+    var r=await fetch('/api/uid?phrase='+encodeURIComponent(phrase));
+    if(r.ok){
+      var uid=await r.text();
+      // validate format XX:XX:XX:XX:XX:XX
+      if(/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(uid.trim())) return uid.trim().toUpperCase();
+    }
+  }catch(e){}
+  return '';
 }
 function buildConfigCards(){
   var g=document.getElementById('configGrid'); g.innerHTML='';

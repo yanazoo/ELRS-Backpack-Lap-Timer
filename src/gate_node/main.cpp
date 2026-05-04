@@ -7,12 +7,18 @@
  *   - EMA filter + RotorHazard-style state machine for gate-crossing detection
  *   - UART (Serial1, TX=GPIO17) → XIAO ESP32-S3 Web Node
  *
- * UART protocol (1 JSON line per event):
+ * UART protocol — Gate→Web (1 JSON line per event):
  *   {"type":"lap",  "pilot":0,"uid":"AA:BB","rssi":-72,"ts":123456}
  *   {"type":"rssi", "pilot":0,"rssi":-85,"raw":-87,"crossing":false,"ts":123460}
+ *   {"type":"ready"}   — sent on boot
+ *
+ * UART protocol — Web→Gate (sync commands):
+ *   {"type":"cmd","action":"race_start"}  — reset all pilot state
+ *   {"type":"cmd","action":"race_stop"}   — (no-op, future use)
  *
  * Wiring
- *   ESP32-WROVER-E GPIO17 (TX1) → XIAO ESP32-S3 GPIO44 (RX1/D7)
+ *   ESP32-WROVER-E GPIO26 (TX1) → XIAO ESP32-S3 GPIO3  (D2/RX1)
+ *   ESP32-WROVER-E GPIO25 (RX1) ← XIAO ESP32-S3 GPIO2  (D1/TX1)
  *   Common GND
  */
 
@@ -24,7 +30,8 @@
 #include <ArduinoJson.h>
 
 // ── Pin & UART ─────────────────────────────────────────────────────────────
-#define WEB_NODE_TX_PIN   17        // Serial1 TX → XIAO ESP32-S3 RX
+#define WEB_NODE_TX_PIN   26        // Serial1 TX → XIAO ESP32-S3 GPIO3 (D2)
+#define WEB_NODE_RX_PIN   25        // Serial1 RX ← XIAO ESP32-S3 GPIO2 (D1)
 #define DEBUG_BAUD        115200
 #define UART_BAUD         115200
 
@@ -136,6 +143,28 @@ static void sendLap(int idx) {
                   idx, pilots[idx].peakRssi, (unsigned long)pilots[idx].peakTime);
 }
 
+// ── Reset all pilot detection state (called on race_start command) ─────────
+static void resetPilots() {
+    for (int i = 0; i < pilotCount; i++) {
+        pilots[i].crossing    = false;
+        pilots[i].peakRssi    = -120;
+        pilots[i].peakTime    = 0;
+        pilots[i].lastLapTime = 0;
+        pilots[i].emaRssi     = -120.0f;
+    }
+    Serial.println("[Gate] Pilot state reset by web node command");
+}
+
+// ── Handle command line received from Web Node ─────────────────────────────
+static void processWebCmd(const String& line) {
+    JsonDocument doc;
+    if (deserializeJson(doc, line) != DeserializationError::Ok) return;
+    const char* type = doc["type"] | "";
+    if (strcmp(type, "cmd") != 0) return;
+    const char* action = doc["action"] | "";
+    if (strcmp(action, "race_start") == 0) resetPilots();
+}
+
 static void sendRssi(int idx, uint32_t now) {
     char macStr[18];
     macToStr(pilots[idx].uid, macStr);
@@ -158,8 +187,8 @@ void setup() {
     Serial.begin(DEBUG_BAUD);
     Serial.println("\n[Gate] ELRS Backpack Lap Timer — Gate Node");
 
-    // Serial1: TX only to Web Node
-    Serial1.begin(UART_BAUD, SERIAL_8N1, -1, WEB_NODE_TX_PIN);
+    // Serial1: bidirectional with Web Node
+    Serial1.begin(UART_BAUD, SERIAL_8N1, WEB_NODE_RX_PIN, WEB_NODE_TX_PIN);
 
     // FreeRTOS queue (ISR→main)
     packetQueue = xQueueCreate(64, sizeof(PacketInfo));
@@ -175,13 +204,31 @@ void setup() {
     esp_wifi_set_promiscuous_rx_cb(onPromiscuous);
 
     Serial.printf("[Gate] Listening on WiFi channel %d\n", ESPNOW_CHANNEL);
+
+    // Notify web node that gate node is ready
+    Serial1.println(R"({"type":"ready"})");
 }
+
+// ── RX buffer for commands from Web Node ───────────────────────────────────
+static String webCmdBuf;
 
 // ── Loop ───────────────────────────────────────────────────────────────────
 static uint32_t lastRssiSend = 0;
 
 void loop() {
     uint32_t now = millis();
+
+    // 0. Read commands from Web Node
+    while (Serial1.available()) {
+        char c = (char)Serial1.read();
+        if (c == '\n') {
+            webCmdBuf.trim();
+            if (webCmdBuf.length()) { processWebCmd(webCmdBuf); webCmdBuf = ""; }
+        } else if (c != '\r') {
+            webCmdBuf += c;
+            if (webCmdBuf.length() > 256) webCmdBuf = "";
+        }
+    }
 
     // 1. Drain ISR queue → update raw RSSI per pilot
     PacketInfo info;
