@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>ELRS Lap Timer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#0a0a0a; --card-bg:#111; --border:#222; --text:#e0e0e0; --text-dim:#555; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Share Tech Mono','Courier New',monospace; background:var(--bg); color:var(--text); min-height:100vh; overscroll-behavior:none; }
+
+    /* Navigation */
+    .tab-nav { display:flex; background:#0d0d0d; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; }
+    .tab-btn { flex:1; padding:14px 6px; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-dim); font-family:'Orbitron',monospace; font-size:11px; letter-spacing:1px; cursor:pointer; transition:color .2s,border-color .2s; }
+    .tab-btn.active { color:var(--text); border-bottom-color:#fff; }
+    .tab-content { display:none; padding:14px; }
+    .tab-content.active { display:block; }
+
+    /* Buttons */
+    .btn { padding:10px 18px; border:none; border-radius:4px; font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:1px; cursor:pointer; transition:opacity .15s,transform .1s; }
+    .btn:active { transform:scale(.97); }
+    .btn:disabled { opacity:.3; cursor:not-allowed; }
+    .btn-start { background:#00c853; color:#000; }
+    .btn-stop  { background:#d50000; color:#fff; }
+    .btn-save  { background:#1565c0; color:#fff; width:100%; margin-top:8px; padding:8px; font-size:11px; }
+
+    /* Race tab */
+    .header-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+    .race-timer { font-family:'Orbitron',monospace; font-size:32px; font-weight:900; letter-spacing:2px; color:#fff; flex:1; min-width:160px; }
+    .race-timer.running { color:#00e5ff; }
+    .race-controls { display:flex; gap:8px; }
+    .audio-ctrl { display:flex; align-items:center; gap:6px; }
+    .mute-btn { background:none; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:4px; cursor:pointer; font-size:16px; }
+    .vol-slider { width:70px; accent-color:#00e5ff; }
+
+    /* Pilot grid */
+    .pilot-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
+    @media(max-width:480px){ .pilot-grid { grid-template-columns:1fr; } }
+
+    .pilot-card { background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:12px; position:relative; overflow:hidden; transition:border-color .3s; }
+    .pilot-card.crossing { border-color:var(--accent); animation:cardPulse .8s ease-in-out infinite alternate; }
+    @keyframes cardPulse { from{box-shadow:0 0 0 0 var(--accent)} to{box-shadow:0 0 14px 4px var(--accent)} }
+    @keyframes lapFlash  { 0%{background:#ffffff22;transform:scale(1.02)} 40%{background:var(--accent-t)} 100%{background:var(--card-bg);transform:scale(1)} }
+    .pilot-card.lap-flash { animation:lapFlash .6s ease-out forwards; }
+
+    .pilot-num    { font-family:'Orbitron',monospace; font-size:10px; font-weight:700; letter-spacing:2px; color:var(--accent); margin-bottom:3px; }
+    .pilot-name   { font-size:16px; font-weight:bold; color:#fff; margin-bottom:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .lap-time-big { font-family:'Orbitron',monospace; font-size:28px; font-weight:900; color:var(--accent); line-height:1; margin-bottom:6px; min-height:34px; }
+    .lap-meta     { display:flex; gap:10px; font-size:11px; color:var(--text-dim); margin-bottom:4px; }
+    .best-lap     { color:#ffd600; }
+    .delta        { font-size:12px; font-weight:bold; }
+    .delta.faster { color:#00e676; }
+    .delta.slower { color:#ff5252; }
+    .state-badge  { position:absolute; top:9px; right:9px; font-family:'Orbitron',monospace; font-size:9px; letter-spacing:1px; padding:3px 7px; border-radius:3px; background:#222; color:var(--text-dim); }
+    .state-badge.crossing { background:var(--accent); color:#000; }
+
+    /* Overlays */
+    .best-banner  { position:fixed; top:60px; left:50%; transform:translateX(-50%); background:#ffd600; color:#000; font-family:'Orbitron',monospace; font-size:14px; font-weight:900; letter-spacing:2px; padding:10px 24px; border-radius:6px; z-index:200; opacity:0; transition:opacity .3s; pointer-events:none; }
+    .best-banner.show { opacity:1; }
+    .flash-overlay { position:fixed; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:150; }
+
+    /* Lap table */
+    .section-title { font-family:'Orbitron',monospace; font-size:10px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; margin-bottom:8px; }
+    .lap-table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th { font-family:'Orbitron',monospace; font-size:9px; letter-spacing:1px; color:var(--text-dim); text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
+    td { padding:5px 8px; border-bottom:1px solid #181818; }
+    tr:last-child td { border-bottom:none; }
+    .lap-num { color:var(--text-dim); }
+
+    /* Calibration tab */
+    .calib-grid  { display:flex; flex-direction:column; gap:12px; }
+    .calib-card  { background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:12px; }
+    .calib-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+    .calib-name  { font-weight:bold; font-size:13px; flex:1; }
+    .rssi-value  { font-family:'Orbitron',monospace; font-size:16px; font-weight:700; min-width:70px; text-align:right; }
+    .rssi-bar-wrap { position:relative; height:16px; background:#1a1a1a; border-radius:3px; margin-bottom:4px; overflow:hidden; }
+    .rssi-bar    { height:100%; border-radius:3px; transition:width .1s; }
+    .threshold-line { position:absolute; top:0; width:2px; height:100%; }
+    .t-enter { background:#00e676; }
+    .t-exit  { background:#ff6d00; }
+    .thresh-labels { display:flex; justify-content:space-between; font-size:10px; color:var(--text-dim); }
+    .calib-canvas  { width:100%; height:70px; border-radius:4px; margin-top:6px; display:block; background:#111; }
+
+    /* Config tab */
+    .config-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    @media(max-width:480px){ .config-grid { grid-template-columns:1fr; } }
+    .config-card { background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:14px; }
+    .config-num  { font-family:'Orbitron',monospace; font-size:12px; font-weight:900; letter-spacing:2px; margin-bottom:12px; }
+    .field-label { font-size:10px; letter-spacing:1px; color:var(--text-dim); text-transform:uppercase; margin-top:10px; margin-bottom:4px; }
+    .field-label:first-of-type { margin-top:0; }
+    input[type="text"] { width:100%; background:#1a1a1a; border:1px solid #333; color:var(--text); font-family:'Share Tech Mono',monospace; font-size:13px; padding:7px 10px; border-radius:4px; outline:none; transition:border-color .2s; }
+    input[type="text"]:focus { border-color:#555; }
+    .uid-display { font-family:'Orbitron',monospace; font-size:11px; padding:7px 0; letter-spacing:1px; min-height:28px; }
+    .save-status { font-size:11px; color:#00e676; height:16px; margin-top:4px; text-align:center; }
+
+    /* Connection */
+    .conn-status { position:fixed; bottom:10px; right:12px; font-size:10px; font-family:'Orbitron',monospace; letter-spacing:1px; padding:4px 10px; border-radius:12px; background:#1a1a1a; z-index:100; }
+    .conn-status.connected    { color:#00e676; }
+    .conn-status.disconnected { color:#ff5252; }
+  </style>
+</head>
+<body>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="race">&#127937; RACE</button>
+  <button class="tab-btn" data-tab="calibration">&#128225; CALIB</button>
+  <button class="tab-btn" data-tab="config">&#9881; CONFIG</button>
+</nav>
+
+<!-- RACE TAB -->
+<div id="tab-race" class="tab-content active">
+  <div class="header-bar">
+    <div class="race-timer" id="raceTimer">00:00.000</div>
+    <div class="race-controls">
+      <button class="btn btn-start" id="btnStart">START</button>
+      <button class="btn btn-stop"  id="btnStop" disabled>STOP</button>
+    </div>
+    <div class="audio-ctrl">
+      <button class="mute-btn" id="muteBtn">&#128266;</button>
+      <input type="range" class="vol-slider" id="volSlider" min="0" max="100" value="70">
+    </div>
+  </div>
+  <div class="pilot-grid" id="pilotGrid"></div>
+  <div class="section-title">LAP HISTORY</div>
+  <div class="lap-table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>PILOT</th><th>LAP TIME</th><th>DELTA</th><th>RSSI</th></tr></thead>
+      <tbody id="lapTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- CALIBRATION TAB -->
+<div id="tab-calibration" class="tab-content">
+  <div class="calib-grid" id="calibGrid"></div>
+</div>
+
+<!-- CONFIG TAB -->
+<div id="tab-config" class="tab-content">
+  <div style="margin-bottom:12px;font-size:11px;color:#555">
+    &#12496;&#12452;&#12531;&#12489;&#12501;&#12524;&#12540;&#12474;&#12434;&#20837;&#21147;&#12377;&#12427;&#12392;UID&#65288;SHA-256 &#20808;&#39508;6&#12496;&#12452;&#12488;&#65289;&#12364;&#33258;&#21205;&#35336;&#31639;&#12373;&#12428;&#12414;&#12377;&#12290;
+  </div>
+  <div class="config-grid" id="configGrid"></div>
+</div>
+
+<div class="flash-overlay" id="flashOverlay"></div>
+<div class="best-banner"   id="bestBanner">&#127942; BEST LAP!</div>
+<div class="conn-status disconnected" id="connStatus">&#9679; OFFLINE</div>
+
+<script>
+'use strict';
+
+const COLORS = ['#00e5ff','#ff6d00','#00e676','#e040fb'];
+const LABELS = ['PILOT 1','PILOT 2','PILOT 3','PILOT 4'];
+const N = 4;
+const DB_MIN = -120, DB_MAX = -40;
+const ENTER_AT = -80, EXIT_AT = -90;
+
+const pilots = Array.from({length:N}, (_,i) => ({
+  id:i, name:LABELS[i], rssi:-120, rawRssi:-120, crossing:false,
+  lapCount:0, lastLapMs:0, bestLapMs:0, color:COLORS[i]
+}));
+
+let raceRunning=false, raceStartPerf=0, timerH=null, totalLaps=0;
+
+/* Audio */
+let audioCtx=null;
+let muted = localStorage.getItem('muted')==='1';
+let vol   = parseFloat(localStorage.getItem('vol')??'.7');
+
+function ensureAudio(){
+  if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended') audioCtx.resume();
+}
+function beep(freq,dur,type,v){
+  type=type||'sine'; v=v===undefined?vol:v;
+  if(muted||!audioCtx) return;
+  var o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  o.frequency.value=freq; o.type=type;
+  var t=audioCtx.currentTime;
+  g.gain.setValueAtTime(v,t);
+  g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.start(t); o.stop(t+dur);
+}
+function seq(notes){ notes.forEach(function(n){ setTimeout(function(){beep(n[0],n[1],n[2]);},n[3]||0); }); }
+var sfx={
+  lap:  function(){beep(880,.15);},
+  best: function(){seq([[880,.1,'sine',0],[1320,.1,'sine',110],[1760,.15,'sine',220]]);},
+  start:function(){seq([[440,.12,'sine',0],[440,.12,'sine',300],[440,.12,'sine',600],[880,.3,'sine',900]]);},
+  stop: function(){seq([[880,.2,'sine',0],[440,.2,'sine',220],[220,.3,'sine',440]]);},
+  cross:function(){beep(220,.05,'square',Math.min(vol*.5,.15));}
+};
+
+/* Format */
+function fmt(ms){
+  if(!ms) return '--:--.---';
+  var m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), f=ms%1000;
+  return pad(m,2)+':'+pad(s,2)+'.'+pad(f,3);
+}
+function pad(n,w){ return String(n).padStart(w,'0'); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDelta(ms){ var sign=ms>=0?'+':''; return sign+(ms/1000).toFixed(3)+'s'; }
+function dbPct(db){ return Math.max(0,Math.min(100,((db-DB_MIN)/(DB_MAX-DB_MIN))*100)); }
+
+/* Race timer */
+var timerEl=document.getElementById('raceTimer');
+function startTimer(){ raceStartPerf=performance.now(); timerEl.classList.add('running'); timerH=setInterval(function(){timerEl.textContent=fmt(Math.floor(performance.now()-raceStartPerf));},50); }
+function stopTimer(){ clearInterval(timerH); timerH=null; timerEl.classList.remove('running'); }
+
+/* Race cards */
+function buildRaceCards(){
+  var g=document.getElementById('pilotGrid'); g.innerHTML='';
+  pilots.forEach(function(p){
+    var d=document.createElement('div');
+    d.className='pilot-card'; d.id='rc-'+p.id;
+    d.style.cssText='--accent:'+p.color+';--accent-t:'+p.color+'22';
+    d.innerHTML='<div class="state-badge" id="rs-'+p.id+'">CLEAR</div>'+
+      '<div class="pilot-num">'+LABELS[p.id]+'</div>'+
+      '<div class="pilot-name" id="rn-'+p.id+'">'+esc(p.name)+'</div>'+
+      '<div class="lap-time-big" id="rt-'+p.id+'" style="color:'+p.color+'">--:--.---</div>'+
+      '<div class="lap-meta"><span>LAP <span id="rl-'+p.id+'">0</span></span>'+
+      '<span class="best-lap">BEST <span id="rb-'+p.id+'">--:--.---</span></span></div>'+
+      '<div class="delta" id="rd-'+p.id+'"></div>';
+    g.appendChild(d);
+  });
+}
+function updateRaceCard(p){
+  var $=function(id){return document.getElementById(id);};
+  $('rn-'+p.id).textContent=esc(p.name);
+  $('rt-'+p.id).textContent=fmt(p.lastLapMs);
+  $('rl-'+p.id).textContent=p.lapCount;
+  $('rb-'+p.id).textContent=fmt(p.bestLapMs);
+  var badge=$('rs-'+p.id);
+  badge.textContent=p.crossing?'CROSSING':'CLEAR';
+  badge.className='state-badge'+(p.crossing?' crossing':'');
+  if(p.crossing) badge.style.background=p.color; else badge.style.background='';
+  var card=$('rc-'+p.id);
+  card.className='pilot-card'+(p.crossing?' crossing':'');
+  card.style.cssText='--accent:'+p.color+';--accent-t:'+p.color+'22';
+  var de=$('rd-'+p.id);
+  if(p.lastLapMs&&p.bestLapMs){
+    var d2=p.lastLapMs-p.bestLapMs;
+    if(d2===0){de.textContent='* BEST';de.className='delta faster';}
+    else{de.textContent=fmtDelta(d2);de.className='delta '+(d2<0?'faster':'slower');}
+  } else de.textContent='';
+}
+function flashCard(id){
+  var c=document.getElementById('rc-'+id);
+  c.classList.remove('lap-flash'); void c.offsetWidth;
+  c.classList.add('lap-flash');
+  c.addEventListener('animationend',function(){c.classList.remove('lap-flash');},{once:true});
+  var ov=document.getElementById('flashOverlay');
+  ov.style.opacity='.12'; setTimeout(function(){ov.style.opacity='0';},300);
+}
+function showBest(){ var b=document.getElementById('bestBanner'); b.classList.add('show'); setTimeout(function(){b.classList.remove('show');},2200); }
+
+/* RSSI Chart */
+var charts=[];
+function RssiChart(canvas,color){
+  this.cv=canvas; this.ctx=canvas.getContext('2d'); this.color=color;
+  this.LEN=200;
+  this.data=new Float32Array(this.LEN).fill(-120);
+  this.cross=new Uint8Array(this.LEN);
+  var self=this;
+  this._sz=function(){
+    self.cv.width=self.cv.offsetWidth||300; self.cv.height=self.cv.offsetHeight||70; self.draw();
+  };
+  this._sz();
+  window.addEventListener('resize',this._sz);
+}
+RssiChart.prototype.push=function(v,cr){
+  this.data.copyWithin(0,1);  this.data[this.LEN-1]=v;
+  this.cross.copyWithin(0,1); this.cross[this.LEN-1]=cr?1:0;
+  this.draw();
+};
+RssiChart.prototype.draw=function(){
+  var c=this.ctx, w=this.cv.width, h=this.cv.height;
+  var rng=DB_MAX-DB_MIN;
+  var y=function(v){return h-((Math.max(DB_MIN,Math.min(DB_MAX,v))-DB_MIN)/rng)*h;};
+  var dx=w/this.LEN;
+  c.fillStyle='#111'; c.fillRect(0,0,w,h);
+  c.fillStyle=this.color+'22';
+  for(var i=0;i<this.LEN;i++) if(this.cross[i]) c.fillRect(i*dx,0,dx+1,h);
+  c.strokeStyle='#1e1e1e'; c.lineWidth=1; c.setLineDash([]);
+  [-60,-80,-100].forEach(function(db){ c.beginPath();c.moveTo(0,y(db));c.lineTo(w,y(db));c.stroke(); });
+  c.setLineDash([4,4]); c.lineWidth=1;
+  c.strokeStyle='#00e67688'; c.beginPath();c.moveTo(0,y(ENTER_AT));c.lineTo(w,y(ENTER_AT));c.stroke();
+  c.strokeStyle='#ff6d0088'; c.beginPath();c.moveTo(0,y(EXIT_AT));c.lineTo(w,y(EXIT_AT));c.stroke();
+  c.setLineDash([]);
+  c.strokeStyle=this.color; c.lineWidth=1.5; c.beginPath();
+  for(var j=0;j<this.LEN;j++){var x=j*dx,yy=y(this.data[j]); j===0?c.moveTo(x,yy):c.lineTo(x,yy);}
+  c.stroke();
+};
+
+function buildCalibCards(){
+  var g=document.getElementById('calibGrid'); g.innerHTML=''; charts.length=0;
+  pilots.forEach(function(p){
+    var d=document.createElement('div'); d.className='calib-card';
+    var ep=dbPct(ENTER_AT), xp=dbPct(EXIT_AT);
+    d.innerHTML='<div class="calib-header">'+
+      '<span class="pilot-num" style="color:'+p.color+';min-width:56px">'+LABELS[p.id]+'</span>'+
+      '<span class="calib-name" id="cn-'+p.id+'">'+esc(p.name)+'</span>'+
+      '<span class="rssi-value" id="cv-'+p.id+'" style="color:'+p.color+'">--- dBm</span>'+
+      '<span class="state-badge" id="cs-'+p.id+'">CLEAR</span></div>'+
+      '<div class="rssi-bar-wrap">'+
+      '<div class="rssi-bar" id="cb-'+p.id+'" style="background:'+p.color+';width:0%"></div>'+
+      '<div class="threshold-line t-enter" style="left:'+ep+'%"></div>'+
+      '<div class="threshold-line t-exit"  style="left:'+xp+'%"></div></div>'+
+      '<div class="thresh-labels"><span>'+DB_MIN+'</span><span style="color:#00e676">Enter '+ENTER_AT+'</span><span style="color:#ff6d00">Exit '+EXIT_AT+'</span><span>'+DB_MAX+' dBm</span></div>'+
+      '<canvas class="calib-canvas" id="cc-'+p.id+'"></canvas>';
+    g.appendChild(d);
+    charts.push(new RssiChart(d.querySelector('#cc-'+p.id), p.color));
+  });
+}
+function updateCalibCard(p){
+  var $=function(id){return document.getElementById(id);};
+  $('cn-'+p.id).textContent=esc(p.name);
+  $('cv-'+p.id).textContent=p.rssi+' dBm';
+  $('cb-'+p.id).style.width=dbPct(p.rssi)+'%';
+  $('cb-'+p.id).style.background=p.crossing?p.color:p.color+'66';
+  var st=$('cs-'+p.id);
+  st.textContent=p.crossing?'CROSSING':'CLEAR';
+  st.className='state-badge'+(p.crossing?' crossing':'');
+  if(p.crossing) st.style.background=p.color; else st.style.background='';
+  if(charts[p.id]) charts[p.id].push(p.rssi,p.crossing);
+}
+
+/* Config cards */
+async function bindPhraseToUID(phrase){
+  if(!phrase) return '';
+  try{
+    var buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(phrase));
+    return Array.from(new Uint8Array(buf).slice(0,6)).map(function(b){return b.toString(16).padStart(2,'0').toUpperCase();}).join(':');
+  }catch(e){return '';}
+}
+function buildConfigCards(){
+  var g=document.getElementById('configGrid'); g.innerHTML='';
+  pilots.forEach(function(p){
+    var d=document.createElement('div'); d.className='config-card';
+    d.innerHTML='<div class="config-num" style="color:'+p.color+'">'+LABELS[p.id]+'</div>'+
+      '<div class="field-label">NAME</div>'+
+      '<input type="text" id="fn-'+p.id+'" placeholder="Pilot name" maxlength="30">'+
+      '<div class="field-label">BIND PHRASE</div>'+
+      '<input type="text" id="fp-'+p.id+'" placeholder="my-bind-phrase" maxlength="63" autocomplete="off">'+
+      '<div class="field-label">UID (auto)</div>'+
+      '<div class="uid-display" id="fu-'+p.id+'" style="color:'+p.color+'">--:--:--:--:--:--</div>'+
+      '<button class="btn btn-save" id="fs-'+p.id+'">SAVE</button>'+
+      '<div class="save-status" id="fst-'+p.id+'"></div>';
+    g.appendChild(d);
+    var phraseEl=d.querySelector('#fp-'+p.id);
+    var uidEl=d.querySelector('#fu-'+p.id);
+    var saveBtn=d.querySelector('#fs-'+p.id);
+    var statusEl=d.querySelector('#fst-'+p.id);
+    phraseEl.addEventListener('input',async function(){
+      uidEl.textContent=await bindPhraseToUID(phraseEl.value.trim())||'--:--:--:--:--:--';
+    });
+    saveBtn.addEventListener('click',async function(){
+      var name=document.getElementById('fn-'+p.id).value.trim();
+      var phrase=phraseEl.value.trim();
+      var uid=uidEl.textContent;
+      try{
+        var r=await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:p.id,name:name,bindPhrase:phrase,uid:uid})});
+        if(r.ok){if(name)p.name=name; statusEl.textContent='OK SAVED'; refreshNames();}
+        else statusEl.textContent='ERROR';
+      }catch(e){statusEl.textContent='NO CONNECTION';}
+      setTimeout(function(){statusEl.textContent='';},2500);
+    });
+  });
+}
+function refreshNames(){
+  pilots.forEach(function(p){
+    var a=document.getElementById('rn-'+p.id); if(a) a.textContent=esc(p.name);
+    var b=document.getElementById('cn-'+p.id); if(b) b.textContent=esc(p.name);
+  });
+}
+
+/* Lap table */
+function addLapRow(pIdx,lapMs,rssi){
+  var p=pilots[pIdx];
+  var delta=(p.bestLapMs&&lapMs)?lapMs-p.bestLapMs:null;
+  var dStr=delta!==null?fmtDelta(delta):'';
+  var dCls=delta===null?'':delta<=0?'faster':'slower';
+  var tr=document.createElement('tr');
+  tr.innerHTML='<td class="lap-num">#'+totalLaps+'</td>'+
+    '<td style="color:'+p.color+'">'+esc(p.name)+'</td>'+
+    '<td style="font-family:\'Orbitron\',monospace">'+fmt(lapMs)+'</td>'+
+    '<td class="delta '+dCls+'">'+dStr+'</td>'+
+    '<td style="color:#555">'+rssi+' dBm</td>';
+  document.getElementById('lapTbody').prepend(tr);
+}
+
+/* WebSocket */
+var ws=null, wsRetry=1000;
+var connEl=document.getElementById('connStatus');
+function wsConnect(){
+  ws=new WebSocket('ws://'+location.host+'/ws');
+  ws.onopen=function(){wsRetry=1000;connEl.textContent='ONLINE';connEl.className='conn-status connected';};
+  ws.onerror=function(){ws.close();};
+  ws.onclose=function(){
+    connEl.textContent='OFFLINE';connEl.className='conn-status disconnected';
+    setTimeout(function(){wsRetry=Math.min(wsRetry*2,16000);wsConnect();},wsRetry);
+  };
+  ws.onmessage=function(e){
+    var d; try{d=JSON.parse(e.data);}catch(ex){return;} onMsg(d);
+  };
+}
+function onMsg(d){
+  if(d.type==='init'){
+    raceRunning=d.raceRunning||false; setBtns(raceRunning);
+    if(raceRunning) startTimer();
+    (d.pilots||[]).forEach(function(pd){
+      var p=pilots[pd.id];
+      if(pd.name)p.name=pd.name;
+      if(pd.lapCount)p.lapCount=pd.lapCount;
+      if(pd.bestLap)p.bestLapMs=pd.bestLap;
+      p.rssi=pd.rssi||-120; p.crossing=pd.crossing||false;
+      updateRaceCard(p); updateCalibCard(p);
+    });
+  } else if(d.type==='rssi'){
+    var i=d.pilot; if(i<0||i>=N)return;
+    var p=pilots[i]; var wasC=p.crossing;
+    p.rssi=d.rssi!==undefined?d.rssi:p.rssi;
+    p.rawRssi=d.raw!==undefined?d.raw:p.rawRssi;
+    p.crossing=d.crossing||false;
+    updateRaceCard(p); updateCalibCard(p);
+    if(!wasC&&p.crossing) sfx.cross();
+  } else if(d.type==='lap'){
+    var i2=d.pilot; if(i2<0||i2>=N)return;
+    var p2=pilots[i2];
+    p2.name=d.name||p2.name;
+    p2.lapCount=d.lapCount!==undefined?d.lapCount:(p2.lapCount+1);
+    p2.lastLapMs=d.lapTime||0;
+    var newBest=d.newBest||false;
+    if(newBest||(p2.lastLapMs&&(!p2.bestLapMs||p2.lastLapMs<p2.bestLapMs))) p2.bestLapMs=p2.lastLapMs;
+    updateRaceCard(p2); updateCalibCard(p2);
+    flashCard(i2); totalLaps++;
+    addLapRow(i2,p2.lastLapMs,d.rssi||-120);
+    if(newBest){sfx.best();showBest();}else sfx.lap();
+  } else if(d.type==='race_start'){
+    raceRunning=true; setBtns(true); startTimer();
+    document.getElementById('lapTbody').innerHTML=''; totalLaps=0;
+    pilots.forEach(function(p3){p3.lapCount=0;p3.lastLapMs=0;p3.bestLapMs=0;updateRaceCard(p3);});
+  } else if(d.type==='race_stop'){
+    raceRunning=false; setBtns(false); stopTimer();
+  }
+}
+
+/* Buttons */
+function setBtns(r){
+  document.getElementById('btnStart').disabled=r;
+  document.getElementById('btnStop').disabled=!r;
+}
+document.getElementById('btnStart').addEventListener('click',async function(){
+  ensureAudio(); sfx.start();
+  try{await fetch('/api/race/start',{method:'POST'});}catch(e){}
+});
+document.getElementById('btnStop').addEventListener('click',async function(){
+  ensureAudio(); sfx.stop();
+  try{await fetch('/api/race/stop',{method:'POST'});}catch(e){}
+});
+
+/* Audio controls */
+var muteBtn=document.getElementById('muteBtn');
+var volSlider=document.getElementById('volSlider');
+volSlider.value=vol*100;
+muteBtn.textContent=muted?String.fromCodePoint(0x1F507):String.fromCodePoint(0x1F50A);
+muteBtn.addEventListener('click',function(){
+  muted=!muted;
+  muteBtn.textContent=muted?String.fromCodePoint(0x1F507):String.fromCodePoint(0x1F50A);
+  localStorage.setItem('muted',muted?'1':'0');
+});
+volSlider.addEventListener('input',function(){vol=volSlider.value/100;localStorage.setItem('vol',String(vol));});
+
+/* Tabs */
+document.querySelectorAll('.tab-btn').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var tab=btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+    document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active');});
+    btn.classList.add('active');
+    document.getElementById('tab-'+tab).classList.add('active');
+    if(tab==='calibration') charts.forEach(function(ch){ch._sz();});
+  });
+});
+
+/* Load config from API */
+async function loadPilots(){
+  try{
+    var r=await fetch('/api/pilots'); if(!r.ok)return;
+    var data=await r.json();
+    data.forEach(function(pd){
+      var p=pilots[pd.id];
+      if(pd.name)p.name=pd.name;
+      var ni=document.getElementById('fn-'+pd.id); if(ni)ni.value=pd.name||'';
+      var pi=document.getElementById('fp-'+pd.id);
+      if(pi&&pd.bindPhrase){
+        pi.value=pd.bindPhrase;
+        bindPhraseToUID(pd.bindPhrase).then(function(uid){
+          var ui=document.getElementById('fu-'+pd.id);
+          if(ui)ui.textContent=uid||'--:--:--:--:--:--';
+        });
+      }
+    });
+    refreshNames();
+    pilots.forEach(function(p){updateRaceCard(p);updateCalibCard(p);});
+  }catch(e){}
+}
+
+/* Init */
+buildRaceCards();
+buildCalibCards();
+buildConfigCards();
+wsConnect();
+loadPilots();
+</script>
+</body>
+</html>
+</parameter>
+</invoke>
