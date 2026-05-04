@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>ELRS Lap Timer</title>
+<style>
+/* ── CSS Variables (PhobosLT dark theme) ── */
+:root {
+  --bg:      #0d1117;
+  --sf:      #161b22;
+  --sf2:     #21262d;
+  --bd:      #30363d;
+  --tx:      #e6edf3;
+  --muted:   #8b949e;
+  --accent:  #58a6ff;
+  --accent-d:#1f6feb;
+  --ok:      #3fb950;
+  --err:     #f85149;
+  --warn:    #d29922;
+  --p0:      #58a6ff;
+  --p1:      #f85149;
+  --p2:      #3fb950;
+  --p3:      #d29922;
+  --p0-bg:   rgba(88,166,255,.12);
+  --p1-bg:   rgba(248,81,73,.12);
+  --p2-bg:   rgba(63,185,80,.12);
+  --p3-bg:   rgba(210,153,34,.12);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;display:flex;flex-direction:column;font-size:14px}
+
+/* ── Header ── */
+header{position:sticky;top:0;z-index:200;background:var(--sf);border-bottom:1px solid var(--bd);padding:8px 16px}
+.header-inner{display:flex;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto}
+.logo{display:flex;align-items:center;gap:8px}
+.logo h1{font-size:16px;color:var(--accent);font-weight:700}
+.ws-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+.ws-dot.connected{background:var(--ok)}
+.ws-dot.disconnected{background:var(--err)}
+.tab-bar{display:flex;gap:3px}
+.tab-btn{flex:1;padding:6px 8px;border-radius:6px;font-size:12px;font-weight:600;background:transparent;color:var(--muted);border:1px solid transparent;cursor:pointer;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:var(--tx);background:var(--sf2)}
+.tab-btn.active{background:var(--accent-d);color:#fff;border-color:var(--accent)}
+
+/* ── Main ── */
+main{flex:1;max-width:1200px;margin:0 auto;width:100%;padding:16px 12px 32px}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+.section-title{font-size:18px;color:var(--accent);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--bd)}
+.section-desc{color:var(--muted);font-size:12px;margin-bottom:12px;line-height:1.6}
+
+/* ── Buttons ── */
+button{padding:8px 14px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;transition:filter .15s,opacity .15s}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:not(:disabled):hover{filter:brightness(1.15)}
+.btn-success{background:var(--ok);color:#000}
+.btn-danger{background:var(--err);color:#fff}
+.btn-secondary{background:var(--sf2);color:var(--tx);border:1px solid var(--bd)}
+.btn-save{background:var(--accent);color:#000;width:100%;margin-top:10px}
+.btn-voice{background:var(--sf2);color:var(--tx);border:1px solid var(--bd);min-width:120px}
+.btn-voice.on{background:var(--ok);color:#000;border-color:var(--ok)}
+
+/* ── Race controls ── */
+.race-controls{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:14px 12px;margin-bottom:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+#timer{font-size:44px;font-weight:bold;font-family:"Courier New",monospace;color:var(--accent);letter-spacing:3px}
+#timer.running{color:var(--ok)}
+.race-buttons{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.lap-count-row{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;flex-wrap:wrap;justify-content:center}
+.lap-count-row input[type="number"]{width:56px;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:4px 6px;text-align:center;font-size:14px}
+.hint{font-size:11px;color:var(--muted)}
+.sep{color:var(--bd);margin:0 4px}
+
+/* ── Pilot race grid ── */
+.pilot-race-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pilot-race-card{background:var(--sf);border:1px solid var(--bd);border-radius:8px;overflow:hidden}
+.pilot-card-header{display:flex;align-items:center;gap:6px;padding:7px 10px;font-weight:700;font-size:13px}
+.pilot-card-header.p0{background:var(--p0-bg);border-bottom:2px solid var(--p0);color:var(--p0)}
+.pilot-card-header.p1{background:var(--p1-bg);border-bottom:2px solid var(--p1);color:var(--p1)}
+.pilot-card-header.p2{background:var(--p2-bg);border-bottom:2px solid var(--p2);color:var(--p2)}
+.pilot-card-header.p3{background:var(--p3-bg);border-bottom:2px solid var(--p3);color:var(--p3)}
+.p-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-lapcount{font-size:11px;font-weight:normal;color:var(--muted);white-space:nowrap}
+.crossing-badge{font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 6px;border-radius:3px;background:#333;color:var(--muted);display:none}
+.crossing-badge.active{display:inline-block;background:currentColor;color:#000}
+
+/* ── RSSI mini bar ── */
+.rssi-mini-bar{display:flex;align-items:center;gap:5px;padding:3px 8px;background:var(--sf2)}
+.rssi-mini-label{font-size:9px;color:var(--muted);width:26px}
+.rssi-mini-track{flex:1;height:5px;background:var(--bd);border-radius:3px;overflow:hidden}
+.rssi-mini-fill{height:100%;width:0%;border-radius:3px;transition:width .2s}
+.p0 .rssi-mini-fill,.p0-fill{background:var(--p0)}
+.p1 .rssi-mini-fill,.p1-fill{background:var(--p1)}
+.p2 .rssi-mini-fill,.p2-fill{background:var(--p2)}
+.p3 .rssi-mini-fill,.p3-fill{background:var(--p3)}
+.rssi-mini-val{font-size:10px;color:var(--muted);min-width:36px;text-align:right}
+
+/* ── Best lap row ── */
+.pilot-best-row{display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--sf2);border-top:1px solid var(--bd)}
+.best-label{font-size:9px;color:var(--muted);width:26px}
+.pilot-best{font-size:14px;font-weight:700;color:var(--accent)}
+.pilot-delta{font-size:11px;font-weight:700;margin-left:auto}
+.pilot-delta.faster{color:var(--ok)}
+.pilot-delta.slower{color:var(--err)}
+
+/* ── Lap table ── */
+.lap-table-wrap{overflow-x:auto;max-height:220px;overflow-y:auto}
+.lapTable{width:100%;border-collapse:collapse;font-size:11px}
+.lapTable thead th{background:var(--sf2);color:var(--muted);padding:3px 4px;text-align:center;font-weight:normal;font-size:10px;border-bottom:1px solid var(--bd);position:sticky;top:0}
+.lapTable tbody td{padding:3px 4px;text-align:center;border-bottom:1px solid var(--bd);color:var(--tx)}
+.lapTable tbody td.lap-time{font-size:13px;font-weight:700}
+.lapTable tbody tr:hover{background:var(--sf2)}
+.lapTable tbody tr.best-row td{color:var(--ok);font-weight:bold}
+.lapTable tbody tr.best-row td.lap-time{color:var(--ok)}
+
+/* Lap flash animation */
+@keyframes lapFlash{0%{background:rgba(255,255,255,.15)}100%{background:transparent}}
+.pilot-race-card.flash{animation:lapFlash .5s ease-out}
+
+/* ── Config section ── */
+.global-config-card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.global-title{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.config-pilots-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.config-pilot-card{background:var(--sf);border-radius:10px;border:1px solid var(--bd);overflow:hidden}
+.p0-border{border-top:3px solid var(--p0)}.p1-border{border-top:3px solid var(--p1)}
+.p2-border{border-top:3px solid var(--p2)}.p3-border{border-top:3px solid var(--p3)}
+.config-pilot-header{padding:8px 12px;font-size:13px;font-weight:700;margin:0}
+.config-pilot-header.p0{color:var(--p0);background:var(--p0-bg)}
+.config-pilot-header.p1{color:var(--p1);background:var(--p1-bg)}
+.config-pilot-header.p2{color:var(--p2);background:var(--p2-bg)}
+.config-pilot-header.p3{color:var(--p3);background:var(--p3-bg)}
+.config-items{padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.config-row{display:flex;align-items:center;gap:10px}
+.config-row label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;width:130px;flex-shrink:0}
+.config-row input[type="text"],.config-row select{flex:1;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:6px 8px;font-size:13px}
+.config-row input[type="text"]:focus,.config-row select:focus{outline:none;border-color:var(--accent)}
+.uid-display{flex:1;font-size:12px;font-weight:700;color:var(--accent);font-family:"Courier New",monospace;padding:6px 0;letter-spacing:.5px}
+.voice-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.value-display{font-size:14px;color:var(--accent);font-weight:700}
+.slider-num{display:flex;align-items:center;gap:6px;flex:1}
+.slider-num input[type="range"]{flex:1;accent-color:var(--accent);cursor:pointer}
+.slider-num input[type="number"]{width:58px;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:4px 5px;font-size:13px;text-align:center}
+.slider-num input[type="number"]:focus{outline:none;border-color:var(--accent)}
+.unit{font-size:11px;color:var(--muted);flex-shrink:0}
+
+/* ── Calibration section ── */
+.calib-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.calib-card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+.calib-header{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;font-weight:700;font-size:13px}
+.calib-header.p0{background:var(--p0-bg);border-bottom:2px solid var(--p0);color:var(--p0)}
+.calib-header.p1{background:var(--p1-bg);border-bottom:2px solid var(--p1);color:var(--p1)}
+.calib-header.p2{background:var(--p2-bg);border-bottom:2px solid var(--p2);color:var(--p2)}
+.calib-header.p3{background:var(--p3-bg);border-bottom:2px solid var(--p3);color:var(--p3)}
+.rssi-live-badge{font-size:11px;font-weight:normal}
+.rssi-live-badge strong{font-weight:700}
+.calib-card canvas{width:100%;height:130px;display:block;background:var(--bg)}
+.calib-sliders{padding:8px 12px;display:flex;flex-direction:column;gap:8px}
+.calib-card .btn-save{margin:0 12px 10px;width:calc(100% - 24px)}
+.calib-card .config-row label{width:110px}
+
+/* ── Footer ── */
+footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;padding:10px;font-size:12px;color:var(--muted)}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px 20px;font-size:13px;z-index:1000;transition:transform .3s;pointer-events:none;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ── Responsive ── */
+@media(max-width:900px){.pilot-race-grid{grid-template-columns:1fr 1fr}.calib-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){
+  .header-inner{flex-direction:column;gap:6px;align-items:flex-start}
+  .pilot-race-grid{grid-template-columns:1fr 1fr}
+  .config-pilots-grid{grid-template-columns:1fr}
+  .calib-grid{grid-template-columns:1fr 1fr}
+  #timer{font-size:32px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <h1>ELRS Lap Timer</h1>
+      <span id="wsDot" class="ws-dot disconnected" title="WebSocket接続状態"></span>
+    </div>
+    <nav class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('race')">🏁 レース</button>
+      <button class="tab-btn"        onclick="switchTab('config')">⚙️ 設定</button>
+      <button class="tab-btn"        onclick="switchTab('calib')">📡 キャリブ</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ═══════════════════════════ RACE ═══════════════════════════ -->
+<section id="pane-race" class="tab-pane active">
+  <div class="race-controls">
+    <div id="timer">00:00</div>
+    <div class="race-buttons">
+      <button id="btnStart" onclick="startRace()" class="btn-success">▶ スタート</button>
+      <button id="btnStop"  onclick="stopRace()"  class="btn-danger" disabled>■ ストップ</button>
+      <button onclick="clearAllLaps()" class="btn-secondary">クリア</button>
+    </div>
+    <div class="lap-count-row">
+      <label>総周回数:</label>
+      <input type="number" id="totalLaps" min="0" max="99" value="0">
+      <span class="hint">（0=無制限）</span>
+      <span class="sep">｜</span>
+      <button id="voiceBtn" onclick="toggleVoice()" class="btn-voice on">🔊 音声 ON</button>
+    </div>
+  </div>
+  <div class="pilot-race-grid" id="pilotGrid"></div>
+</section>
+
+<!-- ═══════════════════════════ CONFIG ════════════════════════ -->
+<section id="pane-config" class="tab-pane">
+  <h2 class="section-title">設定</h2>
+
+  <div class="global-config-card">
+    <h3 class="global-title">グローバル設定</h3>
+    <div class="config-items">
+      <div class="config-row">
+        <label>アナウンス</label>
+        <select id="announceMode">
+          <option value="laptime">ラップタイム</option>
+          <option value="lap_laptime">周回数＆ラップタイム</option>
+          <option value="beep">ビープ音のみ</option>
+          <option value="none">なし</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <label>読み上げ速度</label>
+        <div class="slider-num">
+          <input type="range" id="speechRate" min="0.5" max="2.0" step="0.1" value="1.1"
+            oninput="document.getElementById('speechRateN').value=this.value">
+          <input type="number" id="speechRateN" min="0.5" max="2.0" step="0.1" value="1.1"
+            onchange="document.getElementById('speechRate').value=Math.min(2,Math.max(0.5,this.value))">
+        </div>
+      </div>
+      <div class="config-row">
+        <label>最小ラップ時間</label>
+        <div class="slider-num">
+          <input type="range" id="minLap" min="1" max="30" step="0.5" value="3"
+            oninput="document.getElementById('minLapN').value=this.value">
+          <input type="number" id="minLapN" min="1" max="30" step="0.5" value="3"
+            onchange="document.getElementById('minLap').value=Math.min(30,Math.max(1,this.value))">
+          <span class="unit">s</span>
+        </div>
+      </div>
+    </div>
+    <div class="voice-row">
+      <button id="voiceBtn2" onclick="toggleVoice()" class="btn-voice on">🔊 音声 ON</button>
+      <button onclick="testVoice()" class="btn-secondary">🔊 テスト</button>
+    </div>
+    <button onclick="saveGlobalConfig()" class="btn-save">💾 グローバル設定を保存</button>
+  </div>
+
+  <div class="config-pilots-grid" id="configGrid"></div>
+</section>
+
+<!-- ═══════════════════════════ CALIB ════════════════════════ -->
+<section id="pane-calib" class="tab-pane">
+  <h2 class="section-title">キャリブレーション</h2>
+  <p class="section-desc">RSSIリアルタイム波形と検知閾値の設定。機体を近づけてピーク値を確認し、Enter閾値（入）とExit閾値（出）を調整してください。Enter &gt; Exitになるよう設定します。</p>
+  <div class="calib-grid" id="calibGrid"></div>
+</section>
+
+</main>
+
+<footer><p>ELRS Lap Timer</p></footer>
+<div id="toast" class="toast"></div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+// Config & state
+// ═══════════════════════════════════════════════════════════════
+const PCOLORS = ['var(--p0)','var(--p1)','var(--p2)','var(--p3)'];
+const PCLS    = ['p0','p1','p2','p3'];
+const PLABELS = ['Pilot 1','Pilot 2','Pilot 3','Pilot 4'];
+const N = 4, DB_MIN = -120, DB_MAX = -40;
+
+const pilots = Array.from({length:N}, (_,i) => ({
+  id:i, name:PLABELS[i], rssi:-120, crossing:false,
+  lapCount:0, bestLapMs:0, lapTimes:[], cumulative:0,
+  enterRssi:-80, exitRssi:-90
+}));
+
+let raceRunning=false, raceStartPerf=0, timerH=null;
+let voiceEnabled = localStorage.getItem('voice')!=='0';
+let announceMode = localStorage.getItem('announce')||'laptime';
+let speechRate   = parseFloat(localStorage.getItem('srate')||'1.1');
+
+// ═══════════════════════════════════════════════════════════════
+// Toast
+// ═══════════════════════════════════════════════════════════════
+function toast(msg, dur) {
+  dur = dur || 2000;
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Audio — Web Audio API
+// ═══════════════════════════════════════════════════════════════
+let actx = null;
+function ensureAudio() {
+  if (!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+  if (actx.state==='suspended') actx.resume();
+}
+function beep(freq, dur, type, vol) {
+  if (!actx) return;
+  type = type||'sine'; vol = vol===undefined?0.4:vol;
+  var o=actx.createOscillator(), g=actx.createGain();
+  o.connect(g); g.connect(actx.destination);
+  o.frequency.value=freq; o.type=type;
+  var t=actx.currentTime;
+  g.gain.setValueAtTime(vol,t);
+  g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.start(t); o.stop(t+dur);
+}
+function beepSeq(notes) { notes.forEach(n=>setTimeout(()=>beep(n[0],n[1],n[2]),n[3]||0)); }
+var sfx = {
+  lap:  ()=>beep(880,.15),
+  best: ()=>beepSeq([[880,.1,'sine',0],[1320,.1,'sine',120],[1760,.15,'sine',240]]),
+  count:()=>beepSeq([[440,.12,'sine',0],[440,.12,'sine',1000],[440,.12,'sine',2000],[880,.3,'sine',3000]])
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Voice — Web Speech API
+// ═══════════════════════════════════════════════════════════════
+var speechQ = [], speechBusy = false;
+function speak(text) {
+  if (!voiceEnabled || announceMode==='none') { sfx.lap(); return; }
+  if (announceMode==='beep') { sfx.lap(); return; }
+  speechQ.push(text); if (!speechBusy) nextSpeech();
+}
+function nextSpeech() {
+  if (!speechQ.length) { speechBusy=false; return; }
+  speechBusy = true;
+  var u = new SpeechSynthesisUtterance(speechQ.shift());
+  u.lang='ja-JP'; u.rate=speechRate;
+  u.onend = ()=>{ setTimeout(nextSpeech,80); };
+  u.onerror = ()=>{ speechBusy=false; nextSpeech(); };
+  var timeout = setTimeout(()=>{ speechSynthesis.cancel(); speechBusy=false; nextSpeech(); }, 5000);
+  u.onend = ()=>{ clearTimeout(timeout); setTimeout(nextSpeech,80); };
+  speechSynthesis.speak(u);
+}
+function buildSpeech(pilotName, lapCount, lapMs) {
+  var s = Math.floor(lapMs/1000);
+  var ms = Math.floor((lapMs%1000)/100);
+  var m = Math.floor(s/60); s = s%60;
+  var tStr = m>0 ? m+'分'+s+'秒'+ms : s+'秒'+ms;
+  if (announceMode==='lap_laptime') return lapCount+'周、'+tStr;
+  return tStr;
+}
+function testVoice() {
+  ensureAudio(); sfx.lap();
+  if (voiceEnabled && announceMode!=='beep' && announceMode!=='none') {
+    var u=new SpeechSynthesisUtterance('テスト、1分23秒4');
+    u.lang='ja-JP'; u.rate=speechRate; speechSynthesis.speak(u);
+  }
+}
+function toggleVoice() {
+  voiceEnabled = !voiceEnabled;
+  localStorage.setItem('voice', voiceEnabled?'1':'0');
+  refreshVoiceBtns();
+}
+function refreshVoiceBtns() {
+  ['voiceBtn','voiceBtn2'].forEach(id=>{
+    var b=document.getElementById(id); if(!b)return;
+    b.textContent = voiceEnabled?'🔊 音声 ON':'🔇 音声 OFF';
+    b.className = 'btn-voice'+(voiceEnabled?' on':'');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Formatting
+// ═══════════════════════════════════════════════════════════════
+function pad(n,w){return String(n).padStart(w,'0')}
+function fmt(ms) {
+  if(!ms) return '--:--.---';
+  var m=Math.floor(ms/60000),s=Math.floor((ms%60000)/1000),f=ms%1000;
+  return m+':'+pad(s,2)+'.'+pad(f,3);
+}
+function fmtTimer(ms) {
+  var h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000),s=Math.floor((ms%60000)/1000);
+  if(h>0) return pad(h,2)+':'+pad(m,2)+':'+pad(s,2);
+  return pad(m,2)+':'+pad(s,2);
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function dbPct(db){return Math.max(0,Math.min(100,((db-DB_MIN)/(DB_MAX-DB_MIN))*100))}
+function fmtDelta(ms){var sign=ms>0?'+':'';return sign+(ms/1000).toFixed(3)+'s'}
+
+// ═══════════════════════════════════════════════════════════════
+// Race timer
+// ═══════════════════════════════════════════════════════════════
+var timerEl = document.getElementById('timer');
+function startTimer() {
+  raceStartPerf = performance.now();
+  timerEl.classList.add('running');
+  timerH = setInterval(()=>{ timerEl.textContent=fmtTimer(performance.now()-raceStartPerf); },500);
+}
+function stopTimer() { clearInterval(timerH); timerH=null; timerEl.classList.remove('running'); }
+
+// ═══════════════════════════════════════════════════════════════
+// Build UI
+// ═══════════════════════════════════════════════════════════════
+function buildRaceCards() {
+  var g=document.getElementById('pilotGrid'); g.innerHTML='';
+  pilots.forEach(p=>{
+    var d=document.createElement('div');
+    d.id='rc-'+p.id; d.className='pilot-race-card';
+    d.innerHTML=
+      '<div class="pilot-card-header '+PCLS[p.id]+'">'
+        +'<span class="p-name" id="rcName'+p.id+'">'+esc(p.name)+'</span>'
+        +'<span class="crossing-badge" id="rcBadge'+p.id+'">CROSSING</span>'
+        +'<span class="p-lapcount" id="rcLaps'+p.id+'"></span>'
+      +'</div>'
+      +'<div class="rssi-mini-bar">'
+        +'<span class="rssi-mini-label">RSSI</span>'
+        +'<div class="rssi-mini-track"><div class="rssi-mini-fill '+PCLS[p.id]+'-fill" id="rssiBar'+p.id+'"></div></div>'
+        +'<span class="rssi-mini-val" id="rssiVal'+p.id+'">--- dBm</span>'
+      +'</div>'
+      +'<div class="pilot-best-row">'
+        +'<span class="best-label">BEST</span>'
+        +'<span class="pilot-best" id="rcBest'+p.id+'">--:--.---</span>'
+        +'<span class="pilot-delta" id="rcDelta'+p.id+'"></span>'
+      +'</div>'
+      +'<div class="lap-table-wrap">'
+        +'<table class="lapTable"><thead><tr><th>周</th><th>タイム</th><th>累計</th></tr></thead>'
+        +'<tbody id="lapBody'+p.id+'"></tbody></table>'
+      +'</div>';
+    g.appendChild(d);
+  });
+}
+
+function buildConfigCards() {
+  var g=document.getElementById('configGrid'); g.innerHTML='';
+  pilots.forEach(p=>{
+    var d=document.createElement('div');
+    d.className='config-pilot-card '+PCLS[p.id]+'-border';
+    d.innerHTML=
+      '<h3 class="config-pilot-header '+PCLS[p.id]+'">'+PLABELS[p.id]+'</h3>'
+      +'<div class="config-items">'
+        +'<div class="config-row"><label>パイロット名</label><input type="text" id="cfgName'+p.id+'" maxlength="20" placeholder="'+PLABELS[p.id]+'" autocomplete="off"></div>'
+        +'<div class="config-row"><label>バインドフレーズ</label><input type="text" id="cfgPhrase'+p.id+'" placeholder="my-bind-phrase" maxlength="63" autocomplete="off"></div>'
+        +'<div class="config-row"><label>UID (自動)</label><span class="uid-display" id="cfgUid'+p.id+'">--:--:--:--:--:--</span></div>'
+      +'</div>'
+      +'<button onclick="savePilotConfig('+p.id+')" class="btn-save">💾 保存</button>';
+    g.appendChild(d);
+
+    var phraseEl=d.querySelector('#cfgPhrase'+p.id);
+    var uidEl=d.querySelector('#cfgUid'+p.id);
+    phraseEl.addEventListener('input', async ()=>{
+      uidEl.textContent = await fetchUID(phraseEl.value.trim()) || '--:--:--:--:--:--';
+    });
+  });
+}
+
+function buildCalibCards() {
+  var g=document.getElementById('calibGrid'); g.innerHTML='';
+  pilots.forEach(p=>{
+    var d=document.createElement('div');
+    d.className='calib-card';
+    d.innerHTML=
+      '<div class="calib-header '+PCLS[p.id]+'">'
+        +'<span id="calName'+p.id+'">'+esc(p.name)+'</span>'
+        +'<span class="rssi-live-badge">RSSI: <strong id="calRssi'+p.id+'">---</strong> dBm</span>'
+      +'</div>'
+      +'<canvas id="calCanvas'+p.id+'"></canvas>'
+      +'<div class="calib-sliders">'
+        +'<div class="config-row"><label>Enter（入）</label>'
+          +'<div class="slider-num">'
+            +'<input type="range" id="calEnter'+p.id+'" min="-120" max="-40" step="1" value="'+p.enterRssi+'" oninput="syncCalib('+p.id+',\'enter\')">'
+            +'<input type="number" id="calEnterN'+p.id+'" min="-120" max="-40" step="1" value="'+p.enterRssi+'" onchange="syncCalibN('+p.id+',\'enter\')">'
+            +'<span class="unit">dBm</span>'
+          +'</div></div>'
+        +'<div class="config-row"><label>Exit（出）</label>'
+          +'<div class="slider-num">'
+            +'<input type="range" id="calExit'+p.id+'" min="-120" max="-40" step="1" value="'+p.exitRssi+'" oninput="syncCalib('+p.id+',\'exit\')">'
+            +'<input type="number" id="calExitN'+p.id+'" min="-120" max="-40" step="1" value="'+p.exitRssi+'" onchange="syncCalibN('+p.id+',\'exit\')">'
+            +'<span class="unit">dBm</span>'
+          +'</div></div>'
+      +'</div>'
+      +'<button onclick="saveCalibConfig('+p.id+')" class="btn-save">💾 保存</button>';
+    g.appendChild(d);
+
+    // Init chart after element is in DOM
+    setTimeout(()=>initChart(p.id), 0);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RSSI Canvas Charts
+// ═══════════════════════════════════════════════════════════════
+var charts = {};
+function initChart(id) {
+  var cv = document.getElementById('calCanvas'+id);
+  if (!cv) return;
+  cv.width  = cv.offsetWidth  || 300;
+  cv.height = cv.offsetHeight || 130;
+  charts[id] = { cv:cv, ctx:cv.getContext('2d'), data:new Float32Array(200).fill(-120), cross:new Uint8Array(200) };
+  drawChart(id);
+}
+function pushChart(id, rssi, crossing) {
+  var c = charts[id]; if (!c) return;
+  c.data.copyWithin(0,1); c.data[199] = rssi;
+  c.cross.copyWithin(0,1); c.cross[199] = crossing?1:0;
+  drawChart(id);
+}
+function drawChart(id) {
+  var c = charts[id]; if(!c) return;
+  var cv=c.cv, ctx=c.ctx, w=cv.width, h=cv.height;
+  var p = pilots[id];
+  var rng = DB_MAX - DB_MIN;
+  var toY = v => h - ((Math.max(DB_MIN,Math.min(DB_MAX,v))-DB_MIN)/rng)*h;
+  var dx = w/200;
+  var col = getComputedStyle(document.documentElement).getPropertyValue('--p'+id).trim();
+
+  ctx.fillStyle='#0d1117'; ctx.fillRect(0,0,w,h);
+
+  // Crossing regions
+  ctx.fillStyle=col+'22';
+  for(var i=0;i<200;i++) if(c.cross[i]) ctx.fillRect(i*dx,0,dx+1,h);
+
+  // Grid
+  ctx.strokeStyle='#1e2530'; ctx.lineWidth=1; ctx.setLineDash([]);
+  [-60,-80,-100].forEach(db=>{ctx.beginPath();ctx.moveTo(0,toY(db));ctx.lineTo(w,toY(db));ctx.stroke();});
+
+  // Threshold lines
+  ctx.setLineDash([4,4]); ctx.lineWidth=1;
+  ctx.strokeStyle='#3fb95088';
+  ctx.beginPath(); ctx.moveTo(0,toY(p.enterRssi)); ctx.lineTo(w,toY(p.enterRssi)); ctx.stroke();
+  ctx.strokeStyle='#f8514988';
+  ctx.beginPath(); ctx.moveTo(0,toY(p.exitRssi)); ctx.lineTo(w,toY(p.exitRssi)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // RSSI line
+  ctx.strokeStyle=col; ctx.lineWidth=1.5;
+  ctx.beginPath();
+  for(var j=0;j<200;j++){ var x=j*dx,y=toY(c.data[j]); j===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+  ctx.stroke();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Update pilot cards
+// ═══════════════════════════════════════════════════════════════
+function updateRaceCard(p) {
+  var $ = id => document.getElementById(id);
+  $('rcName'+p.id).textContent  = esc(p.name);
+  $('rcLaps'+p.id).textContent  = p.lapCount ? p.lapCount+'周' : '';
+  $('rssiBar'+p.id).style.width = dbPct(p.rssi)+'%';
+  $('rssiVal'+p.id).textContent = p.rssi+' dBm';
+  $('rcBest'+p.id).textContent  = fmt(p.bestLapMs);
+
+  var badge = $('rcBadge'+p.id);
+  if (p.crossing) { badge.style.display='inline-block'; badge.style.color=PCOLORS[p.id]; }
+  else            { badge.style.display='none'; }
+
+  var card = $('rc-'+p.id);
+  if (p.crossing) card.style.borderColor = PCOLORS[p.id].replace('var(','').replace(')','');
+  else            card.style.borderColor = '';
+}
+
+function addLapRow(p, lapMs, cumMs, isNew) {
+  var tbody = document.getElementById('lapBody'+p.id);
+  var isBest = (p.bestLapMs === lapMs && lapMs > 0);
+
+  // Remove old best highlighting
+  if (isBest) {
+    tbody.querySelectorAll('tr.best-row').forEach(r=>r.classList.remove('best-row'));
+  }
+
+  var tr = document.createElement('tr');
+  if (isBest) tr.className='best-row';
+  tr.innerHTML = '<td>'+p.lapCount+'</td>'
+    +'<td class="lap-time">'+fmt(lapMs)+'</td>'
+    +'<td>'+fmt(cumMs)+'</td>';
+  tbody.insertBefore(tr, tbody.firstChild);
+
+  // Delta badge
+  var delta = document.getElementById('rcDelta'+p.id);
+  if (p.bestLapMs && lapMs) {
+    var d = lapMs - p.bestLapMs;
+    if (d===0) { delta.textContent='★ BEST'; delta.className='pilot-delta faster'; }
+    else { delta.textContent=fmtDelta(d); delta.className='pilot-delta '+(d<0?'faster':'slower'); }
+  }
+
+  // Flash card
+  if (isNew) {
+    var card = document.getElementById('rc-'+p.id);
+    card.classList.remove('flash'); void card.offsetWidth;
+    card.classList.add('flash');
+    card.addEventListener('animationend',()=>card.classList.remove('flash'),{once:true});
+  }
+}
+
+function updateCalibCard(p) {
+  var el = id => document.getElementById(id);
+  var calN = el('calName'+p.id); if(calN) calN.textContent = esc(p.name);
+  var calR = el('calRssi'+p.id); if(calR) calR.textContent = p.rssi;
+  pushChart(p.id, p.rssi, p.crossing);
+}
+
+function syncCalib(id, which) {
+  var v = parseInt(document.getElementById('cal'+cap(which)+id).value);
+  document.getElementById('cal'+cap(which)+'N'+id).value = v;
+  pilots[id][which+'Rssi'] = v;
+  drawChart(id);
+}
+function syncCalibN(id, which) {
+  var el = document.getElementById('cal'+cap(which)+'N'+id);
+  var v = Math.max(-120, Math.min(-40, parseInt(el.value)||(-80)));
+  el.value = v;
+  document.getElementById('cal'+cap(which)+id).value = v;
+  pilots[id][which+'Rssi'] = v;
+  drawChart(id);
+}
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+// ═══════════════════════════════════════════════════════════════
+// Tab switching
+// ═══════════════════════════════════════════════════════════════
+var currentTab = 'race';
+function switchTab(tab) {
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pane-'+tab).classList.add('active');
+  document.querySelectorAll('.tab-btn')[['race','config','calib'].indexOf(tab)].classList.add('active');
+  currentTab = tab;
+  if (tab==='calib') {
+    setTimeout(()=>{
+      pilots.forEach(p=>{ var c=charts[p.id]; if(c){c.cv.width=c.cv.offsetWidth||300;drawChart(p.id);} });
+    }, 50);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Race controls
+// ═══════════════════════════════════════════════════════════════
+function startRace() {
+  ensureAudio();
+  // Beep countdown then start
+  sfx.count();
+  setTimeout(async ()=>{
+    try { await fetch('/api/race/start',{method:'POST'}); } catch(e){}
+  }, 3300);
+}
+function stopRace() {
+  ensureAudio();
+  beepSeq([[880,.2,'sine',0],[440,.2,'sine',220],[220,.3,'sine',440]]);
+  try { fetch('/api/race/stop',{method:'POST'}); } catch(e){}
+}
+function clearAllLaps() {
+  pilots.forEach(p=>{
+    p.lapCount=0; p.bestLapMs=0; p.lapTimes=[]; p.cumulative=0;
+    var b=document.getElementById('lapBody'+p.id); if(b) b.innerHTML='';
+    var d=document.getElementById('rcDelta'+p.id); if(d) d.textContent='';
+    updateRaceCard(p);
+  });
+}
+function setBtns(running) {
+  document.getElementById('btnStart').disabled = running;
+  document.getElementById('btnStop').disabled  = !running;
+}
+
+// Total laps check
+var totalLapsSetting = 0;
+function checkFinished(p) {
+  totalLapsSetting = parseInt(document.getElementById('totalLaps').value)||0;
+  if (!raceRunning || totalLapsSetting===0) return;
+  if (p.lapCount >= totalLapsSetting) {
+    beepSeq([[880,.2,'sine',0],[1320,.2,'sine',220],[1760,.3,'sine',440]]);
+    if (voiceEnabled && announceMode!=='beep' && announceMode!=='none') {
+      var u=new SpeechSynthesisUtterance(p.name+'、フィニッシュ');
+      u.lang='ja-JP'; u.rate=speechRate; speechSynthesis.speak(u);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Config save
+// ═══════════════════════════════════════════════════════════════
+async function savePilotConfig(id) {
+  var name   = document.getElementById('cfgName'+id).value.trim();
+  var phrase = document.getElementById('cfgPhrase'+id).value.trim();
+  var uid    = document.getElementById('cfgUid'+id).textContent.trim();
+  try {
+    var r = await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id,name,bindPhrase:phrase,uid})});
+    if (r.ok) {
+      if (name) pilots[id].name = name;
+      toast('💾 Pilot '+(id+1)+' 保存完了');
+      refreshPilotNames();
+    } else toast('⚠️ 保存エラー');
+  } catch(e) { toast('⚠️ 接続エラー'); }
+}
+
+function saveGlobalConfig() {
+  announceMode = document.getElementById('announceMode').value;
+  speechRate   = parseFloat(document.getElementById('speechRateN').value)||1.1;
+  localStorage.setItem('announce', announceMode);
+  localStorage.setItem('srate', String(speechRate));
+  toast('💾 グローバル設定を保存しました');
+}
+
+async function saveCalibConfig(id) {
+  var enter = parseInt(document.getElementById('calEnterN'+id).value);
+  var exit_ = parseInt(document.getElementById('calExitN'+id).value);
+  if (enter <= exit_) { toast('⚠️ Enter > Exit にしてください'); return; }
+  pilots[id].enterRssi = enter;
+  pilots[id].exitRssi  = exit_;
+  try {
+    var r = await fetch('/api/calib',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id, enter, exit:exit_})});
+    if (r.ok) toast('💾 Pilot '+(id+1)+' 閾値保存完了');
+    else toast('⚠️ 保存エラー');
+  } catch(e) { toast('⚠️ 接続エラー'); }
+}
+
+function refreshPilotNames() {
+  pilots.forEach(p=>{
+    var a=document.getElementById('rcName'+p.id); if(a) a.textContent=esc(p.name);
+    var b=document.getElementById('calName'+p.id); if(b) b.textContent=esc(p.name);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UID via server-side SHA-256
+// ═══════════════════════════════════════════════════════════════
+async function fetchUID(phrase) {
+  if (!phrase) return '';
+  try {
+    var r = await fetch('/api/uid?phrase='+encodeURIComponent(phrase));
+    if (!r.ok) return '';
+    var uid = (await r.text()).trim();
+    return /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(uid) ? uid.toUpperCase() : '';
+  } catch(e) { return ''; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WebSocket
+// ═══════════════════════════════════════════════════════════════
+var ws = null, wsRetry = 1000;
+var wsDot = document.getElementById('wsDot');
+
+function wsConnect() {
+  ws = new WebSocket('ws://'+location.host+'/ws');
+  ws.onopen  = ()=>{ wsRetry=1000; wsDot.className='ws-dot connected'; };
+  ws.onerror = ()=>ws.close();
+  ws.onclose = ()=>{ wsDot.className='ws-dot disconnected';
+    setTimeout(()=>{ wsRetry=Math.min(wsRetry*2,16000); wsConnect(); }, wsRetry); };
+  ws.onmessage = e=>{ var d; try{d=JSON.parse(e.data);}catch(ex){return;} onMsg(d); };
+}
+
+function onMsg(d) {
+  if (d.type==='init') {
+    raceRunning = d.raceRunning||false;
+    setBtns(raceRunning);
+    if (raceRunning) startTimer();
+    (d.pilots||[]).forEach(pd=>{
+      var p=pilots[pd.id];
+      if (pd.name)     p.name      = pd.name;
+      if (pd.lapCount) p.lapCount  = pd.lapCount;
+      if (pd.bestLap)  p.bestLapMs = pd.bestLap;
+      p.rssi     = pd.rssi    ||-120;
+      p.crossing = pd.crossing||false;
+      if (pd.enter !== undefined) { p.enterRssi=pd.enter; syncCalibUi(pd.id,pd.enter,p.exitRssi); }
+      if (pd.exit  !== undefined) { p.exitRssi =pd.exit;  syncCalibUi(pd.id,p.enterRssi,pd.exit); }
+      updateRaceCard(p);
+      updateCalibCard(p);
+    });
+    return;
+  }
+  if (d.type==='rssi') {
+    var i=d.pilot; if(i<0||i>=N)return;
+    var p=pilots[i]; var wasC=p.crossing;
+    p.rssi     = d.rssi    !==undefined ? d.rssi     : p.rssi;
+    p.crossing = d.crossing!==undefined ? d.crossing : p.crossing;
+    updateRaceCard(p);
+    updateCalibCard(p);
+    return;
+  }
+  if (d.type==='lap') {
+    var i=d.pilot; if(i<0||i>=N)return;
+    var p=pilots[i];
+    p.name     = d.name    ||p.name;
+    p.lapCount = d.lapCount!==undefined ? d.lapCount : p.lapCount+1;
+    var lapMs  = d.lapTime||0;
+    p.lapTimes.push(lapMs);
+    p.cumulative += lapMs;
+    var prevBest = p.bestLapMs;
+    if (lapMs>0 && (!p.bestLapMs||lapMs<p.bestLapMs)) p.bestLapMs=lapMs;
+    updateRaceCard(p);
+    addLapRow(p, lapMs, p.cumulative, true);
+    checkFinished(p);
+    // Sound & voice
+    if (d.newBest||lapMs===p.bestLapMs) { sfx.best(); } else { speak(buildSpeech(p.name,p.lapCount,lapMs)); }
+    return;
+  }
+  if (d.type==='race_start') {
+    raceRunning=true; setBtns(true); startTimer();
+    pilots.forEach(p=>{p.lapCount=0;p.bestLapMs=0;p.lapTimes=[];p.cumulative=0;
+      document.getElementById('lapBody'+p.id).innerHTML='';
+      document.getElementById('rcDelta'+p.id).textContent='';
+      updateRaceCard(p);
+    });
+    return;
+  }
+  if (d.type==='race_stop') {
+    raceRunning=false; setBtns(false); stopTimer();
+    return;
+  }
+}
+
+function syncCalibUi(id, enter, exit_) {
+  var eEl=document.getElementById('calEnter'+id), eN=document.getElementById('calEnterN'+id);
+  var xEl=document.getElementById('calExit'+id),  xN=document.getElementById('calExitN'+id);
+  if(eEl){eEl.value=enter;} if(eN){eN.value=enter;}
+  if(xEl){xEl.value=exit_;} if(xN){xN.value=exit_;}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Load config from API
+// ═══════════════════════════════════════════════════════════════
+async function loadAll() {
+  try {
+    var r1=await fetch('/api/pilots'); if(r1.ok){
+      (await r1.json()).forEach(pd=>{
+        var p=pilots[pd.id];
+        if(pd.name) p.name=pd.name;
+        var ni=document.getElementById('cfgName'+pd.id); if(ni) ni.value=pd.name||'';
+        var pi=document.getElementById('cfgPhrase'+pd.id);
+        if(pi&&pd.bindPhrase){
+          pi.value=pd.bindPhrase;
+          fetchUID(pd.bindPhrase).then(uid=>{
+            var ui=document.getElementById('cfgUid'+pd.id); if(ui) ui.textContent=uid||'--:--:--:--:--:--';
+          });
+        }
+      });
+      refreshPilotNames();
+    }
+  } catch(e){}
+  try {
+    var r2=await fetch('/api/calib'); if(r2.ok){
+      (await r2.json()).forEach(cd=>{
+        var p=pilots[cd.id];
+        p.enterRssi=cd.enter; p.exitRssi=cd.exit;
+        syncCalibUi(cd.id, cd.enter, cd.exit);
+      });
+    }
+  } catch(e){}
+  // Restore UI settings
+  var am=document.getElementById('announceMode'); if(am) am.value=announceMode;
+  var sr=document.getElementById('speechRate');   if(sr) sr.value=speechRate;
+  var srN=document.getElementById('speechRateN'); if(srN) srN.value=speechRate;
+  refreshVoiceBtns();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════════
+buildRaceCards();
+buildConfigCards();
+buildCalibCards();
+wsConnect();
+loadAll();
+</script>
+</body>
+</html>
