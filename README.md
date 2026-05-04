@@ -25,7 +25,7 @@ FPVドローンレース用ラップタイマーを開発する。
 |パイロット識別 |映像送信機の周波数     |ELRSバインドUID（より確実）       |
 |映像送信機   |必須            |不要                      |
 |デジタル映像対応|別途必要          |ネイティブ対応                 |
-|ゲートノード  |専用ハード         |ESP32のみ                 |
+|ゲートノード  |専用ハード         |ESP32-WROVER-E と　XIAO EPS32-S3        |
 
 -----
 
@@ -52,8 +52,8 @@ FPVドローンレース用ラップタイマーを開発する。
 
 ```
 ┌─────────────────────────┐        UART        ┌─────────────────────────┐
-│   ESP32-A（信号解析）    │ ─────────────────→ │   ESP32-B（Web/WiFi）   │
-│                         │  ラップトリガー送信  │                         │
+│   ESP32-WROVER-E-A  　  │ ─────────────────→ │   XIAO EPS32-S3-B 　  │
+│    （信号解析）          │  ラップトリガー送信  │    （Web/WiFi）         │
 │ - ESP-NOWパケット受信    │                    │ - WiFi APモード         │
 │   (Promiscuousモード)   │                    │ - WebサーバーホストUI   │
 │ - EMAフィルタ処理       │                    │ - WebSocketでスマホ配信 │
@@ -70,18 +70,18 @@ FPVドローンレース用ラップタイマーを開発する。
 ESP32はWiFi使用中にPromiscuousモードとの干渉が発生する可能性がある。
 役割を完全分離することで：
 
-- ESP32-A: WiFi無効化してPromiscuousに専念 → 受信安定性向上
-- ESP32-B: WiFiに専念 → Web UIの安定性向上
+- ESP32-WROVER-E-A: WiFi無効化してPromiscuousに専念 → 受信安定性向上
+- XIAO EPS32-S3-B: WiFiに専念 → Web UIの安定性向上
 
 ### UART通信仕様
 
 |項目   |内容                     |
 |-----|-----------------------|
 |ボーレート|115200 bps             |
-|接続ピン |ESP32-A TX → ESP32-B RX|
+|接続ピン |ESP32-WROVER-E-A TX →XIAO EPS32-S3-B RX|
 |プロトコル|JSON（1行1パケット、改行区切り）    |
 
-**ESP32-A → ESP32-B 送信フォーマット:**
+**ESP32-WROVER-E-A → XIAO EPS32-S3-B 送信フォーマット:**
 
 ```json
 {"type":"lap","pilot":0,"uid":"AA:BB:CC:DD:EE:FF","rssi":-72,"ts":123456}\n
@@ -93,10 +93,10 @@ ESP32はWiFi使用中にPromiscuousモードとの干渉が発生する可能性
 
 ### ハードウェアリスト
 
-- **ESP32-A（信号解析）:** ESP32 DevKitC または同等品
+- **ESP32-WROVER-E-A（信号解析）:** または同等品
   - アンテナ: 指向性パッチアンテナ推奨
   - 電源: バッテリー or USB（ゲートに設置）
-- **ESP32-B（Web/WiFi）:** ESP32 DevKitC または同等品
+- **XIAO EPS32-S3-B（Web/WiFi）:** または同等品
   - 電源: バッテリー or USB（ピットに設置）
 - **接続:** UARTケーブル（TX-RX、GND共通）
 - 参加者側: ELRS TX Backpack搭載のプロポ（改造不要）
