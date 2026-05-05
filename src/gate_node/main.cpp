@@ -260,7 +260,14 @@ void loop() {
     PacketInfo info;
     while (xQueueReceive(packetQueue, &info, 0) == pdTRUE) {
         int idx = findPilot(info.mac);
-        if (idx >= 0) pilots[idx].rawRssi = info.rssi;
+        if (idx >= 0) {
+            pilots[idx].rawRssi = info.rssi;
+        } else {
+            // Log unmatched MACs so we can verify what the ELRS Backpack is sending
+            Serial.printf("[Gate] UNKNOWN MAC %02X:%02X:%02X:%02X:%02X:%02X rssi=%d\n",
+                info.mac[0], info.mac[1], info.mac[2],
+                info.mac[3], info.mac[4], info.mac[5], info.rssi);
+        }
     }
 
     // 3. EMA filter + state machine — only for registered pilots
