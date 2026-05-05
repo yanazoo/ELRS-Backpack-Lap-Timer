@@ -487,6 +487,14 @@ void setup() {
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
     server.begin();
     Serial.println("[Web] HTTP server started");
+
+    // Proactively push pilots + thresholds on boot.
+    // Gate Node may have already sent "ready" before our loop() started,
+    // so we can't rely solely on the "ready" trigger.
+    delay(500);   // brief wait for Gate Node UART to settle
+    sendAllPilots();
+    sendAllThresholds();
+    Serial.println("[Web] Boot sync: sent pilots + thresholds to Gate Node");
 }
 
 // ── Loop ───────────────────────────────────────────────────────────────────

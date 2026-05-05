@@ -223,12 +223,27 @@ void setup() {
 
 // ── Loop ───────────────────────────────────────────────────────────────────
 static String   webCmdBuf;
-static uint32_t lastRssiSend = 0;
+static uint32_t lastRssiSend  = 0;
+static uint32_t lastReadySend = 0;
+
+static bool anyPilotRegistered() {
+    for (int i = 0; i < MAX_PILOTS; i++) if (pilots[i].hasUid) return true;
+    return false;
+}
 
 void loop() {
     uint32_t now = millis();
 
-    // 0. Read commands from Web Node
+    // 0. Re-send "ready" every 10 s until Web Node registers at least one pilot
+    if (!anyPilotRegistered() && now - lastReadySend >= 10000UL) {
+        lastReadySend = now;
+        char buf[64];
+        snprintf(buf, sizeof(buf), R"({"type":"ready","pilots":%d})", MAX_PILOTS);
+        Serial1.println(buf);
+        Serial.println("[Gate] Re-sent ready (no pilots registered yet)");
+    }
+
+    // 1. Read commands from Web Node
     while (Serial1.available()) {
         char c = (char)Serial1.read();
         if (c == '\n') {
@@ -240,14 +255,14 @@ void loop() {
         }
     }
 
-    // 1. Drain ISR queue — only update pilots with registered UIDs
+    // 2. Drain ISR queue — only update pilots with registered UIDs
     PacketInfo info;
     while (xQueueReceive(packetQueue, &info, 0) == pdTRUE) {
         int idx = findPilot(info.mac);
         if (idx >= 0) pilots[idx].rawRssi = info.rssi;
     }
 
-    // 2. EMA filter + state machine — only for registered pilots
+    // 3. EMA filter + state machine — only for registered pilots
     for (int i = 0; i < MAX_PILOTS; i++) {
         if (!pilots[i].hasUid) continue;
         PilotState& p = pilots[i];
@@ -272,7 +287,7 @@ void loop() {
         }
     }
 
-    // 3. Periodic RSSI telemetry — only for registered pilots
+    // 4. Periodic RSSI telemetry — only for registered pilots
     if (now - lastRssiSend >= RSSI_INTERVAL_MS) {
         lastRssiSend = now;
         for (int i = 0; i < MAX_PILOTS; i++) {
