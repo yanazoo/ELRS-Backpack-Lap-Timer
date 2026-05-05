@@ -192,6 +192,11 @@ static void processWebCmd(const String& line) {
     }
 }
 
+// ── Loop state — declared before setup() so setup() can write lastReadySend
+static String   webCmdBuf;
+static uint32_t lastRssiSend  = 0;
+static uint32_t lastReadySend = 0;
+
 // ── Setup ──────────────────────────────────────────────────────────────────
 void setup() {
     Serial.begin(DEBUG_BAUD);
@@ -221,11 +226,6 @@ void setup() {
     Serial1.println(buf);
     lastReadySend = millis();   // prevent 10s re-send from firing immediately
 }
-
-// ── Loop ───────────────────────────────────────────────────────────────────
-static String   webCmdBuf;
-static uint32_t lastRssiSend  = 0;
-static uint32_t lastReadySend = 0;
 
 static bool anyPilotRegistered() {
     for (int i = 0; i < MAX_PILOTS; i++) if (pilots[i].hasUid) return true;
