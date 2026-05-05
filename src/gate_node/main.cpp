@@ -6,6 +6,7 @@
  *   - Promiscuous mode: receive all 2.4 GHz ESP-NOW frames from ELRS TX Backpacks
  *   - EMA filter + RotorHazard-style state machine for gate-crossing detection
  *   - Per-pilot runtime-configurable Enter/Exit RSSI thresholds
+ *   - Only processes packets from pre-registered UIDs (set via set_pilot command)
  *
  * UART protocol — Gate→Web (1 JSON line per event):
  *   {"type":"lap",   "pilot":0,"uid":"AA:BB","rssi":-72,"ts":123456}
@@ -14,6 +15,7 @@
  *
  * UART protocol — Web→Gate (sync commands):
  *   {"type":"cmd","action":"race_start"}
+ *   {"type":"cmd","action":"set_pilot","pilot":0,"uid":"AA:BB:CC:DD:EE:FF"}
  *   {"type":"cmd","action":"set_threshold","pilot":0,"enter":-80,"exit":-90}
  *
  * Wiring
@@ -54,42 +56,40 @@ static QueueHandle_t packetQueue;
 // ── Pilot state ────────────────────────────────────────────────────────────
 struct PilotState {
     uint8_t  uid[6];
-    bool     active;
+    bool     hasUid;          // true only after set_pilot command from Web Node
     float    emaRssi;
     int      rawRssi;
     bool     crossing;
     int      peakRssi;
     uint32_t peakTime;
     uint32_t lastLapTime;
-    int      entryThreshold;   // runtime-configurable per pilot
+    int      entryThreshold;
     int      exitThreshold;
 };
 
 static PilotState pilots[MAX_PILOTS];
-static int        pilotCount = 0;
 
-// ── Pilot registry ─────────────────────────────────────────────────────────
-static int findOrRegister(const uint8_t* mac) {
-    for (int i = 0; i < pilotCount; i++) {
-        if (memcmp(pilots[i].uid, mac, 6) == 0) return i;
+static void initPilots() {
+    for (int i = 0; i < MAX_PILOTS; i++) {
+        memset(pilots[i].uid, 0, 6);
+        pilots[i].hasUid         = false;
+        pilots[i].emaRssi        = -120.0f;
+        pilots[i].rawRssi        = -120;
+        pilots[i].crossing       = false;
+        pilots[i].peakRssi       = -120;
+        pilots[i].peakTime       = 0;
+        pilots[i].lastLapTime    = 0;
+        pilots[i].entryThreshold = DEFAULT_ENTRY_THR;
+        pilots[i].exitThreshold  = DEFAULT_EXIT_THR;
     }
-    if (pilotCount >= MAX_PILOTS) return -1;
+}
 
-    int idx = pilotCount++;
-    PilotState& p = pilots[idx];
-    memcpy(p.uid, mac, 6);
-    p.active          = true;
-    p.emaRssi         = -120.0f;
-    p.rawRssi         = -120;
-    p.crossing        = false;
-    p.peakRssi        = -120;
-    p.peakTime        = 0;
-    p.lastLapTime     = 0;
-    p.entryThreshold  = DEFAULT_ENTRY_THR;
-    p.exitThreshold   = DEFAULT_EXIT_THR;
-    Serial.printf("[Gate] New pilot #%d  %02X:%02X:%02X:%02X:%02X:%02X\n",
-        idx, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    return idx;
+// ── Pilot lookup — only matches pre-registered UIDs ────────────────────────
+static int findPilot(const uint8_t* mac) {
+    for (int i = 0; i < MAX_PILOTS; i++) {
+        if (pilots[i].hasUid && memcmp(pilots[i].uid, mac, 6) == 0) return i;
+    }
+    return -1;   // unknown MAC → ignored
 }
 
 // ── Promiscuous callback (ISR) ─────────────────────────────────────────────
@@ -142,14 +142,15 @@ static void sendRssi(int idx, uint32_t now) {
     Serial1.print('\n');
 }
 
-// ── Reset pilot detection state ────────────────────────────────────────────
+// ── Reset pilot detection state (UIDs are kept) ────────────────────────────
 static void resetPilots() {
-    for (int i = 0; i < pilotCount; i++) {
+    for (int i = 0; i < MAX_PILOTS; i++) {
         pilots[i].crossing    = false;
         pilots[i].peakRssi    = -120;
         pilots[i].peakTime    = 0;
         pilots[i].lastLapTime = 0;
         pilots[i].emaRssi     = -120.0f;
+        pilots[i].rawRssi     = -120;
     }
     Serial.println("[Gate] Pilot state reset");
 }
@@ -162,26 +163,32 @@ static void processWebCmd(const String& line) {
     if (strcmp(type, "cmd") != 0) return;
 
     const char* action = doc["action"] | "";
+
     if (strcmp(action, "race_start") == 0) {
         resetPilots();
+
+    } else if (strcmp(action, "set_pilot") == 0) {
+        int idx = doc["pilot"] | -1;
+        if (idx < 0 || idx >= MAX_PILOTS) return;
+        const char* uidStr = doc["uid"] | "";
+        if (strlen(uidStr) == 17) {
+            sscanf(uidStr, "%02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX",
+                   &pilots[idx].uid[0], &pilots[idx].uid[1], &pilots[idx].uid[2],
+                   &pilots[idx].uid[3], &pilots[idx].uid[4], &pilots[idx].uid[5]);
+            pilots[idx].hasUid = true;
+            Serial.printf("[Gate] Pilot #%d registered  %s\n", idx, uidStr);
+        } else {
+            pilots[idx].hasUid = false;
+            Serial.printf("[Gate] Pilot #%d cleared\n", idx);
+        }
+
     } else if (strcmp(action, "set_threshold") == 0) {
         int idx = doc["pilot"] | -1;
-        if (idx >= 0 && idx < MAX_PILOTS) {
-            int enter = doc["enter"] | DEFAULT_ENTRY_THR;
-            int exit_ = doc["exit"]  | DEFAULT_EXIT_THR;
-            // Apply to existing pilot or store as default for when they register
-            if (idx < pilotCount) {
-                pilots[idx].entryThreshold = enter;
-                pilots[idx].exitThreshold  = exit_;
-                Serial.printf("[Gate] Threshold p%d: enter=%d exit=%d\n", idx, enter, exit_);
-            }
-            // Also store as "pending" in a separate array for not-yet-seen pilots
-            // (simple approach: store for idx slot regardless of pilotCount)
-            static int pendingEnter[MAX_PILOTS] = {DEFAULT_ENTRY_THR,DEFAULT_ENTRY_THR,DEFAULT_ENTRY_THR,DEFAULT_ENTRY_THR};
-            static int pendingExit [MAX_PILOTS] = {DEFAULT_EXIT_THR, DEFAULT_EXIT_THR, DEFAULT_EXIT_THR, DEFAULT_EXIT_THR};
-            pendingEnter[idx] = enter;
-            pendingExit [idx] = exit_;
-        }
+        if (idx < 0 || idx >= MAX_PILOTS) return;
+        pilots[idx].entryThreshold = doc["enter"] | DEFAULT_ENTRY_THR;
+        pilots[idx].exitThreshold  = doc["exit"]  | DEFAULT_EXIT_THR;
+        Serial.printf("[Gate] Threshold p%d: enter=%d exit=%d\n",
+                      idx, pilots[idx].entryThreshold, pilots[idx].exitThreshold);
     }
 }
 
@@ -192,6 +199,7 @@ void setup() {
 
     Serial1.begin(UART_BAUD, SERIAL_8N1, WEB_NODE_RX_PIN, WEB_NODE_TX_PIN);
 
+    initPilots();
     packetQueue = xQueueCreate(64, sizeof(PacketInfo));
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -207,14 +215,14 @@ void setup() {
 
     Serial.printf("[Gate] Listening on WiFi channel %d\n", ESPNOW_CHANNEL);
 
-    // Notify web node
+    // Notify web node — it will respond with set_pilot + set_threshold for all pilots
     char buf[64];
     snprintf(buf, sizeof(buf), R"({"type":"ready","pilots":%d})", MAX_PILOTS);
     Serial1.println(buf);
 }
 
 // ── Loop ───────────────────────────────────────────────────────────────────
-static String  webCmdBuf;
+static String   webCmdBuf;
 static uint32_t lastRssiSend = 0;
 
 void loop() {
@@ -232,15 +240,16 @@ void loop() {
         }
     }
 
-    // 1. Drain ISR queue
+    // 1. Drain ISR queue — only update pilots with registered UIDs
     PacketInfo info;
     while (xQueueReceive(packetQueue, &info, 0) == pdTRUE) {
-        int idx = findOrRegister(info.mac);
+        int idx = findPilot(info.mac);
         if (idx >= 0) pilots[idx].rawRssi = info.rssi;
     }
 
-    // 2. EMA filter + state machine per pilot
-    for (int i = 0; i < pilotCount; i++) {
+    // 2. EMA filter + state machine — only for registered pilots
+    for (int i = 0; i < MAX_PILOTS; i++) {
+        if (!pilots[i].hasUid) continue;
         PilotState& p = pilots[i];
         p.emaRssi = EMA_ALPHA * p.rawRssi + (1.0f - EMA_ALPHA) * p.emaRssi;
         float ema = p.emaRssi;
@@ -263,10 +272,12 @@ void loop() {
         }
     }
 
-    // 3. Periodic RSSI telemetry
+    // 3. Periodic RSSI telemetry — only for registered pilots
     if (now - lastRssiSend >= RSSI_INTERVAL_MS) {
         lastRssiSend = now;
-        for (int i = 0; i < pilotCount; i++) sendRssi(i, now);
+        for (int i = 0; i < MAX_PILOTS; i++) {
+            if (pilots[i].hasUid) sendRssi(i, now);
+        }
     }
 
     delay(10);

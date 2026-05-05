@@ -174,6 +174,29 @@ static void sendAllThresholds() {
     for (int i = 0; i < MAX_PILOTS; i++) sendGateThreshold(i);
 }
 
+static void sendGatePilot(int i) {
+    if (!cfg[i].hasUid) {
+        // Clear the slot on gate node if no UID configured
+        char buf[64];
+        snprintf(buf, sizeof(buf), R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":""})", i);
+        Serial1.println(buf);
+        return;
+    }
+    char uid[18];
+    snprintf(uid, sizeof(uid), "%02X:%02X:%02X:%02X:%02X:%02X",
+             cfg[i].uid[0], cfg[i].uid[1], cfg[i].uid[2],
+             cfg[i].uid[3], cfg[i].uid[4], cfg[i].uid[5]);
+    char buf[96];
+    snprintf(buf, sizeof(buf),
+             R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":"%s"})", i, uid);
+    Serial1.println(buf);
+    Serial.printf("[Web] → Gate pilot p%d UID=%s\n", i, uid);
+}
+
+static void sendAllPilots() {
+    for (int i = 0; i < MAX_PILOTS; i++) sendGatePilot(i);
+}
+
 // ── JSON builders ──────────────────────────────────────────────────────────
 static String pilotsJson() {
     JsonDocument doc;
@@ -253,9 +276,10 @@ static void processGateLine(const String& line) {
     const char* type = doc["type"] | "";
 
     if (strcmp(type, "ready") == 0) {
-        // Gate node (re)booted — push all calibration thresholds
+        // Gate node (re)booted — push all pilot UIDs then calibration thresholds
+        sendAllPilots();
         sendAllThresholds();
-        Serial.println("[Web] Gate node ready — sent all thresholds");
+        Serial.println("[Web] Gate node ready — sent pilots + thresholds");
         return;
     }
 
@@ -334,8 +358,9 @@ void setup() {
 
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
-    WiFi.softAP(AP_SSID, AP_PASS);
-    Serial.printf("[Web] AP up  SSID=%s  IP=%s\n", AP_SSID, AP_IP.toString().c_str());
+    // Use ch6 for AP so it doesn't overlap with ESP-NOW on ch1
+    WiFi.softAP(AP_SSID, AP_PASS, 6);
+    Serial.printf("[Web] AP up  SSID=%s  IP=%s  ch=6\n", AP_SSID, AP_IP.toString().c_str());
 
     if (!LittleFS.begin(true))
         Serial.println("[Web] LittleFS mount failed — upload data/ first");
@@ -370,6 +395,7 @@ void setup() {
                                &cfg[id].uid[0], &cfg[id].uid[1], &cfg[id].uid[2],
                                &cfg[id].uid[3], &cfg[id].uid[4], &cfg[id].uid[5]);
                     savePilot(id);
+                    sendGatePilot(id);   // register UID on gate node immediately
                     req2->send(200, "application/json", R"({"ok":true})");
                 });
         });
