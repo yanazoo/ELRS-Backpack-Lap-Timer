@@ -173,26 +173,26 @@ static void sendGateThreshold(int i) {
 }
 
 static void sendAllThresholds() {
-    for (int i = 0; i < MAX_PILOTS; i++) sendGateThreshold(i);
+    for (int i = 0; i < MAX_PILOTS; i++) { sendGateThreshold(i); delay(30); }
 }
 
 static void sendGatePilot(int i) {
+    char buf[96];
     if (!cfg[i].hasUid) {
-        // Clear the slot on gate node if no UID configured
-        char buf[64];
         snprintf(buf, sizeof(buf), R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":""})", i);
         Serial1.println(buf);
-        return;
+        Serial.printf("[Web] → Gate pilot p%d cleared\n", i);
+    } else {
+        char uid[18];
+        snprintf(uid, sizeof(uid), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 cfg[i].uid[0], cfg[i].uid[1], cfg[i].uid[2],
+                 cfg[i].uid[3], cfg[i].uid[4], cfg[i].uid[5]);
+        snprintf(buf, sizeof(buf),
+                 R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":"%s"})", i, uid);
+        Serial1.println(buf);
+        Serial.printf("[Web] → Gate pilot p%d UID=%s\n", i, uid);
     }
-    char uid[18];
-    snprintf(uid, sizeof(uid), "%02X:%02X:%02X:%02X:%02X:%02X",
-             cfg[i].uid[0], cfg[i].uid[1], cfg[i].uid[2],
-             cfg[i].uid[3], cfg[i].uid[4], cfg[i].uid[5]);
-    char buf[96];
-    snprintf(buf, sizeof(buf),
-             R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":"%s"})", i, uid);
-    Serial1.println(buf);
-    Serial.printf("[Web] → Gate pilot p%d UID=%s\n", i, uid);
+    delay(30);   // give Gate Node UART RX buffer time to drain between commands
 }
 
 static void sendAllPilots() {

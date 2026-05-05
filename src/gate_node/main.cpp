@@ -219,6 +219,7 @@ void setup() {
     char buf[64];
     snprintf(buf, sizeof(buf), R"({"type":"ready","pilots":%d})", MAX_PILOTS);
     Serial1.println(buf);
+    lastReadySend = millis();   // prevent 10s re-send from firing immediately
 }
 
 // ── Loop ───────────────────────────────────────────────────────────────────
