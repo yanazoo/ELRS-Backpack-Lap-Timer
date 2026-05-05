@@ -37,8 +37,8 @@
 #define UART_BAUD         115200
 
 // ── WiFi channel ───────────────────────────────────────────────────────────
-// ELRS TX Backpack calls WiFi.softAP() with no channel arg → defaults to ch1.
-// peerInfo.channel=0 means "follow current channel" → ESP-NOW runs on ch1.
+// Aircraft node (XIAO ESP32-C3) broadcasts ESP-NOW on ch1.
+// Gate node listens on ch1 via promiscuous mode.
 #define ESPNOW_CHANNEL    1
 
 // ── Default detection parameters ──────────────────────────────────────────
@@ -111,6 +111,39 @@ static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type)
 static void macToStr(const uint8_t* mac, char* buf) {
     snprintf(buf, 18, "%02X:%02X:%02X:%02X:%02X:%02X",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+// ── Scan report — unknown MACs forwarded to Web Node (rate-limited) ─────────
+#define MAX_SCAN_MACS   8
+#define SCAN_INTERVAL_MS 5000UL
+
+struct ScanEntry { uint8_t mac[6]; uint32_t lastSent; };
+static ScanEntry scanTable[MAX_SCAN_MACS];
+static int       scanCount = 0;
+
+static void reportScanMac(const uint8_t* mac, int8_t rssi) {
+    uint32_t now = millis();
+    int slot = -1;
+    for (int k = 0; k < scanCount; k++) {
+        if (memcmp(scanTable[k].mac, mac, 6) == 0) { slot = k; break; }
+    }
+    if (slot < 0) {
+        if (scanCount >= MAX_SCAN_MACS) return;
+        slot = scanCount++;
+        memcpy(scanTable[slot].mac, mac, 6);
+        scanTable[slot].lastSent = 0;
+    }
+    if (now - scanTable[slot].lastSent < SCAN_INTERVAL_MS) return;
+    scanTable[slot].lastSent = now;
+
+    char macStr[18];
+    macToStr(mac, macStr);
+    char buf[96];
+    snprintf(buf, sizeof(buf),
+             R"({"type":"scan","mac":"%s","rssi":%d,"ts":%lu})",
+             macStr, (int)rssi, (unsigned long)now);
+    Serial1.println(buf);
+    Serial.printf("[Gate] SCAN %s rssi=%d\n", macStr, (int)rssi);
 }
 
 static void sendLap(int idx) {
@@ -263,10 +296,8 @@ void loop() {
         if (idx >= 0) {
             pilots[idx].rawRssi = info.rssi;
         } else {
-            // Log unmatched MACs so we can verify what the ELRS Backpack is sending
-            Serial.printf("[Gate] UNKNOWN MAC %02X:%02X:%02X:%02X:%02X:%02X rssi=%d\n",
-                info.mac[0], info.mac[1], info.mac[2],
-                info.mac[3], info.mac[4], info.mac[5], info.rssi);
+            // Unknown aircraft — report to Web Node for pilot assignment
+            reportScanMac(info.mac, info.rssi);
         }
     }
 
