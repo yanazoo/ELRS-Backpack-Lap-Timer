@@ -35,7 +35,9 @@
 #define UART_BAUD         115200
 
 // ── WiFi channel ───────────────────────────────────────────────────────────
-#define ESPNOW_CHANNEL    6
+// ELRS TX Backpack initializes WiFi on channel 1 (WiFi.begin(..., 1) in Tx_main.cpp)
+// and ESP-NOW peers use channel=0 (follow current channel), so ESP-NOW runs on ch1.
+#define ESPNOW_CHANNEL    1
 
 // ── Default detection parameters ──────────────────────────────────────────
 #define MAX_PILOTS         4
@@ -199,6 +201,8 @@ void setup() {
     esp_wifi_start();
     esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
     esp_wifi_set_promiscuous(true);
+    wifi_promiscuous_filter_t filter = { .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT };
+    esp_wifi_set_promiscuous_filter(&filter);
     esp_wifi_set_promiscuous_rx_cb(onPromiscuous);
 
     Serial.printf("[Gate] Listening on WiFi channel %d\n", ESPNOW_CHANNEL);
