@@ -37,9 +37,9 @@
 #define UART_BAUD         115200
 
 // ── WiFi channel ───────────────────────────────────────────────────────────
-// ELRS TX Backpack initializes WiFi on channel 1 (WiFi.begin(..., 1) in Tx_main.cpp)
-// and ESP-NOW peers use channel=0 (follow current channel), so ESP-NOW runs on ch1.
-#define ESPNOW_CHANNEL    1
+// ELRS TX Backpack creates a WiFi AP on ch6 by default; ESP-NOW runs on the
+// same channel as the AP. ch1 was incorrect — reverted to ch6.
+#define ESPNOW_CHANNEL    6
 
 // ── Default detection parameters ──────────────────────────────────────────
 #define MAX_PILOTS         4

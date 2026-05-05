@@ -121,13 +121,15 @@ static void savePilot(int i) {
     char key[24];
     snprintf(key, sizeof(key), "p%d_name",   i); prefs.putString(key, cfg[i].name);
     snprintf(key, sizeof(key), "p%d_phrase", i); prefs.putString(key, cfg[i].bindPhrase);
+    snprintf(key, sizeof(key), "p%d_uid", i);
     if (cfg[i].hasUid) {
         char u[18];
         snprintf(u, sizeof(u), "%02X:%02X:%02X:%02X:%02X:%02X",
                  cfg[i].uid[0], cfg[i].uid[1], cfg[i].uid[2],
                  cfg[i].uid[3], cfg[i].uid[4], cfg[i].uid[5]);
-        snprintf(key, sizeof(key), "p%d_uid", i);
         prefs.putString(key, u);
+    } else {
+        prefs.putString(key, "");   // always overwrite to clear stale NVS data
     }
     prefs.end();
 }
