@@ -7,11 +7,12 @@
  *   - Serve index.html from LittleFS
  *   - WebSocket /ws — real-time push to browsers
  *   - REST API:
- *       GET/POST /api/pilots    pilot name + bind phrase + UID
+ *       GET/POST /api/pilots    pilot name + MAC address
  *       GET/POST /api/calib     per-pilot Enter/Exit RSSI thresholds
  *       POST     /api/race/start|stop
  *       GET      /api/laps
- *       GET      /api/uid?phrase=...   SHA-256 UID (mbedTLS)
+ *       GET      /api/scan       recently detected unknown aircraft MACs
+ *       POST     /api/scan/clear clear scan list
  *       GET      /api/status
  *   - Receive JSON lines from Gate Node via Serial1 (RX=GPIO3/D2)
  *   - Send sync commands to Gate Node via Serial1  (TX=GPIO2/D1)
@@ -30,7 +31,6 @@
 #include <LittleFS.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
-#include <mbedtls/sha256.h>
 
 // ── Network ────────────────────────────────────────────────────────────────
 static const char*    AP_SSID    = "ELRS bp-LT";
@@ -50,14 +50,13 @@ static const IPAddress AP_SUBNET  (255, 255, 255, 0);
 
 struct PilotConfig {
     char    name[32];
-    char    bindPhrase[64];
     uint8_t uid[6];
     bool    hasUid;
 };
 
 struct CalibConfig {
-    int enterRssi;   // dBm
-    int exitRssi;    // dBm
+    int enterRssi;
+    int exitRssi;
 };
 
 struct LapRecord {
@@ -80,9 +79,32 @@ static PilotConfig  cfg[MAX_PILOTS];
 static CalibConfig  cal[MAX_PILOTS];
 static PilotRuntime rt[MAX_PILOTS];
 static LapRecord    laps[MAX_LAPS];
-static int          lapCount   = 0;
+static int          lapCount    = 0;
 static bool         raceRunning = false;
 static uint32_t     raceStartMs = 0;
+
+// ── Scan MAC list — unknown aircraft detected by gate node ─────────────────
+#define MAX_SCAN_MACS 8
+struct ScanMac { char mac[18]; int rssi; uint32_t ts; };
+static ScanMac scanMacs[MAX_SCAN_MACS];
+static int     scanMacCount = 0;
+
+static void updateScanMac(const char* mac, int rssi) {
+    for (int i = 0; i < scanMacCount; i++) {
+        if (strcmp(scanMacs[i].mac, mac) == 0) {
+            scanMacs[i].rssi = rssi;
+            scanMacs[i].ts   = millis();
+            return;
+        }
+    }
+    if (scanMacCount < MAX_SCAN_MACS) {
+        strncpy(scanMacs[scanMacCount].mac, mac, 17);
+        scanMacs[scanMacCount].mac[17] = '\0';
+        scanMacs[scanMacCount].rssi    = rssi;
+        scanMacs[scanMacCount].ts      = millis();
+        scanMacCount++;
+    }
+}
 
 // ── Server & WebSocket ─────────────────────────────────────────────────────
 AsyncWebServer server(80);
@@ -99,11 +121,6 @@ static void loadPilotConfig() {
         if (n.length()) strncpy(cfg[i].name, n.c_str(), sizeof(cfg[i].name) - 1);
         else            snprintf(cfg[i].name, sizeof(cfg[i].name), "Pilot %d", i + 1);
 
-        snprintf(key, sizeof(key), "p%d_phrase", i);
-        strncpy(cfg[i].bindPhrase,
-                prefs.getString(key, "").c_str(),
-                sizeof(cfg[i].bindPhrase) - 1);
-
         snprintf(key, sizeof(key), "p%d_uid", i);
         String u = prefs.getString(key, "");
         cfg[i].hasUid = (u.length() == 17);
@@ -119,15 +136,16 @@ static void loadPilotConfig() {
 static void savePilot(int i) {
     prefs.begin("pilots", false);
     char key[24];
-    snprintf(key, sizeof(key), "p%d_name",   i); prefs.putString(key, cfg[i].name);
-    snprintf(key, sizeof(key), "p%d_phrase", i); prefs.putString(key, cfg[i].bindPhrase);
+    snprintf(key, sizeof(key), "p%d_name", i); prefs.putString(key, cfg[i].name);
+    snprintf(key, sizeof(key), "p%d_uid",  i);
     if (cfg[i].hasUid) {
         char u[18];
         snprintf(u, sizeof(u), "%02X:%02X:%02X:%02X:%02X:%02X",
                  cfg[i].uid[0], cfg[i].uid[1], cfg[i].uid[2],
                  cfg[i].uid[3], cfg[i].uid[4], cfg[i].uid[5]);
-        snprintf(key, sizeof(key), "p%d_uid", i);
         prefs.putString(key, u);
+    } else {
+        prefs.putString(key, "");
     }
     prefs.end();
 }
@@ -171,26 +189,27 @@ static void sendGateThreshold(int i) {
 }
 
 static void sendAllThresholds() {
-    for (int i = 0; i < MAX_PILOTS; i++) sendGateThreshold(i);
+    for (int i = 0; i < MAX_PILOTS; i++) { sendGateThreshold(i); delay(30); }
 }
 
 static void sendGatePilot(int i) {
-    if (!cfg[i].hasUid) {
-        // Clear the slot on gate node if no UID configured
-        char buf[64];
-        snprintf(buf, sizeof(buf), R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":""})", i);
-        Serial1.println(buf);
-        return;
-    }
-    char uid[18];
-    snprintf(uid, sizeof(uid), "%02X:%02X:%02X:%02X:%02X:%02X",
-             cfg[i].uid[0], cfg[i].uid[1], cfg[i].uid[2],
-             cfg[i].uid[3], cfg[i].uid[4], cfg[i].uid[5]);
     char buf[96];
-    snprintf(buf, sizeof(buf),
-             R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":"%s"})", i, uid);
-    Serial1.println(buf);
-    Serial.printf("[Web] → Gate pilot p%d UID=%s\n", i, uid);
+    if (!cfg[i].hasUid) {
+        snprintf(buf, sizeof(buf),
+                 R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":""})", i);
+        Serial1.println(buf);
+        Serial.printf("[Web] → Gate pilot p%d cleared\n", i);
+    } else {
+        char uid[18];
+        snprintf(uid, sizeof(uid), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 cfg[i].uid[0], cfg[i].uid[1], cfg[i].uid[2],
+                 cfg[i].uid[3], cfg[i].uid[4], cfg[i].uid[5]);
+        snprintf(buf, sizeof(buf),
+                 R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":"%s"})", i, uid);
+        Serial1.println(buf);
+        Serial.printf("[Web] → Gate pilot p%d MAC=%s\n", i, uid);
+    }
+    delay(30);
 }
 
 static void sendAllPilots() {
@@ -205,7 +224,6 @@ static String pilotsJson() {
         JsonObject o = arr.add<JsonObject>();
         o["id"]   = i;
         o["name"] = cfg[i].name;
-        o["bindPhrase"] = cfg[i].bindPhrase;
         if (cfg[i].hasUid) {
             char u[18];
             snprintf(u, sizeof(u), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -238,6 +256,18 @@ static String lapsJson() {
         o["lapTime"] = laps[i].lapTimeMs;
         o["ts"]      = laps[i].timestamp;
         o["name"]    = cfg[laps[i].pilotIdx].name;
+    }
+    String s; serializeJson(doc, s); return s;
+}
+
+static String scanJson() {
+    JsonDocument doc;
+    JsonArray arr = doc.to<JsonArray>();
+    for (int i = 0; i < scanMacCount; i++) {
+        JsonObject o = arr.add<JsonObject>();
+        o["mac"]  = scanMacs[i].mac;
+        o["rssi"] = scanMacs[i].rssi;
+        o["ts"]   = scanMacs[i].ts;
     }
     String s; serializeJson(doc, s); return s;
 }
@@ -276,10 +306,17 @@ static void processGateLine(const String& line) {
     const char* type = doc["type"] | "";
 
     if (strcmp(type, "ready") == 0) {
-        // Gate node (re)booted — push all pilot UIDs then calibration thresholds
         sendAllPilots();
         sendAllThresholds();
         Serial.println("[Web] Gate node ready — sent pilots + thresholds");
+        return;
+    }
+
+    if (strcmp(type, "scan") == 0) {
+        const char* mac = doc["mac"] | "";
+        int rssi = doc["rssi"] | -120;
+        if (strlen(mac) == 17) updateScanMac(mac, rssi);
+        wsText(line);   // forward to browser for real-time display
         return;
     }
 
@@ -358,7 +395,6 @@ void setup() {
 
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
-    // Use ch6 for AP so it doesn't overlap with ESP-NOW on ch1
     WiFi.softAP(AP_SSID, AP_PASS, 6);
     Serial.printf("[Web] AP up  SSID=%s  IP=%s  ch=6\n", AP_SSID, AP_IP.toString().c_str());
 
@@ -386,8 +422,7 @@ void setup() {
                     int id = doc["id"] | -1;
                     if (id < 0 || id >= MAX_PILOTS)
                         { req2->send(400, "application/json", R"({"error":"bad id"})"); return; }
-                    strncpy(cfg[id].name,       doc["name"]       | "", sizeof(cfg[id].name)       - 1);
-                    strncpy(cfg[id].bindPhrase, doc["bindPhrase"] | "", sizeof(cfg[id].bindPhrase) - 1);
+                    strncpy(cfg[id].name, doc["name"] | "", sizeof(cfg[id].name) - 1);
                     const char* uid = doc["uid"] | "";
                     cfg[id].hasUid = (strlen(uid) == 17);
                     if (cfg[id].hasUid)
@@ -395,7 +430,7 @@ void setup() {
                                &cfg[id].uid[0], &cfg[id].uid[1], &cfg[id].uid[2],
                                &cfg[id].uid[3], &cfg[id].uid[4], &cfg[id].uid[5]);
                     savePilot(id);
-                    sendGatePilot(id);   // register UID on gate node immediately
+                    sendGatePilot(id);
                     req2->send(200, "application/json", R"({"ok":true})");
                 });
         });
@@ -421,7 +456,7 @@ void setup() {
                     cal[id].enterRssi = doc["enter"] | cal[id].enterRssi;
                     cal[id].exitRssi  = doc["exit"]  | cal[id].exitRssi;
                     saveCalib(id);
-                    sendGateThreshold(id);   // apply immediately to gate node
+                    sendGateThreshold(id);
                     req2->send(200, "application/json", R"({"ok":true})");
                 });
         });
@@ -436,7 +471,7 @@ void setup() {
             rt[i].bestLapMs = 0;
             rt[i].lastLapTs = 0;
         }
-        sendGateCmd("race_start");   // sync gate node state
+        sendGateCmd("race_start");
         JsonDocument doc;
         doc["type"] = "race_start";
         doc["ts"]   = raceStartMs;
@@ -460,17 +495,15 @@ void setup() {
         req->send(200, "application/json", lapsJson());
     });
 
-    // ── GET /api/uid?phrase=... ────────────────────────────────────────────
-    server.on("/api/uid", HTTP_GET, [](AsyncWebServerRequest* req) {
-        if (!req->hasParam("phrase")) { req->send(400, "text/plain", "missing phrase"); return; }
-        String phrase = req->getParam("phrase")->value();
-        uint8_t hash[32];
-        mbedtls_sha256(reinterpret_cast<const unsigned char*>(phrase.c_str()),
-                       phrase.length(), hash, 0);
-        char uid[18];
-        snprintf(uid, sizeof(uid), "%02X:%02X:%02X:%02X:%02X:%02X",
-                 hash[0], hash[1], hash[2], hash[3], hash[4], hash[5]);
-        req->send(200, "text/plain", uid);
+    // ── GET /api/scan ──────────────────────────────────────────────────────
+    server.on("/api/scan", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->send(200, "application/json", scanJson());
+    });
+
+    // ── POST /api/scan/clear ───────────────────────────────────────────────
+    server.on("/api/scan/clear", HTTP_POST, [](AsyncWebServerRequest* req) {
+        scanMacCount = 0;
+        req->send(200, "application/json", R"({"ok":true})");
     });
 
     // ── GET /api/status ────────────────────────────────────────────────────
@@ -488,10 +521,7 @@ void setup() {
     server.begin();
     Serial.println("[Web] HTTP server started");
 
-    // Proactively push pilots + thresholds on boot.
-    // Gate Node may have already sent "ready" before our loop() started,
-    // so we can't rely solely on the "ready" trigger.
-    delay(500);   // brief wait for Gate Node UART to settle
+    delay(500);
     sendAllPilots();
     sendAllThresholds();
     Serial.println("[Web] Boot sync: sent pilots + thresholds to Gate Node");

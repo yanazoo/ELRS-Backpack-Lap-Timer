@@ -37,8 +37,8 @@
 #define UART_BAUD         115200
 
 // ── WiFi channel ───────────────────────────────────────────────────────────
-// ELRS TX Backpack initializes WiFi on channel 1 (WiFi.begin(..., 1) in Tx_main.cpp)
-// and ESP-NOW peers use channel=0 (follow current channel), so ESP-NOW runs on ch1.
+// Aircraft node (XIAO ESP32-C3) broadcasts ESP-NOW on ch1.
+// Gate node listens on ch1 via promiscuous mode.
 #define ESPNOW_CHANNEL    1
 
 // ── Default detection parameters ──────────────────────────────────────────
@@ -111,6 +111,39 @@ static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type)
 static void macToStr(const uint8_t* mac, char* buf) {
     snprintf(buf, 18, "%02X:%02X:%02X:%02X:%02X:%02X",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+// ── Scan report — unknown MACs forwarded to Web Node (rate-limited) ─────────
+#define MAX_SCAN_MACS   8
+#define SCAN_INTERVAL_MS 5000UL
+
+struct ScanEntry { uint8_t mac[6]; uint32_t lastSent; };
+static ScanEntry scanTable[MAX_SCAN_MACS];
+static int       scanCount = 0;
+
+static void reportScanMac(const uint8_t* mac, int8_t rssi) {
+    uint32_t now = millis();
+    int slot = -1;
+    for (int k = 0; k < scanCount; k++) {
+        if (memcmp(scanTable[k].mac, mac, 6) == 0) { slot = k; break; }
+    }
+    if (slot < 0) {
+        if (scanCount >= MAX_SCAN_MACS) return;
+        slot = scanCount++;
+        memcpy(scanTable[slot].mac, mac, 6);
+        scanTable[slot].lastSent = 0;
+    }
+    if (now - scanTable[slot].lastSent < SCAN_INTERVAL_MS) return;
+    scanTable[slot].lastSent = now;
+
+    char macStr[18];
+    macToStr(mac, macStr);
+    char buf[96];
+    snprintf(buf, sizeof(buf),
+             R"({"type":"scan","mac":"%s","rssi":%d,"ts":%lu})",
+             macStr, (int)rssi, (unsigned long)now);
+    Serial1.println(buf);
+    Serial.printf("[Gate] SCAN %s rssi=%d\n", macStr, (int)rssi);
 }
 
 static void sendLap(int idx) {
@@ -192,6 +225,11 @@ static void processWebCmd(const String& line) {
     }
 }
 
+// ── Loop state — declared before setup() so setup() can write lastReadySend
+static String   webCmdBuf;
+static uint32_t lastRssiSend  = 0;
+static uint32_t lastReadySend = 0;
+
 // ── Setup ──────────────────────────────────────────────────────────────────
 void setup() {
     Serial.begin(DEBUG_BAUD);
@@ -219,12 +257,8 @@ void setup() {
     char buf[64];
     snprintf(buf, sizeof(buf), R"({"type":"ready","pilots":%d})", MAX_PILOTS);
     Serial1.println(buf);
+    lastReadySend = millis();   // prevent 10s re-send from firing immediately
 }
-
-// ── Loop ───────────────────────────────────────────────────────────────────
-static String   webCmdBuf;
-static uint32_t lastRssiSend  = 0;
-static uint32_t lastReadySend = 0;
 
 static bool anyPilotRegistered() {
     for (int i = 0; i < MAX_PILOTS; i++) if (pilots[i].hasUid) return true;
@@ -259,7 +293,12 @@ void loop() {
     PacketInfo info;
     while (xQueueReceive(packetQueue, &info, 0) == pdTRUE) {
         int idx = findPilot(info.mac);
-        if (idx >= 0) pilots[idx].rawRssi = info.rssi;
+        if (idx >= 0) {
+            pilots[idx].rawRssi = info.rssi;
+        } else {
+            // Unknown aircraft — report to Web Node for pilot assignment
+            reportScanMac(info.mac, info.rssi);
+        }
     }
 
     // 3. EMA filter + state machine — only for registered pilots

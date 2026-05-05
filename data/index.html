@@ -221,6 +221,13 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
   <h2 class="section-title">設定</h2>
 
   <div class="global-config-card">
+    <h3 class="global-title">📡 機体スキャン</h3>
+    <p class="section-desc">機体（XIAO ESP32-C3）の電源を入れると自動検出されます。MACをパイロットスロットに割り当て後、「保存」してください。</p>
+    <div id="scanList" style="min-height:32px"><span style="color:var(--muted);font-size:12px">スキャン待機中...</span></div>
+    <button onclick="clearScan()" class="btn-secondary" style="width:100%;margin-top:8px;font-size:12px">スキャンリストをクリア</button>
+  </div>
+
+  <div class="global-config-card">
     <h3 class="global-title">グローバル設定</h3>
     <div class="config-items">
       <div class="config-row">
@@ -292,6 +299,7 @@ const pilots = Array.from({length:N}, (_,i) => ({
 }));
 
 let raceRunning=false, raceStartPerf=0, timerH=null;
+var registeredSlots = {};   // slot index → true when pilot MAC is registered
 let voiceEnabled = localStorage.getItem('voice')!=='0';
 let announceMode = localStorage.getItem('announce')||'laptime';
 let speechRate   = parseFloat(localStorage.getItem('srate')||'1.1');
@@ -449,18 +457,15 @@ function buildConfigCards() {
     d.innerHTML=
       '<h3 class="config-pilot-header '+PCLS[p.id]+'">'+PLABELS[p.id]+'</h3>'
       +'<div class="config-items">'
-        +'<div class="config-row"><label>パイロット名</label><input type="text" id="cfgName'+p.id+'" maxlength="20" placeholder="'+PLABELS[p.id]+'" autocomplete="off"></div>'
-        +'<div class="config-row"><label>バインドフレーズ</label><input type="text" id="cfgPhrase'+p.id+'" placeholder="my-bind-phrase" maxlength="63" autocomplete="off"></div>'
-        +'<div class="config-row"><label>UID (自動)</label><span class="uid-display" id="cfgUid'+p.id+'">--:--:--:--:--:--</span></div>'
+        +'<div class="config-row"><label>パイロット名</label>'
+          +'<input type="text" id="cfgName'+p.id+'" maxlength="20" placeholder="'+PLABELS[p.id]+'" autocomplete="off">'
+        +'</div>'
+        +'<div class="config-row"><label>機体 MAC</label>'
+          +'<input type="text" id="cfgMac'+p.id+'" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" autocomplete="off" style="font-family:monospace;letter-spacing:.5px">'
+        +'</div>'
       +'</div>'
       +'<button onclick="savePilotConfig('+p.id+')" class="btn-save">💾 保存</button>';
     g.appendChild(d);
-
-    var phraseEl=d.querySelector('#cfgPhrase'+p.id);
-    var uidEl=d.querySelector('#cfgUid'+p.id);
-    phraseEl.addEventListener('input', async ()=>{
-      uidEl.textContent = await fetchUID(phraseEl.value.trim()) || '--:--:--:--:--:--';
-    });
   });
 }
 
@@ -689,12 +694,13 @@ function checkFinished(p) {
 // Config save
 // ═══════════════════════════════════════════════════════════════
 async function savePilotConfig(id) {
-  var name   = document.getElementById('cfgName'+id).value.trim();
-  var phrase = document.getElementById('cfgPhrase'+id).value.trim();
-  var uid    = document.getElementById('cfgUid'+id).textContent.trim();
+  var name = document.getElementById('cfgName'+id).value.trim();
+  var mac  = document.getElementById('cfgMac'+id).value.trim().toUpperCase();
+  var validMac = /^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(mac);
+  if (mac && !validMac) { toast('⚠️ MAC形式が正しくありません (AA:BB:CC:DD:EE:FF)'); return; }
   try {
     var r = await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({id,name,bindPhrase:phrase,uid})});
+      body:JSON.stringify({id, name, uid: validMac ? mac : ''})});
     if (r.ok) {
       if (name) pilots[id].name = name;
       toast('💾 Pilot '+(id+1)+' 保存完了');
@@ -733,16 +739,77 @@ function refreshPilotNames() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// UID via server-side SHA-256
+// Scan — aircraft MAC auto-detection + one-step registration
 // ═══════════════════════════════════════════════════════════════
-async function fetchUID(phrase) {
-  if (!phrase) return '';
+var scanResults = {};  // mac → { rssi, ts, assignedSlot, pilotName }
+
+function nextFreeSlot() {
+  for (var i = 0; i < N; i++) { if (!registeredSlots[i]) return i; }
+  return 0;
+}
+
+function updateScanList() {
+  var el = document.getElementById('scanList');
+  if (!el) return;
+  var macs = Object.keys(scanResults);
+  if (!macs.length) {
+    el.innerHTML = '<span style="color:var(--muted);font-size:12px">スキャン待機中... 機体の電源を入れてください</span>';
+    return;
+  }
+  el.innerHTML = macs.map(function(mac) {
+    var s = scanResults[mac];
+    var done = s.assignedSlot !== undefined && s.assignedSlot >= 0;
+    var autoSlot = done ? s.assignedSlot : nextFreeSlot();
+    var macId = mac.replace(/:/g,'');
+    var slotOpts = pilots.map(function(p,i) {
+      var sel = (i === autoSlot) ? ' selected' : '';
+      var lbl = (registeredSlots[i] && !done) ? 'P'+(i+1)+'(登録済)' : 'P'+(i+1);
+      return '<option value="'+i+'"'+sel+'>'+lbl+'</option>';
+    }).join('');
+    return '<div id="scan-'+macId+'" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:8px">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+      +  '<span style="font-family:monospace;font-size:13px;color:var(--accent);flex:1">'+mac+'</span>'
+      +  '<span style="color:var(--muted);font-size:11px">'+s.rssi+' dBm</span>'
+      +  (done ? '<span style="color:var(--ok);font-size:11px;font-weight:700">✓ 登録済み (P'+(s.assignedSlot+1)+')</span>' : '')
+      +'</div>'
+      +'<div style="display:flex;gap:6px;align-items:center">'
+      +  '<input type="text" id="scanName-'+macId+'" placeholder="パイロット名" maxlength="20" value="'+(s.pilotName||'')+'" autocomplete="off"'
+      +    ' style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"'
+      +    (done?' disabled':'')+' onkeydown="if(event.key===\'Enter\')registerScanPilot(\''+mac+'\')">'
+      +  '<select id="scanSlot-'+macId+'" style="background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 6px;font-size:12px"'+(done?' disabled':'')+'>'+slotOpts+'</select>'
+      +  '<button id="scanBtn-'+macId+'" onclick="registerScanPilot(\''+mac+'\')" class="btn-success" style="font-size:12px;padding:5px 12px;white-space:nowrap"'+(done?' disabled':'')+'>登録</button>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+
+async function registerScanPilot(mac) {
+  var macId = mac.replace(/:/g,'');
+  var nameEl = document.getElementById('scanName-'+macId);
+  var slotEl = document.getElementById('scanSlot-'+macId);
+  if (!nameEl || !slotEl) return;
+  var slot = parseInt(slotEl.value);
+  var name = nameEl.value.trim() || ('Pilot '+(slot+1));
   try {
-    var r = await fetch('/api/uid?phrase='+encodeURIComponent(phrase));
-    if (!r.ok) return '';
-    var uid = (await r.text()).trim();
-    return /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(uid) ? uid.toUpperCase() : '';
-  } catch(e) { return ''; }
+    var r = await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:slot, name:name, uid:mac})});
+    if (!r.ok) { toast('⚠️ 登録エラー'); return; }
+    pilots[slot].name = name;
+    registeredSlots[slot] = true;
+    scanResults[mac].assignedSlot = slot;
+    scanResults[mac].pilotName    = name;
+    var ni=document.getElementById('cfgName'+slot); if(ni) ni.value=name;
+    var mi=document.getElementById('cfgMac'+slot);  if(mi) mi.value=mac;
+    refreshPilotNames();
+    updateScanList();
+    toast('✓ '+name+' → Pilot '+(slot+1)+' 登録完了');
+  } catch(e) { toast('⚠️ 接続エラー'); }
+}
+
+function clearScan() {
+  scanResults = {};
+  updateScanList();
+  fetch('/api/scan/clear',{method:'POST'}).catch(function(){});
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -777,6 +844,12 @@ function onMsg(d) {
       updateRaceCard(p);
       updateCalibCard(p);
     });
+    return;
+  }
+  if (d.type==='scan') {
+    if (!scanResults[d.mac]) scanResults[d.mac] = {rssi:d.rssi, ts:d.ts};
+    else { scanResults[d.mac].rssi=d.rssi; scanResults[d.mac].ts=d.ts; }
+    updateScanList();
     return;
   }
   if (d.type==='rssi') {
@@ -831,21 +904,32 @@ function syncCalibUi(id, enter, exit_) {
 // Load config from API
 // ═══════════════════════════════════════════════════════════════
 async function loadAll() {
+  var pilotMacs = {};   // slot → mac string (for cross-reference)
   try {
     var r1=await fetch('/api/pilots'); if(r1.ok){
       (await r1.json()).forEach(pd=>{
         var p=pilots[pd.id];
         if(pd.name) p.name=pd.name;
+        if(pd.uid) { registeredSlots[pd.id]=true; pilotMacs[pd.id]=pd.uid.toUpperCase(); }
         var ni=document.getElementById('cfgName'+pd.id); if(ni) ni.value=pd.name||'';
-        var pi=document.getElementById('cfgPhrase'+pd.id);
-        if(pi&&pd.bindPhrase){
-          pi.value=pd.bindPhrase;
-          fetchUID(pd.bindPhrase).then(uid=>{
-            var ui=document.getElementById('cfgUid'+pd.id); if(ui) ui.textContent=uid||'--:--:--:--:--:--';
-          });
-        }
+        var mi=document.getElementById('cfgMac'+pd.id); if(mi&&pd.uid) mi.value=pd.uid;
       });
       refreshPilotNames();
+    }
+  } catch(e){}
+  try {
+    var rs=await fetch('/api/scan'); if(rs.ok){
+      (await rs.json()).forEach(function(s){ scanResults[s.mac]={rssi:s.rssi,ts:s.ts}; });
+      // Cross-reference: mark already-registered MACs as done
+      Object.keys(scanResults).forEach(function(mac) {
+        Object.keys(pilotMacs).forEach(function(slot) {
+          if(pilotMacs[slot]===mac.toUpperCase()) {
+            scanResults[mac].assignedSlot = parseInt(slot);
+            scanResults[mac].pilotName = pilots[parseInt(slot)].name;
+          }
+        });
+      });
+      updateScanList();
     }
   } catch(e){}
   try {
