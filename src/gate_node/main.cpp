@@ -96,7 +96,12 @@ static int findPilot(const uint8_t* mac) {
 static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type) {
     if (type != WIFI_PKT_MGMT) return;
     const auto* pkt = reinterpret_cast<const wifi_promiscuous_pkt_t*>(buf);
-    if (pkt->payload[0] != 0xD0) return;   // Action frame only
+    if (pkt->payload[0] != 0xD0) return;          // Action frame only
+    // Pass only ESP-NOW: Vendor Specific category (0x7F) + Espressif OUI (18:FE:34) + type 0x04
+    if (pkt->rx_ctrl.sig_len < 29) return;
+    if (pkt->payload[24] != 0x7F) return;
+    if (pkt->payload[25] != 0x18 || pkt->payload[26] != 0xFE || pkt->payload[27] != 0x34) return;
+    if (pkt->payload[28] != 0x04) return;
 
     PacketInfo info;
     memcpy(info.mac, &pkt->payload[10], 6);
