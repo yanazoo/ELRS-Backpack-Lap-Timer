@@ -1,0 +1,16 @@
+#pragma once
+
+extern bool sdPresent;
+
+void sdInit();
+void sdBeginRace();
+void sdWriteLap(int slotIdx);
+void sdEndRace();
+void sdBeginBackup();
+void sdWriteBackupRow(const char* name, const char* yomi,
+                      const char* mac, int enter, int exit_);
+void sdEndBackup();
+void sdHandleRestore();
+void sdListFiles();
+void sdReadFile(const char* path);
+void sdDeleteFile(const char* path);
