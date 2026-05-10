@@ -988,6 +988,11 @@ function switchTab(tab){
   document.getElementById('pane-'+tab).classList.add('active');
   document.querySelectorAll('.tab-btn')[['race','config','calib','sd'].indexOf(tab)].classList.add('active');
   if(tab==='calib'){
+    // バッファをリセット → タブを開いた瞬間からのライブデータだけを表示
+    slots.forEach(p=>{
+      var c=charts[p.id];if(!c)return;
+      c.data.fill(-120);c.cross.fill(0);
+    });
     // タブ表示後にcanvasサイズを実際の幅に合わせてリサイズ・再描画
     setTimeout(()=>{
       slots.forEach(p=>{
@@ -1124,8 +1129,11 @@ function onMsg(d){
       if(prevCrossing&&!p.crossing){ensureAudio();sfx.exit();}   // EXIT閾値下回り
     }
     updateRaceCard(p);
-    var calR=document.getElementById('calRssi'+s);if(calR)calR.textContent=p.rssi;
-    pushChart(s,p.rssi,p.crossing);
+    // キャリブタブ表示中のみチャートとバッジを更新
+    if(calibActive){
+      var calR=document.getElementById('calRssi'+s);if(calR)calR.textContent=p.rssi;
+      pushChart(s,p.rssi,p.crossing);
+    }
     return;
   }
   if(d.type==='lap'){
