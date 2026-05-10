@@ -330,9 +330,21 @@ function ensureAudio(){if(!actx)actx=new(window.AudioContext||window.webkitAudio
 function beep(freq,dur,type,vol){if(!actx)return;type=type||'sine';vol=vol===undefined?0.4:vol;var o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.frequency.value=freq;o.type=type;var t=actx.currentTime;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.start(t);o.stop(t+dur);}
 function beepSeq(notes){notes.forEach(n=>setTimeout(()=>beep(n[0],n[1],n[2]),n[3]||0));}
 var sfx={
-  lap:()=>beep(880,.15),
-  best:()=>beepSeq([[880,.1,'sine',0],[1320,.1,'sine',120],[1760,.15,'sine',240]]),
-  count:()=>beepSeq([[440,.12,'sine',0],[440,.12,'sine',1000],[440,.12,'sine',2000],[880,.3,'sine',3000]])
+  // ラップ計測音
+  lap:   ()=>beep(880,.15),
+  best:  ()=>beepSeq([[880,.1,'sine',0],[1320,.1,'sine',120],[1760,.15,'sine',240]]),
+  // 項目1: レースらしいカウントダウン音
+  //   3回の短い square wave ビープ(600Hz) + GO!(1200Hz 長め)
+  count: ()=>beepSeq([
+    [600,.18,'square',0],
+    [600,.18,'square',1000],
+    [600,.18,'square',2000],
+    [1200,.6,'square',3000]
+  ]),
+  // 項目2: ENTER閾値超過音 (ゲート接近 — 上昇2音)
+  enter: ()=>beepSeq([[660,.07,'sine',0],[990,.1,'sine',85]]),
+  // 項目2: EXIT閾値下回り音 (ゲート通過後 — 下降2音)
+  exit:  ()=>beepSeq([[880,.07,'sine',0],[660,.08,'sine',85]])
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1029,9 +1041,17 @@ function onMsg(d){
   if(d.type==='rssi'){
     var s=d.pilot;if(s<0||s>=N)return;
     var p=slots[s];
+    // 項目2: crossing遷移前後を比較して閾値通過音を鳴らす
+    var prevCrossing=p.crossing;
     p.rssi=d.rssi!==undefined?d.rssi:p.rssi;
     p.crossing=d.crossing!==undefined?d.crossing:p.crossing;
     if(d.name&&d.name!=='---')p.name=d.name;
+    // レース中またはキャリブタブ表示中に閾値通過音を再生
+    var calibActive=document.getElementById('pane-calib').classList.contains('active');
+    if(raceRunning||calibActive){
+      if(!prevCrossing&&p.crossing){ensureAudio();sfx.enter();}  // ENTER閾値超過
+      if(prevCrossing&&!p.crossing){ensureAudio();sfx.exit();}   // EXIT閾値下回り
+    }
     updateRaceCard(p);
     var calR=document.getElementById('calRssi'+s);if(calR)calR.textContent=p.rssi;
     pushChart(s,p.rssi,p.crossing);
