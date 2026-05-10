@@ -60,20 +60,17 @@
 
 // ── Default detection parameters ──────────────────────────────────────────
 #define MAX_PILOTS         4
-// EMA alpha: applied once per received packet (RotorHazard-style hold-last-value)
-// 0.4 gives ~5 packets (500ms) to converge to 97% of the true RSSI value
-#define EMA_ALPHA          0.4f
+// EMA alpha: applied every loop iteration using most-recent rawRssi.
+// 0.3 gives smooth convergence; holds last-received value between packets.
+#define EMA_ALPHA          0.3f
 #define DEFAULT_ENTRY_THR  (-80)    // dBm
 #define DEFAULT_EXIT_THR   (-90)    // dBm
 #define COOLDOWN_MS        3000UL
 // 50ms interval → 20Hz telemetry stream to web node
 #define RSSI_INTERVAL_MS   50UL
-// Time after last packet before signal-loss decay begins
-// 2000ms = tolerates ~20 consecutive missed packets at 100ms broadcast rate
-#define PKT_TIMEOUT_MS     2000UL
 
 // ── ISR→main queue ─────────────────────────────────────────────────────────
-struct PacketInfo { uint8_t mac[6]; int8_t rssi; };
+struct PacketInfo { uint8_t mac[6]; int8_t rssi; bool isEspNow; };
 static QueueHandle_t packetQueue;
 
 // ── Pilot state ────────────────────────────────────────────────────────────
@@ -88,8 +85,6 @@ struct PilotState {
     uint32_t lastLapTime;
     int      entryThreshold;
     int      exitThreshold;
-    uint32_t lastPktTime;     // millis() of last received ESP-NOW packet
-    bool     gotNewPacket;   // set by ISR queue drain, cleared after EMA update
 };
 
 static PilotState pilots[MAX_PILOTS];
@@ -106,8 +101,6 @@ static void initPilots() {
         pilots[i].lastLapTime    = 0;
         pilots[i].entryThreshold = DEFAULT_ENTRY_THR;
         pilots[i].exitThreshold  = DEFAULT_EXIT_THR;
-        pilots[i].lastPktTime    = 0;
-        pilots[i].gotNewPacket   = false;
     }
 }
 
@@ -123,16 +116,17 @@ static int findPilot(const uint8_t* mac) {
 static void IRAM_ATTR onPromiscuous(void* buf, wifi_promiscuous_pkt_type_t type) {
     if (type != WIFI_PKT_MGMT) return;
     const auto* pkt = reinterpret_cast<const wifi_promiscuous_pkt_t*>(buf);
-    if (pkt->payload[0] != 0xD0) return;          // Action frame only
-    // Pass only ESP-NOW: Vendor Specific category (0x7F) + Espressif OUI (18:FE:34) + type 0x04
-    if (pkt->rx_ctrl.sig_len < 29) return;
-    if (pkt->payload[24] != 0x7F) return;
-    if (pkt->payload[25] != 0x18 || pkt->payload[26] != 0xFE || pkt->payload[27] != 0x34) return;
-    if (pkt->payload[28] != 0x04) return;
+    if (pkt->payload[0] != 0xD0) return;   // Action frame only
 
     PacketInfo info;
     memcpy(info.mac, &pkt->payload[10], 6);
     info.rssi = static_cast<int8_t>(pkt->rx_ctrl.rssi);
+    // Tag ESP-NOW frames (Vendor Specific 0x7F + Espressif OUI 18:FE:34 + type 0x04)
+    // without hard-blocking non-tagged frames — registered pilots are always processed.
+    info.isEspNow = (pkt->rx_ctrl.sig_len >= 29 &&
+                     pkt->payload[24] == 0x7F &&
+                     pkt->payload[25] == 0x18 && pkt->payload[26] == 0xFE &&
+                     pkt->payload[27] == 0x34 && pkt->payload[28] == 0x04);
 
     BaseType_t woken = pdFALSE;
     xQueueSendFromISR(packetQueue, &info, &woken);
@@ -513,16 +507,14 @@ void loop() {
         }
     }
 
-    // 2. Drain ISR queue — only update pilots with registered UIDs
+    // 2. Drain ISR queue — registered pilots update rawRssi; unknown ESP-NOW MACs go to scan
     PacketInfo info;
     while (xQueueReceive(packetQueue, &info, 0) == pdTRUE) {
         int idx = findPilot(info.mac);
         if (idx >= 0) {
-            pilots[idx].rawRssi      = info.rssi;
-            pilots[idx].lastPktTime  = now;
-            pilots[idx].gotNewPacket = true;
-        } else {
-            // Unknown aircraft — report to Web Node for pilot assignment
+            pilots[idx].rawRssi = info.rssi;
+        } else if (info.isEspNow) {
+            // Only forward genuine ESP-NOW frames to scan list
             reportScanMac(info.mac, info.rssi);
         }
     }
@@ -531,15 +523,9 @@ void loop() {
     for (int i = 0; i < MAX_PILOTS; i++) {
         if (!pilots[i].hasUid) continue;
         PilotState& p = pilots[i];
-        // RotorHazard-style: EMA updates only on new packet (hold-last-value between packets).
-        // After PKT_TIMEOUT_MS with no data, apply a slow gradient decay toward -120 dBm.
-        if (p.gotNewPacket) {
-            p.emaRssi      = EMA_ALPHA * p.rawRssi + (1.0f - EMA_ALPHA) * p.emaRssi;
-            p.gotNewPacket = false;
-        } else if (p.lastPktTime > 0 && (now - p.lastPktTime) > PKT_TIMEOUT_MS) {
-            // ~5 dBm/sec decay; from -65 to -120 takes ~11 seconds
-            p.emaRssi = 0.005f * (-120.0f) + 0.995f * p.emaRssi;
-        }
+        // Simple EMA every loop iteration. rawRssi holds the last received packet value,
+        // so EMA naturally converges to and holds that value between packets.
+        p.emaRssi = EMA_ALPHA * p.rawRssi + (1.0f - EMA_ALPHA) * p.emaRssi;
         float ema = p.emaRssi;
 
         if (!p.crossing) {
