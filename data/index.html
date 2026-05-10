@@ -345,15 +345,20 @@ function ensureAudio(){if(!actx)actx=new(window.AudioContext||window.webkitAudio
 function beep(freq,dur,type,vol){if(!actx)return;type=type||'sine';vol=vol===undefined?0.4:vol;var o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.frequency.value=freq;o.type=type;var t=actx.currentTime;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.start(t);o.stop(t+dur);}
 function beepSeq(notes){notes.forEach(n=>setTimeout(()=>beep(n[0],n[1],n[2]),n[3]||0));}
 var sfx={
-  // ラップ計測音
-  lap:   ()=>beep(880,.15),
-  best:  ()=>beepSeq([[880,.1,'sine',0],[1320,.1,'sine',120],[1760,.15,'sine',240]]),
-  // カウントダウン: プ、プ、プ、ポン（中音域）
+  // ラップ: RotorHazard leader tone — 1200Hz(75ms)→1800Hz(100ms) square
+  lap:  ()=>beepSeq([[1200,.075,'square',0],[1800,.1,'square',75]]),
+  // ベスト: RotorHazard winner tone — 1200/1800Hz 交互×3 square
+  best: ()=>beepSeq([
+    [1200,.05,'square',0],  [1800,.075,'square',50],
+    [1200,.05,'square',125],[1800,.075,'square',175],
+    [1200,.05,'square',250],[1800,.1,  'square',300]
+  ]),
+  // カウントダウン: RotorHazard staging(440Hz triangle×3) + start(880Hz triangle)
   count: ()=>beepSeq([
-    [500,.08,'sine',0],
-    [500,.08,'sine',1000],
-    [500,.08,'sine',2000],
-    [440,.3,'sine',3000]
+    [440,.1,'triangle',0],
+    [440,.1,'triangle',1000],
+    [440,.1,'triangle',2000],
+    [880,.7,'triangle',3000]
   ]),
   // ENTER: ポン（高い音域）
   enter: ()=>beep(880,.2,'sine'),

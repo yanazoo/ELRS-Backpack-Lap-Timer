@@ -47,11 +47,11 @@
 #define DEBUG_BAUD        115200
 #define UART_BAUD         115200
 
-// ── SD SPI Pins ────────────────────────────────────────────────────────────
-#define SD_CS_PIN    5
-#define SD_MOSI_PIN  23
-#define SD_MISO_PIN  19
-#define SD_SCK_PIN   18
+// ── SD SPI Pins — LilyGo TTGO T8 V1.8 ────────────────────────────────────
+#define SD_CS_PIN    13
+#define SD_MOSI_PIN  15
+#define SD_MISO_PIN   2
+#define SD_SCK_PIN   14
 
 // ── WiFi channel ───────────────────────────────────────────────────────────
 // Aircraft node (XIAO ESP32-C3) broadcasts ESP-NOW on ch1.
