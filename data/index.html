@@ -7,61 +7,40 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>ELRS Lap Timer</title>
 <style>
-/* ── CSS Variables (PhobosLT dark theme) ── */
 :root {
-  --bg:      #0d1117;
-  --sf:      #161b22;
-  --sf2:     #21262d;
-  --bd:      #30363d;
-  --tx:      #e6edf3;
-  --muted:   #8b949e;
-  --accent:  #58a6ff;
-  --accent-d:#1f6feb;
-  --ok:      #3fb950;
-  --err:     #f85149;
-  --warn:    #d29922;
-  --p0:      #58a6ff;
-  --p1:      #f85149;
-  --p2:      #3fb950;
-  --p3:      #d29922;
-  --p0-bg:   rgba(88,166,255,.12);
-  --p1-bg:   rgba(248,81,73,.12);
-  --p2-bg:   rgba(63,185,80,.12);
-  --p3-bg:   rgba(210,153,34,.12);
+  --bg:#0d1117;--sf:#161b22;--sf2:#21262d;--bd:#30363d;
+  --tx:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--accent-d:#1f6feb;
+  --ok:#3fb950;--err:#f85149;--warn:#d29922;
+  --p0:#58a6ff;--p1:#f85149;--p2:#3fb950;--p3:#d29922;
+  --p0-bg:rgba(88,166,255,.12);--p1-bg:rgba(248,81,73,.12);
+  --p2-bg:rgba(63,185,80,.12);--p3-bg:rgba(210,153,34,.12);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;display:flex;flex-direction:column;font-size:14px}
-
-/* ── Header ── */
 header{position:sticky;top:0;z-index:200;background:var(--sf);border-bottom:1px solid var(--bd);padding:8px 16px}
 .header-inner{display:flex;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto}
 .logo{display:flex;align-items:center;gap:8px}
 .logo h1{font-size:16px;color:var(--accent);font-weight:700}
 .ws-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
-.ws-dot.connected{background:var(--ok)}
-.ws-dot.disconnected{background:var(--err)}
+.ws-dot.connected{background:var(--ok)}.ws-dot.disconnected{background:var(--err)}
 .tab-bar{display:flex;gap:3px}
 .tab-btn{flex:1;padding:6px 8px;border-radius:6px;font-size:12px;font-weight:600;background:transparent;color:var(--muted);border:1px solid transparent;cursor:pointer;transition:all .15s;white-space:nowrap}
 .tab-btn:hover{color:var(--tx);background:var(--sf2)}
 .tab-btn.active{background:var(--accent-d);color:#fff;border-color:var(--accent)}
-
-/* ── Main ── */
 main{flex:1;max-width:1200px;margin:0 auto;width:100%;padding:16px 12px 32px}
-.tab-pane{display:none}
-.tab-pane.active{display:block}
+.tab-pane{display:none}.tab-pane.active{display:block}
 .section-title{font-size:18px;color:var(--accent);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--bd)}
 .section-desc{color:var(--muted);font-size:12px;margin-bottom:12px;line-height:1.6}
-
-/* ── Buttons ── */
 button{padding:8px 14px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;transition:filter .15s,opacity .15s}
 button:disabled{opacity:.4;cursor:not-allowed}
 button:not(:disabled):hover{filter:brightness(1.15)}
-.btn-success{background:var(--ok);color:#000}
-.btn-danger{background:var(--err);color:#fff}
+.btn-success{background:var(--ok);color:#000}.btn-danger{background:var(--err);color:#fff}
 .btn-secondary{background:var(--sf2);color:var(--tx);border:1px solid var(--bd)}
 .btn-save{background:var(--accent);color:#000;width:100%;margin-top:10px}
 .btn-voice{background:var(--sf2);color:var(--tx);border:1px solid var(--bd);min-width:120px}
 .btn-voice.on{background:var(--ok);color:#000;border-color:var(--ok)}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.card-title{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
 
 /* ── Race controls ── */
 .race-controls{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:14px 12px;margin-bottom:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -70,8 +49,13 @@ button:not(:disabled):hover{filter:brightness(1.15)}
 .race-buttons{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .lap-count-row{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;flex-wrap:wrap;justify-content:center}
 .lap-count-row input[type="number"]{width:56px;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:4px 6px;text-align:center;font-size:14px}
-.hint{font-size:11px;color:var(--muted)}
-.sep{color:var(--bd);margin:0 4px}
+
+/* ── Pilot select grid ── */
+.pilot-select-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%}
+.slot-select-card{background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:8px 10px}
+.slot-label{font-size:11px;font-weight:700;margin-bottom:4px}
+.slot-label.p0{color:var(--p0)}.slot-label.p1{color:var(--p1)}.slot-label.p2{color:var(--p2)}.slot-label.p3{color:var(--p3)}
+.slot-select-card select{width:100%;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:5px;padding:4px 5px;font-size:12px}
 
 /* ── Pilot race grid ── */
 .pilot-race-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
@@ -85,27 +69,18 @@ button:not(:disabled):hover{filter:brightness(1.15)}
 .p-lapcount{font-size:11px;font-weight:normal;color:var(--muted);white-space:nowrap}
 .crossing-badge{font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 6px;border-radius:3px;background:#333;color:var(--muted);display:none}
 .crossing-badge.active{display:inline-block;background:currentColor;color:#000}
-
-/* ── RSSI mini bar ── */
 .rssi-mini-bar{display:flex;align-items:center;gap:5px;padding:3px 8px;background:var(--sf2)}
 .rssi-mini-label{font-size:9px;color:var(--muted);width:26px}
 .rssi-mini-track{flex:1;height:5px;background:var(--bd);border-radius:3px;overflow:hidden}
 .rssi-mini-fill{height:100%;width:0%;border-radius:3px;transition:width .2s}
-.p0 .rssi-mini-fill,.p0-fill{background:var(--p0)}
-.p1 .rssi-mini-fill,.p1-fill{background:var(--p1)}
-.p2 .rssi-mini-fill,.p2-fill{background:var(--p2)}
-.p3 .rssi-mini-fill,.p3-fill{background:var(--p3)}
+.p0 .rssi-mini-fill,.p0-fill{background:var(--p0)}.p1 .rssi-mini-fill,.p1-fill{background:var(--p1)}
+.p2 .rssi-mini-fill,.p2-fill{background:var(--p2)}.p3 .rssi-mini-fill,.p3-fill{background:var(--p3)}
 .rssi-mini-val{font-size:10px;color:var(--muted);min-width:36px;text-align:right}
-
-/* ── Best lap row ── */
 .pilot-best-row{display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--sf2);border-top:1px solid var(--bd)}
 .best-label{font-size:9px;color:var(--muted);width:26px}
 .pilot-best{font-size:14px;font-weight:700;color:var(--accent)}
 .pilot-delta{font-size:11px;font-weight:700;margin-left:auto}
-.pilot-delta.faster{color:var(--ok)}
-.pilot-delta.slower{color:var(--err)}
-
-/* ── Lap table ── */
+.pilot-delta.faster{color:var(--ok)}.pilot-delta.slower{color:var(--err)}
 .lap-table-wrap{overflow-x:auto;max-height:220px;overflow-y:auto}
 .lapTable{width:100%;border-collapse:collapse;font-size:11px}
 .lapTable thead th{background:var(--sf2);color:var(--muted);padding:3px 4px;text-align:center;font-weight:normal;font-size:10px;border-bottom:1px solid var(--bd);position:sticky;top:0}
@@ -113,39 +88,28 @@ button:not(:disabled):hover{filter:brightness(1.15)}
 .lapTable tbody td.lap-time{font-size:13px;font-weight:700}
 .lapTable tbody tr:hover{background:var(--sf2)}
 .lapTable tbody tr.best-row td{color:var(--ok);font-weight:bold}
-.lapTable tbody tr.best-row td.lap-time{color:var(--ok)}
-
-/* Lap flash animation */
 @keyframes lapFlash{0%{background:rgba(255,255,255,.15)}100%{background:transparent}}
 .pilot-race-card.flash{animation:lapFlash .5s ease-out}
 
-/* ── Config section ── */
-.global-config-card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:12px}
-.global-title{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
-.config-pilots-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.config-pilot-card{background:var(--sf);border-radius:10px;border:1px solid var(--bd);overflow:hidden}
-.p0-border{border-top:3px solid var(--p0)}.p1-border{border-top:3px solid var(--p1)}
-.p2-border{border-top:3px solid var(--p2)}.p3-border{border-top:3px solid var(--p3)}
-.config-pilot-header{padding:8px 12px;font-size:13px;font-weight:700;margin:0}
-.config-pilot-header.p0{color:var(--p0);background:var(--p0-bg)}
-.config-pilot-header.p1{color:var(--p1);background:var(--p1-bg)}
-.config-pilot-header.p2{color:var(--p2);background:var(--p2-bg)}
-.config-pilot-header.p3{color:var(--p3);background:var(--p3-bg)}
-.config-items{padding:10px 12px;display:flex;flex-direction:column;gap:10px}
-.config-row{display:flex;align-items:center;gap:10px}
-.config-row label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;width:130px;flex-shrink:0}
-.config-row input[type="text"],.config-row select{flex:1;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:6px 8px;font-size:13px}
-.config-row input[type="text"]:focus,.config-row select:focus{outline:none;border-color:var(--accent)}
-.uid-display{flex:1;font-size:12px;font-weight:700;color:var(--accent);font-family:"Courier New",monospace;padding:6px 0;letter-spacing:.5px}
-.voice-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.value-display{font-size:14px;color:var(--accent);font-weight:700}
-.slider-num{display:flex;align-items:center;gap:6px;flex:1}
-.slider-num input[type="range"]{flex:1;accent-color:var(--accent);cursor:pointer}
-.slider-num input[type="number"]{width:58px;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:4px 5px;font-size:13px;text-align:center}
-.slider-num input[type="number"]:focus{outline:none;border-color:var(--accent)}
-.unit{font-size:11px;color:var(--muted);flex-shrink:0}
+/* ── Config / Roster ── */
+.search-row{display:flex;gap:8px;margin-bottom:10px}
+.search-input{flex:1;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:7px 10px;font-size:13px}
+.search-input:focus{outline:none;border-color:var(--accent)}
+.roster-list{max-height:420px;overflow-y:auto;border:1px solid var(--bd);border-radius:8px}
+.roster-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--bd);flex-wrap:wrap}
+.roster-item:last-child{border-bottom:none}
+.roster-item:hover{background:var(--sf2)}
+.roster-name{font-weight:600;font-size:13px;flex:1;min-width:80px}
+.roster-mac{font-family:monospace;font-size:11px;color:var(--muted);min-width:120px}
+.active-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;white-space:nowrap}
+.active-badge.p0{background:var(--p0-bg);color:var(--p0);border:1px solid var(--p0)}
+.active-badge.p1{background:var(--p1-bg);color:var(--p1);border:1px solid var(--p1)}
+.active-badge.p2{background:var(--p2-bg);color:var(--p2);border:1px solid var(--p2)}
+.active-badge.p3{background:var(--p3-bg);color:var(--p3);border:1px solid var(--p3)}
+.roster-actions{display:flex;gap:4px;flex-shrink:0}
+.roster-item input[type="text"]{background:var(--bg);border:1px solid var(--accent);color:var(--tx);border-radius:5px;padding:3px 7px;font-size:12px}
 
-/* ── Calibration section ── */
+/* ── Calib ── */
 .calib-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .calib-card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;overflow:hidden}
 .calib-header{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;font-weight:700;font-size:13px}
@@ -158,22 +122,29 @@ button:not(:disabled):hover{filter:brightness(1.15)}
 .calib-card canvas{width:100%;height:130px;display:block;background:var(--bg)}
 .calib-sliders{padding:8px 12px;display:flex;flex-direction:column;gap:8px}
 .calib-card .btn-save{margin:0 12px 10px;width:calc(100% - 24px)}
-.calib-card .config-row label{width:110px}
+.config-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.config-row label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;width:110px;flex-shrink:0}
+.slider-num{display:flex;align-items:center;gap:6px;flex:1}
+.slider-num input[type="range"]{flex:1;accent-color:var(--accent);cursor:pointer}
+.slider-num input[type="number"]{width:58px;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:4px 5px;font-size:13px;text-align:center}
+.slider-num input[type="number"]:focus{outline:none;border-color:var(--accent)}
+.unit{font-size:11px;color:var(--muted);flex-shrink:0}
 
-/* ── Footer ── */
+/* ── Global config ── */
+.global-config-card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.global-title{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.voice-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+/* ── Footer / Toast ── */
 footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;padding:10px;font-size:12px;color:var(--muted)}
-
-/* ── Toast ── */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px 20px;font-size:13px;z-index:1000;transition:transform .3s;pointer-events:none;white-space:nowrap}
 .toast.show{transform:translateX(-50%) translateY(0)}
 
-/* ── Responsive ── */
-@media(max-width:900px){.pilot-race-grid{grid-template-columns:1fr 1fr}.calib-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.pilot-race-grid{grid-template-columns:1fr 1fr}.calib-grid{grid-template-columns:1fr 1fr}.pilot-select-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){
   .header-inner{flex-direction:column;gap:6px;align-items:flex-start}
-  .pilot-race-grid{grid-template-columns:1fr 1fr}
-  .config-pilots-grid{grid-template-columns:1fr}
-  .calib-grid{grid-template-columns:1fr 1fr}
+  .pilot-race-grid{grid-template-columns:1fr 1fr}.calib-grid{grid-template-columns:1fr 1fr}
+  .pilot-select-grid{grid-template-columns:1fr 1fr}
   #timer{font-size:32px}
 }
 </style>
@@ -184,7 +155,7 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
   <div class="header-inner">
     <div class="logo">
       <h1>ELRS Lap Timer</h1>
-      <span id="wsDot" class="ws-dot disconnected" title="WebSocket接続状態"></span>
+      <span id="wsDot" class="ws-dot disconnected"></span>
     </div>
     <nav class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('race')">🏁 レース</button>
@@ -198,6 +169,15 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
 
 <!-- ═══════════════════════════ RACE ═══════════════════════════ -->
 <section id="pane-race" class="tab-pane active">
+
+  <!-- パイロット選択 -->
+  <div class="card" id="pilotSelectCard">
+    <div class="card-title">🏎 レースパイロット選択（最大4人）</div>
+    <div class="pilot-select-grid" id="pilotSelectGrid"></div>
+    <button onclick="saveActiveSelection()" class="btn-save" style="margin-top:10px">✅ パイロット確定</button>
+  </div>
+
+  <!-- レース制御 -->
   <div class="race-controls">
     <div id="timer">00:00</div>
     <div class="race-buttons">
@@ -208,11 +188,12 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
     <div class="lap-count-row">
       <label>総周回数:</label>
       <input type="number" id="totalLaps" min="0" max="99" value="0">
-      <span class="hint">（0=無制限）</span>
-      <span class="sep">｜</span>
+      <span style="font-size:11px;color:var(--muted)">（0=無制限）</span>
+      <span style="color:var(--bd);margin:0 4px">｜</span>
       <button id="voiceBtn" onclick="toggleVoice()" class="btn-voice on">🔊 音声 ON</button>
     </div>
   </div>
+
   <div class="pilot-race-grid" id="pilotGrid"></div>
 </section>
 
@@ -220,21 +201,45 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
 <section id="pane-config" class="tab-pane">
   <h2 class="section-title">設定</h2>
 
+  <!-- スキャン -->
   <div class="global-config-card">
     <h3 class="global-title">📡 機体スキャン</h3>
-    <p class="section-desc">機体（XIAO ESP32-C3）の電源を入れると自動検出されます。MACをパイロットスロットに割り当て後、「保存」してください。</p>
-    <div id="scanList" style="min-height:32px"><span style="color:var(--muted);font-size:12px">スキャン待機中...</span></div>
+    <p class="section-desc">機体（XIAO ESP32-C3）の電源を入れると自動検出されます。名前を入力してロースターに登録してください。</p>
+    <div id="scanList" style="min-height:32px"><span style="color:var(--muted);font-size:12px">スキャン待機中... 機体の電源を入れてください</span></div>
     <button onclick="clearScan()" class="btn-secondary" style="width:100%;margin-top:8px;font-size:12px">スキャンリストをクリア</button>
   </div>
 
+  <!-- ロースター -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="card-title" style="margin:0">👥 パイロットロースター <span id="rosterCountBadge" style="color:var(--muted);font-weight:normal"></span></div>
+      <button onclick="showAddForm()" class="btn-success" style="font-size:12px;padding:5px 12px">＋ 追加</button>
+    </div>
+    <div class="search-row">
+      <input type="text" class="search-input" id="searchInput" placeholder="🔍 名前・MACで検索..." oninput="renderRoster()">
+    </div>
+    <!-- Add form (hidden by default) -->
+    <div id="addForm" style="display:none;background:var(--sf2);border:1px solid var(--accent);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div style="font-size:12px;color:var(--accent);font-weight:600;margin-bottom:8px">新規パイロット追加</div>
+      <div class="config-row"><label>名前</label><input type="text" id="addName" placeholder="パイロット名" maxlength="20" autocomplete="off" style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"></div>
+      <div class="config-row"><label>機体 MAC</label><input type="text" id="addMac" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" autocomplete="off" style="flex:1;font-family:monospace;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button onclick="submitAdd()" class="btn-success" style="flex:1;font-size:12px">登録</button>
+        <button onclick="hideAddForm()" class="btn-secondary" style="flex:1;font-size:12px">キャンセル</button>
+      </div>
+    </div>
+    <div class="roster-list" id="rosterList"></div>
+  </div>
+
+  <!-- グローバル設定 -->
   <div class="global-config-card">
     <h3 class="global-title">グローバル設定</h3>
-    <div class="config-items">
+    <div style="padding:0">
       <div class="config-row">
         <label>アナウンス</label>
-        <select id="announceMode">
-          <option value="laptime">ラップタイム</option>
-          <option value="lap_laptime">周回数＆ラップタイム</option>
+        <select id="announceMode" style="flex:1;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:6px 8px;font-size:13px">
+          <option value="laptime">名前＆ラップタイム</option>
+          <option value="lap_laptime">名前＆周回数＆ラップタイム</option>
           <option value="beep">ビープ音のみ</option>
           <option value="none">なし</option>
         </select>
@@ -245,17 +250,7 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
           <input type="range" id="speechRate" min="0.5" max="2.0" step="0.1" value="1.1"
             oninput="document.getElementById('speechRateN').value=this.value">
           <input type="number" id="speechRateN" min="0.5" max="2.0" step="0.1" value="1.1"
-            onchange="document.getElementById('speechRate').value=Math.min(2,Math.max(0.5,this.value))">
-        </div>
-      </div>
-      <div class="config-row">
-        <label>最小ラップ時間</label>
-        <div class="slider-num">
-          <input type="range" id="minLap" min="1" max="30" step="0.5" value="3"
-            oninput="document.getElementById('minLapN').value=this.value">
-          <input type="number" id="minLapN" min="1" max="30" step="0.5" value="3"
-            onchange="document.getElementById('minLap').value=Math.min(30,Math.max(1,this.value))">
-          <span class="unit">s</span>
+            onchange="document.getElementById('speechRate').value=Math.min(2,Math.max(0.5,+this.value))">
         </div>
       </div>
     </div>
@@ -265,166 +260,133 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
     </div>
     <button onclick="saveGlobalConfig()" class="btn-save">💾 グローバル設定を保存</button>
   </div>
-
-  <div class="config-pilots-grid" id="configGrid"></div>
 </section>
 
 <!-- ═══════════════════════════ CALIB ════════════════════════ -->
 <section id="pane-calib" class="tab-pane">
   <h2 class="section-title">キャリブレーション</h2>
-  <p class="section-desc">RSSIリアルタイム波形と検知閾値の設定。機体を近づけてピーク値を確認し、Enter閾値（入）とExit閾値（出）を調整してください。Enter &gt; Exitになるよう設定します。</p>
+  <p class="section-desc">アクティブパイロットの RSSI リアルタイム波形と検知閾値。Enter &gt; Exit になるよう設定します。</p>
   <div class="calib-grid" id="calibGrid"></div>
 </section>
 
 </main>
-
-<footer><p>ELRS Lap Timer</p></footer>
+<footer><p>ELRS Lap Timer — MAX 50 pilots</p></footer>
 <div id="toast" class="toast"></div>
 
 <script>
 'use strict';
 
-// ═══════════════════════════════════════════════════════════════
-// Config & state
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// Constants & state
+// ═══════════════════════════════════════════════════════════════════
 const PCOLORS = ['var(--p0)','var(--p1)','var(--p2)','var(--p3)'];
 const PCLS    = ['p0','p1','p2','p3'];
-const PLABELS = ['Pilot 1','Pilot 2','Pilot 3','Pilot 4'];
 const N = 4, DB_MIN = -120, DB_MAX = -40;
 
-const pilots = Array.from({length:N}, (_,i) => ({
-  id:i, name:PLABELS[i], rssi:-120, crossing:false,
+// Race slot state (indexed by slot 0-3)
+const slots = Array.from({length:N}, (_,i) => ({
+  id:i, name:'---', rosterIdx:-1, rssi:-120, crossing:false,
   lapCount:0, bestLapMs:0, lapTimes:[], cumulative:0,
   enterRssi:-80, exitRssi:-90
 }));
 
-let raceRunning=false, raceStartPerf=0, timerH=null;
-var registeredSlots = {};   // slot index → true when pilot MAC is registered
-let voiceEnabled = localStorage.getItem('voice')!=='0';
-let announceMode = localStorage.getItem('announce')||'laptime';
-let speechRate   = parseFloat(localStorage.getItem('srate')||'1.1');
+// Roster: all registered pilots (loaded from /api/pilots)
+var rosterData = [];              // [{id,name,uid,activeSlot,enter,exit}]
+var activeSlotsLocal = [-1,-1,-1,-1]; // current race selection (roster indices)
 
-// ═══════════════════════════════════════════════════════════════
+var raceRunning=false, raceStartPerf=0, timerH=null;
+var voiceEnabled = localStorage.getItem('voice')!=='0';
+var announceMode = localStorage.getItem('announce')||'laptime';
+var speechRate   = parseFloat(localStorage.getItem('srate')||'1.1');
+var scanResults  = {};  // mac → {rssi,ts,assignedRosterId,pilotName}
+var editingRosterId = null;
+
+// ═══════════════════════════════════════════════════════════════════
 // Toast
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 function toast(msg, dur) {
-  dur = dur || 2000;
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), dur);
+  dur=dur||2000;
+  var t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), dur);
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Audio — Web Audio API
-// ═══════════════════════════════════════════════════════════════
-let actx = null;
-function ensureAudio() {
-  if (!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
-  if (actx.state==='suspended') actx.resume();
-}
-function beep(freq, dur, type, vol) {
-  if (!actx) return;
-  type = type||'sine'; vol = vol===undefined?0.4:vol;
-  var o=actx.createOscillator(), g=actx.createGain();
-  o.connect(g); g.connect(actx.destination);
-  o.frequency.value=freq; o.type=type;
-  var t=actx.currentTime;
-  g.gain.setValueAtTime(vol,t);
-  g.gain.exponentialRampToValueAtTime(.001,t+dur);
-  o.start(t); o.stop(t+dur);
-}
-function beepSeq(notes) { notes.forEach(n=>setTimeout(()=>beep(n[0],n[1],n[2]),n[3]||0)); }
-var sfx = {
-  lap:  ()=>beep(880,.15),
-  best: ()=>beepSeq([[880,.1,'sine',0],[1320,.1,'sine',120],[1760,.15,'sine',240]]),
+// ═══════════════════════════════════════════════════════════════════
+// Audio
+// ═══════════════════════════════════════════════════════════════════
+var actx=null;
+function ensureAudio(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();}
+function beep(freq,dur,type,vol){if(!actx)return;type=type||'sine';vol=vol===undefined?0.4:vol;var o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.frequency.value=freq;o.type=type;var t=actx.currentTime;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.start(t);o.stop(t+dur);}
+function beepSeq(notes){notes.forEach(n=>setTimeout(()=>beep(n[0],n[1],n[2]),n[3]||0));}
+var sfx={
+  lap:()=>beep(880,.15),
+  best:()=>beepSeq([[880,.1,'sine',0],[1320,.1,'sine',120],[1760,.15,'sine',240]]),
   count:()=>beepSeq([[440,.12,'sine',0],[440,.12,'sine',1000],[440,.12,'sine',2000],[880,.3,'sine',3000]])
 };
 
-// ═══════════════════════════════════════════════════════════════
-// Voice — Web Speech API
-// ═══════════════════════════════════════════════════════════════
-var speechQ = [], speechBusy = false;
-function speak(text) {
-  if (!voiceEnabled || announceMode==='none') { sfx.lap(); return; }
-  if (announceMode==='beep') { sfx.lap(); return; }
-  speechQ.push(text); if (!speechBusy) nextSpeech();
+// ═══════════════════════════════════════════════════════════════════
+// Voice (always announces pilot name)
+// ═══════════════════════════════════════════════════════════════════
+var speechQ=[],speechBusy=false;
+function speak(text){
+  if(!voiceEnabled||announceMode==='none'){sfx.lap();return;}
+  if(announceMode==='beep'){sfx.lap();return;}
+  speechQ.push(text);if(!speechBusy)nextSpeech();
 }
-function nextSpeech() {
-  if (!speechQ.length) { speechBusy=false; return; }
-  speechBusy = true;
-  var u = new SpeechSynthesisUtterance(speechQ.shift());
-  u.lang='ja-JP'; u.rate=speechRate;
-  u.onend = ()=>{ setTimeout(nextSpeech,80); };
-  u.onerror = ()=>{ speechBusy=false; nextSpeech(); };
-  var timeout = setTimeout(()=>{ speechSynthesis.cancel(); speechBusy=false; nextSpeech(); }, 5000);
-  u.onend = ()=>{ clearTimeout(timeout); setTimeout(nextSpeech,80); };
+function nextSpeech(){
+  if(!speechQ.length){speechBusy=false;return;}
+  speechBusy=true;
+  var u=new SpeechSynthesisUtterance(speechQ.shift());
+  u.lang='ja-JP';u.rate=speechRate;
+  var timeout=setTimeout(()=>{speechSynthesis.cancel();speechBusy=false;nextSpeech();},5000);
+  u.onend=()=>{clearTimeout(timeout);setTimeout(nextSpeech,80);};
+  u.onerror=()=>{clearTimeout(timeout);speechBusy=false;nextSpeech();};
   speechSynthesis.speak(u);
 }
 function buildSpeech(pilotName, lapCount, lapMs) {
-  var s = Math.floor(lapMs/1000);
-  var ms = Math.floor((lapMs%1000)/100);
-  var m = Math.floor(s/60); s = s%60;
-  var tStr = m>0 ? m+'分'+s+'秒'+ms : s+'秒'+ms;
-  if (announceMode==='lap_laptime') return lapCount+'周、'+tStr;
-  return tStr;
+  var s=Math.floor(lapMs/1000),ms=Math.floor((lapMs%1000)/100);
+  var m=Math.floor(s/60);s=s%60;
+  var tStr=m>0?m+'分'+s+'秒'+ms:s+'秒'+ms;
+  if(announceMode==='lap_laptime') return pilotName+'、'+lapCount+'周、'+tStr;
+  return pilotName+'、'+tStr;
 }
-function testVoice() {
-  ensureAudio(); sfx.lap();
-  if (voiceEnabled && announceMode!=='beep' && announceMode!=='none') {
-    var u=new SpeechSynthesisUtterance('テスト、1分23秒4');
-    u.lang='ja-JP'; u.rate=speechRate; speechSynthesis.speak(u);
+function testVoice(){
+  ensureAudio();sfx.lap();
+  if(voiceEnabled&&announceMode!=='beep'&&announceMode!=='none'){
+    var u=new SpeechSynthesisUtterance('テスト、1分23秒4');u.lang='ja-JP';u.rate=speechRate;speechSynthesis.speak(u);
   }
 }
-function toggleVoice() {
-  voiceEnabled = !voiceEnabled;
-  localStorage.setItem('voice', voiceEnabled?'1':'0');
-  refreshVoiceBtns();
-}
-function refreshVoiceBtns() {
-  ['voiceBtn','voiceBtn2'].forEach(id=>{
-    var b=document.getElementById(id); if(!b)return;
-    b.textContent = voiceEnabled?'🔊 音声 ON':'🔇 音声 OFF';
-    b.className = 'btn-voice'+(voiceEnabled?' on':'');
-  });
+function toggleVoice(){voiceEnabled=!voiceEnabled;localStorage.setItem('voice',voiceEnabled?'1':'0');refreshVoiceBtns();}
+function refreshVoiceBtns(){
+  ['voiceBtn','voiceBtn2'].forEach(id=>{var b=document.getElementById(id);if(!b)return;
+    b.textContent=voiceEnabled?'🔊 音声 ON':'🔇 音声 OFF';b.className='btn-voice'+(voiceEnabled?' on':'');});
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 // Formatting
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 function pad(n,w){return String(n).padStart(w,'0')}
-function fmt(ms) {
-  if(!ms) return '--:--.---';
-  var m=Math.floor(ms/60000),s=Math.floor((ms%60000)/1000),f=ms%1000;
-  return m+':'+pad(s,2)+'.'+pad(f,3);
-}
-function fmtTimer(ms) {
-  var h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000),s=Math.floor((ms%60000)/1000);
-  if(h>0) return pad(h,2)+':'+pad(m,2)+':'+pad(s,2);
-  return pad(m,2)+':'+pad(s,2);
-}
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function dbPct(db){return Math.max(0,Math.min(100,((db-DB_MIN)/(DB_MAX-DB_MIN))*100))}
-function fmtDelta(ms){var sign=ms>0?'+':'';return sign+(ms/1000).toFixed(3)+'s'}
+function fmt(ms){if(!ms)return'--:--.---';var m=Math.floor(ms/60000),s=Math.floor((ms%60000)/1000),f=ms%1000;return m+':'+pad(s,2)+'.'+pad(f,3);}
+function fmtTimer(ms){var h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000),s=Math.floor((ms%60000)/1000);if(h>0)return pad(h,2)+':'+pad(m,2)+':'+pad(s,2);return pad(m,2)+':'+pad(s,2);}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function dbPct(db){return Math.max(0,Math.min(100,((db-DB_MIN)/(DB_MAX-DB_MIN))*100));}
+function fmtDelta(ms){return(ms>0?'+':'')+(ms/1000).toFixed(3)+'s';}
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 // Race timer
-// ═══════════════════════════════════════════════════════════════
-var timerEl = document.getElementById('timer');
-function startTimer() {
-  raceStartPerf = performance.now();
-  timerEl.classList.add('running');
-  timerH = setInterval(()=>{ timerEl.textContent=fmtTimer(performance.now()-raceStartPerf); },500);
-}
-function stopTimer() { clearInterval(timerH); timerH=null; timerEl.classList.remove('running'); }
+// ═══════════════════════════════════════════════════════════════════
+var timerEl=document.getElementById('timer');
+function startTimer(){raceStartPerf=performance.now();timerEl.classList.add('running');timerH=setInterval(()=>{timerEl.textContent=fmtTimer(performance.now()-raceStartPerf);},500);}
+function stopTimer(){clearInterval(timerH);timerH=null;timerEl.classList.remove('running');}
 
-// ═══════════════════════════════════════════════════════════════
-// Build UI
-// ═══════════════════════════════════════════════════════════════
-function buildRaceCards() {
-  var g=document.getElementById('pilotGrid'); g.innerHTML='';
-  pilots.forEach(p=>{
+// ═══════════════════════════════════════════════════════════════════
+// Race pilot grid
+// ═══════════════════════════════════════════════════════════════════
+function buildRaceCards(){
+  var g=document.getElementById('pilotGrid');g.innerHTML='';
+  slots.forEach(p=>{
     var d=document.createElement('div');
-    d.id='rc-'+p.id; d.className='pilot-race-card';
+    d.id='rc-'+p.id;d.className='pilot-race-card';
     d.innerHTML=
       '<div class="pilot-card-header '+PCLS[p.id]+'">'
         +'<span class="p-name" id="rcName'+p.id+'">'+esc(p.name)+'</span>'
@@ -449,34 +411,235 @@ function buildRaceCards() {
   });
 }
 
-function buildConfigCards() {
-  var g=document.getElementById('configGrid'); g.innerHTML='';
-  pilots.forEach(p=>{
-    var d=document.createElement('div');
-    d.className='config-pilot-card '+PCLS[p.id]+'-border';
-    d.innerHTML=
-      '<h3 class="config-pilot-header '+PCLS[p.id]+'">'+PLABELS[p.id]+'</h3>'
-      +'<div class="config-items">'
-        +'<div class="config-row"><label>パイロット名</label>'
-          +'<input type="text" id="cfgName'+p.id+'" maxlength="20" placeholder="'+PLABELS[p.id]+'" autocomplete="off">'
-        +'</div>'
-        +'<div class="config-row"><label>機体 MAC</label>'
-          +'<input type="text" id="cfgMac'+p.id+'" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" autocomplete="off" style="font-family:monospace;letter-spacing:.5px">'
-        +'</div>'
-      +'</div>'
-      +'<button onclick="savePilotConfig('+p.id+')" class="btn-save">💾 保存</button>';
+function updateRaceCard(p){
+  var $=id=>document.getElementById(id);
+  $('rcName'+p.id).textContent=p.name==='---'?'P'+(p.id+1):esc(p.name);
+  $('rcLaps'+p.id).textContent=p.lapCount?p.lapCount+'周':'';
+  $('rssiBar'+p.id).style.width=dbPct(p.rssi)+'%';
+  $('rssiVal'+p.id).textContent=p.rssi+' dBm';
+  $('rcBest'+p.id).textContent=fmt(p.bestLapMs);
+  var badge=$('rcBadge'+p.id);
+  if(p.crossing){badge.style.display='inline-block';badge.style.color=PCOLORS[p.id];}
+  else{badge.style.display='none';}
+}
+
+function addLapRow(p, lapMs, cumMs){
+  var tbody=document.getElementById('lapBody'+p.id);
+  var isBest=(p.bestLapMs===lapMs&&lapMs>0);
+  if(isBest)tbody.querySelectorAll('tr.best-row').forEach(r=>r.classList.remove('best-row'));
+  var tr=document.createElement('tr');
+  if(isBest)tr.className='best-row';
+  tr.innerHTML='<td>'+p.lapCount+'</td><td class="lap-time">'+fmt(lapMs)+'</td><td>'+fmt(cumMs)+'</td>';
+  tbody.insertBefore(tr,tbody.firstChild);
+  var delta=document.getElementById('rcDelta'+p.id);
+  if(p.bestLapMs&&lapMs){var d=lapMs-p.bestLapMs;if(d===0){delta.textContent='★ BEST';delta.className='pilot-delta faster';}else{delta.textContent=fmtDelta(d);delta.className='pilot-delta '+(d<0?'faster':'slower');}}
+  var card=document.getElementById('rc-'+p.id);
+  card.classList.remove('flash');void card.offsetWidth;card.classList.add('flash');
+  card.addEventListener('animationend',()=>card.classList.remove('flash'),{once:true});
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Pilot selection (Race tab)
+// ═══════════════════════════════════════════════════════════════════
+function buildPilotSelectGrid(){
+  var g=document.getElementById('pilotSelectGrid');g.innerHTML='';
+  for(var s=0;s<N;s++){
+    var d=document.createElement('div');d.className='slot-select-card';
+    var opts='<option value="-1">── 未選択 ──</option>';
+    rosterData.forEach(function(r){
+      var sel=(activeSlotsLocal[s]===r.id)?' selected':'';
+      opts+='<option value="'+r.id+'"'+sel+'>'+esc(r.name)+'</option>';
+    });
+    d.innerHTML='<div class="slot-label '+PCLS[s]+'">P'+(s+1)+'</div>'
+      +'<select id="slotSel'+s+'">'+opts+'</select>';
     g.appendChild(d);
+  }
+}
+
+async function saveActiveSelection(){
+  var newSlots=[];
+  for(var s=0;s<N;s++){
+    var el=document.getElementById('slotSel'+s);
+    newSlots.push(el?parseInt(el.value):-1);
+  }
+  // Check for duplicates
+  var used={};
+  for(var i=0;i<N;i++){if(newSlots[i]>=0){if(used[newSlots[i]]){toast('⚠️ 同じパイロットを複数スロットに設定できません');return;}used[newSlots[i]]=true;}}
+  try{
+    var r=await fetch('/api/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slots:newSlots})});
+    if(r.ok){
+      activeSlotsLocal=newSlots;
+      applyActiveToSlots();
+      buildRaceCards();
+      buildCalibCards();
+      toast('✅ パイロット確定');
+    }else toast('⚠️ 保存エラー');
+  }catch(e){toast('⚠️ 接続エラー');}
+}
+
+function applyActiveToSlots(){
+  for(var s=0;s<N;s++){
+    var ri=activeSlotsLocal[s];
+    var r=rosterData.find(x=>x.id===ri);
+    slots[s].rosterIdx=ri;
+    slots[s].name=r?r.name:'---';
+    slots[s].enterRssi=r?r.enter:-80;
+    slots[s].exitRssi =r?r.exit :-90;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Roster management
+// ═══════════════════════════════════════════════════════════════════
+function renderRoster(){
+  var filter=(document.getElementById('searchInput').value||'').toLowerCase().trim();
+  var list=document.getElementById('rosterList');
+  var badge=document.getElementById('rosterCountBadge');
+  badge.textContent='('+rosterData.length+'/50)';
+
+  var filtered=rosterData.filter(function(r){
+    if(!filter)return true;
+    return r.name.toLowerCase().includes(filter)||(r.uid||'').toLowerCase().includes(filter);
+  });
+
+  if(!filtered.length){
+    list.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">'+(rosterData.length?'該当なし':'パイロット未登録')+'</div>';
+    return;
+  }
+
+  list.innerHTML='';
+  filtered.forEach(function(r){
+    var isEditing=(editingRosterId===r.id);
+    var item=document.createElement('div');item.className='roster-item';item.id='ri-'+r.id;
+
+    var activeBadge='';
+    if(r.activeSlot>=0)activeBadge='<span class="active-badge '+PCLS[r.activeSlot]+'">P'+(r.activeSlot+1)+'</span>';
+
+    if(isEditing){
+      item.innerHTML=
+        '<input type="text" id="editName" value="'+esc(r.name)+'" maxlength="20" style="flex:1;min-width:80px" autocomplete="off">'
+        +'<input type="text" id="editMac" value="'+esc(r.uid||'')+'" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" style="width:140px;font-family:monospace" autocomplete="off">'
+        +'<div class="roster-actions">'
+          +'<button onclick="submitEdit('+r.id+')" class="btn-success" style="font-size:11px;padding:3px 9px">保存</button>'
+          +'<button onclick="cancelEdit()" class="btn-secondary" style="font-size:11px;padding:3px 9px">×</button>'
+        +'</div>';
+    } else {
+      item.innerHTML=
+        '<span class="roster-name">'+esc(r.name)+'</span>'
+        +'<span class="roster-mac">'+(r.uid||'<span style="color:var(--err)">MAC未設定</span>')+'</span>'
+        +activeBadge
+        +'<div class="roster-actions">'
+          +'<button onclick="startEdit('+r.id+')" class="btn-secondary" style="font-size:11px;padding:3px 8px">編集</button>'
+          +'<button onclick="deleteRosterPilot('+r.id+')" class="btn-danger" style="font-size:11px;padding:3px 8px">削除</button>'
+        +'</div>';
+    }
+    list.appendChild(item);
   });
 }
 
-function buildCalibCards() {
-  var g=document.getElementById('calibGrid'); g.innerHTML='';
-  pilots.forEach(p=>{
-    var d=document.createElement('div');
-    d.className='calib-card';
+function showAddForm(){document.getElementById('addForm').style.display='block';document.getElementById('addName').focus();}
+function hideAddForm(){document.getElementById('addForm').style.display='none';document.getElementById('addName').value='';document.getElementById('addMac').value='';}
+
+async function submitAdd(){
+  var name=document.getElementById('addName').value.trim();
+  var mac=document.getElementById('addMac').value.trim().toUpperCase();
+  if(!name){toast('⚠️ 名前を入力してください');return;}
+  var validMac=/^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(mac);
+  if(mac&&!validMac){toast('⚠️ MAC形式: AA:BB:CC:DD:EE:FF');return;}
+  try{
+    var r=await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,uid:validMac?mac:''})});
+    if(r.ok){await loadRoster();hideAddForm();toast('✓ '+name+' を登録しました');}
+    else toast('⚠️ 登録エラー');
+  }catch(e){toast('⚠️ 接続エラー');}
+}
+
+function startEdit(id){editingRosterId=id;renderRoster();setTimeout(()=>{var el=document.getElementById('editName');if(el)el.focus();},0);}
+function cancelEdit(){editingRosterId=null;renderRoster();}
+
+async function submitEdit(id){
+  var name=document.getElementById('editName').value.trim();
+  var mac=document.getElementById('editMac').value.trim().toUpperCase();
+  if(!name){toast('⚠️ 名前を入力してください');return;}
+  var validMac=/^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(mac);
+  if(mac&&!validMac){toast('⚠️ MAC形式: AA:BB:CC:DD:EE:FF');return;}
+  try{
+    var r=await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id,name,uid:validMac?mac:''})});
+    if(r.ok){editingRosterId=null;await loadRoster();applyActiveToSlots();buildRaceCards();toast('✓ 更新しました');}
+    else toast('⚠️ 更新エラー');
+  }catch(e){toast('⚠️ 接続エラー');}
+}
+
+async function deleteRosterPilot(id){
+  var r=rosterData.find(x=>x.id===id);
+  if(!confirm((r?r.name:'このパイロット')+'を削除しますか？'))return;
+  try{
+    var res=await fetch('/api/pilots/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+    if(res.ok){await loadRoster();applyActiveToSlots();buildPilotSelectGrid();buildRaceCards();buildCalibCards();toast('削除しました');}
+    else toast('⚠️ 削除エラー');
+  }catch(e){toast('⚠️ 接続エラー');}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Scan
+// ═══════════════════════════════════════════════════════════════════
+function updateScanList(){
+  var el=document.getElementById('scanList');if(!el)return;
+  var macs=Object.keys(scanResults);
+  if(!macs.length){el.innerHTML='<span style="color:var(--muted);font-size:12px">スキャン待機中... 機体の電源を入れてください</span>';return;}
+  el.innerHTML=macs.map(function(mac){
+    var s=scanResults[mac];
+    var done=s.assignedRosterId!==undefined&&s.assignedRosterId>=0;
+    var macId=mac.replace(/:/g,'');
+    return '<div id="scan-'+macId+'" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:8px">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+      +  '<span style="font-family:monospace;font-size:13px;color:var(--accent);flex:1">'+mac+'</span>'
+      +  '<span style="color:var(--muted);font-size:11px">'+s.rssi+' dBm</span>'
+      +  (done?'<span style="color:var(--ok);font-size:11px;font-weight:700">✓ 登録済み</span>':'')
+      +'</div>'
+      +'<div style="display:flex;gap:6px;align-items:center">'
+      +  '<input type="text" id="scanName-'+macId+'" placeholder="パイロット名" maxlength="20" value="'+(s.pilotName||'')+'" autocomplete="off"'
+      +    ' style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"'
+      +    (done?' disabled':'')+' onkeydown="if(event.key===\'Enter\')registerScanPilot(\''+mac+'\')">'
+      +  '<button id="scanBtn-'+macId+'" onclick="registerScanPilot(\''+mac+'\')" class="btn-success" style="font-size:12px;padding:5px 12px;white-space:nowrap"'+(done?' disabled':'')+'>ロースターに追加</button>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+
+async function registerScanPilot(mac){
+  var macId=mac.replace(/:/g,'');
+  var nameEl=document.getElementById('scanName-'+macId);
+  if(!nameEl)return;
+  var name=nameEl.value.trim();
+  if(!name){toast('⚠️ 名前を入力してください');return;}
+  try{
+    var r=await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,uid:mac})});
+    if(!r.ok){toast('⚠️ 登録エラー');return;}
+    var body=await r.json();
+    scanResults[mac].assignedRosterId=body.id;
+    scanResults[mac].pilotName=name;
+    await loadRoster();
+    updateScanList();
+    toast('✓ '+name+' をロースターに追加しました');
+  }catch(e){toast('⚠️ 接続エラー');}
+}
+
+function clearScan(){scanResults={};updateScanList();fetch('/api/scan/clear',{method:'POST'}).catch(()=>{});}
+
+// ═══════════════════════════════════════════════════════════════════
+// Calibration (active pilots only)
+// ═══════════════════════════════════════════════════════════════════
+var charts={};
+function buildCalibCards(){
+  var g=document.getElementById('calibGrid');g.innerHTML='';
+  slots.forEach(function(p){
+    var d=document.createElement('div');d.className='calib-card';
     d.innerHTML=
       '<div class="calib-header '+PCLS[p.id]+'">'
-        +'<span id="calName'+p.id+'">'+esc(p.name)+'</span>'
+        +'<span id="calName'+p.id+'">'+esc(p.name==='---'?'P'+(p.id+1):p.name)+'</span>'
         +'<span class="rssi-live-badge">RSSI: <strong id="calRssi'+p.id+'">---</strong> dBm</span>'
       +'</div>'
       +'<canvas id="calCanvas'+p.id+'"></canvas>'
@@ -494,465 +657,294 @@ function buildCalibCards() {
             +'<span class="unit">dBm</span>'
           +'</div></div>'
       +'</div>'
-      +'<button onclick="saveCalibConfig('+p.id+')" class="btn-save">💾 保存</button>';
+      +'<button onclick="saveCalibConfig('+p.id+')" class="btn-save" style="margin:0 12px 10px;width:calc(100% - 24px)">💾 保存</button>';
     g.appendChild(d);
-
-    // Init chart after element is in DOM
-    setTimeout(()=>initChart(p.id), 0);
+    setTimeout(()=>initChart(p.id),0);
   });
 }
 
-// ═══════════════════════════════════════════════════════════════
-// RSSI Canvas Charts
-// ═══════════════════════════════════════════════════════════════
-var charts = {};
-function initChart(id) {
-  var cv = document.getElementById('calCanvas'+id);
-  if (!cv) return;
-  cv.width  = cv.offsetWidth  || 300;
-  cv.height = cv.offsetHeight || 130;
-  charts[id] = { cv:cv, ctx:cv.getContext('2d'), data:new Float32Array(200).fill(-120), cross:new Uint8Array(200) };
+function initChart(id){
+  var cv=document.getElementById('calCanvas'+id);if(!cv)return;
+  cv.width=cv.offsetWidth||300;cv.height=cv.offsetHeight||130;
+  charts[id]={cv,ctx:cv.getContext('2d'),data:new Float32Array(200).fill(-120),cross:new Uint8Array(200)};
   drawChart(id);
 }
-function pushChart(id, rssi, crossing) {
-  var c = charts[id]; if (!c) return;
-  c.data.copyWithin(0,1); c.data[199] = rssi;
-  c.cross.copyWithin(0,1); c.cross[199] = crossing?1:0;
+function pushChart(id,rssi,crossing){
+  var c=charts[id];if(!c)return;
+  c.data.copyWithin(0,1);c.data[199]=rssi;c.cross.copyWithin(0,1);c.cross[199]=crossing?1:0;
   drawChart(id);
 }
-function drawChart(id) {
-  var c = charts[id]; if(!c) return;
-  var cv=c.cv, ctx=c.ctx, w=cv.width, h=cv.height;
-  var p = pilots[id];
-  var rng = DB_MAX - DB_MIN;
-  var toY = v => h - ((Math.max(DB_MIN,Math.min(DB_MAX,v))-DB_MIN)/rng)*h;
-  var dx = w/200;
-  var col = getComputedStyle(document.documentElement).getPropertyValue('--p'+id).trim();
-
-  ctx.fillStyle='#0d1117'; ctx.fillRect(0,0,w,h);
-
-  // Crossing regions
+function drawChart(id){
+  var c=charts[id];if(!c)return;
+  var cv=c.cv,ctx=c.ctx,w=cv.width,h=cv.height,p=slots[id];
+  var rng=DB_MAX-DB_MIN,toY=v=>h-((Math.max(DB_MIN,Math.min(DB_MAX,v))-DB_MIN)/rng)*h;
+  var dx=w/200,col=getComputedStyle(document.documentElement).getPropertyValue('--p'+id).trim();
+  ctx.fillStyle='#0d1117';ctx.fillRect(0,0,w,h);
   ctx.fillStyle=col+'22';
-  for(var i=0;i<200;i++) if(c.cross[i]) ctx.fillRect(i*dx,0,dx+1,h);
-
-  // Grid
-  ctx.strokeStyle='#1e2530'; ctx.lineWidth=1; ctx.setLineDash([]);
+  for(var i=0;i<200;i++)if(c.cross[i])ctx.fillRect(i*dx,0,dx+1,h);
+  ctx.strokeStyle='#1e2530';ctx.lineWidth=1;ctx.setLineDash([]);
   [-60,-80,-100].forEach(db=>{ctx.beginPath();ctx.moveTo(0,toY(db));ctx.lineTo(w,toY(db));ctx.stroke();});
-
-  // Threshold lines
-  ctx.setLineDash([4,4]); ctx.lineWidth=1;
-  ctx.strokeStyle='#3fb95088';
-  ctx.beginPath(); ctx.moveTo(0,toY(p.enterRssi)); ctx.lineTo(w,toY(p.enterRssi)); ctx.stroke();
-  ctx.strokeStyle='#f8514988';
-  ctx.beginPath(); ctx.moveTo(0,toY(p.exitRssi)); ctx.lineTo(w,toY(p.exitRssi)); ctx.stroke();
+  ctx.setLineDash([4,4]);ctx.lineWidth=1;
+  ctx.strokeStyle='#3fb95088';ctx.beginPath();ctx.moveTo(0,toY(p.enterRssi));ctx.lineTo(w,toY(p.enterRssi));ctx.stroke();
+  ctx.strokeStyle='#f8514988';ctx.beginPath();ctx.moveTo(0,toY(p.exitRssi));ctx.lineTo(w,toY(p.exitRssi));ctx.stroke();
   ctx.setLineDash([]);
-
-  // RSSI line
-  ctx.strokeStyle=col; ctx.lineWidth=1.5;
-  ctx.beginPath();
-  for(var j=0;j<200;j++){ var x=j*dx,y=toY(c.data[j]); j===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+  ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.beginPath();
+  for(var j=0;j<200;j++){var x=j*dx,y=toY(c.data[j]);j===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
   ctx.stroke();
 }
+function syncCalib(id,which){
+  var v=parseInt(document.getElementById('cal'+cap(which)+id).value);
+  document.getElementById('cal'+cap(which)+'N'+id).value=v;
+  slots[id][which+'Rssi']=v;drawChart(id);
+}
+function syncCalibN(id,which){
+  var el=document.getElementById('cal'+cap(which)+'N'+id);
+  var v=Math.max(-120,Math.min(-40,parseInt(el.value)||(-80)));
+  el.value=v;document.getElementById('cal'+cap(which)+id).value=v;
+  slots[id][which+'Rssi']=v;drawChart(id);
+}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 
-// ═══════════════════════════════════════════════════════════════
-// Update pilot cards
-// ═══════════════════════════════════════════════════════════════
-function updateRaceCard(p) {
-  var $ = id => document.getElementById(id);
-  $('rcName'+p.id).textContent  = esc(p.name);
-  $('rcLaps'+p.id).textContent  = p.lapCount ? p.lapCount+'周' : '';
-  $('rssiBar'+p.id).style.width = dbPct(p.rssi)+'%';
-  $('rssiVal'+p.id).textContent = p.rssi+' dBm';
-  $('rcBest'+p.id).textContent  = fmt(p.bestLapMs);
-
-  var badge = $('rcBadge'+p.id);
-  if (p.crossing) { badge.style.display='inline-block'; badge.style.color=PCOLORS[p.id]; }
-  else            { badge.style.display='none'; }
-
-  var card = $('rc-'+p.id);
-  if (p.crossing) card.style.borderColor = PCOLORS[p.id].replace('var(','').replace(')','');
-  else            card.style.borderColor = '';
+async function saveCalibConfig(slotId){
+  var enter=parseInt(document.getElementById('calEnterN'+slotId).value);
+  var exit_=parseInt(document.getElementById('calExitN'+slotId).value);
+  if(enter<=exit_){toast('⚠️ Enter > Exit にしてください');return;}
+  var ri=activeSlotsLocal[slotId];
+  if(ri<0){toast('⚠️ スロットにパイロットが割り当てられていません');return;}
+  slots[slotId].enterRssi=enter;slots[slotId].exitRssi=exit_;
+  try{
+    var r=await fetch('/api/calib',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:ri,enter,exit:exit_})});
+    if(r.ok){
+      var rd=rosterData.find(x=>x.id===ri);if(rd){rd.enter=enter;rd.exit=exit_;}
+      toast('💾 閾値保存完了');
+    }else toast('⚠️ 保存エラー');
+  }catch(e){toast('⚠️ 接続エラー');}
 }
 
-function addLapRow(p, lapMs, cumMs, isNew) {
-  var tbody = document.getElementById('lapBody'+p.id);
-  var isBest = (p.bestLapMs === lapMs && lapMs > 0);
-
-  // Remove old best highlighting
-  if (isBest) {
-    tbody.querySelectorAll('tr.best-row').forEach(r=>r.classList.remove('best-row'));
-  }
-
-  var tr = document.createElement('tr');
-  if (isBest) tr.className='best-row';
-  tr.innerHTML = '<td>'+p.lapCount+'</td>'
-    +'<td class="lap-time">'+fmt(lapMs)+'</td>'
-    +'<td>'+fmt(cumMs)+'</td>';
-  tbody.insertBefore(tr, tbody.firstChild);
-
-  // Delta badge
-  var delta = document.getElementById('rcDelta'+p.id);
-  if (p.bestLapMs && lapMs) {
-    var d = lapMs - p.bestLapMs;
-    if (d===0) { delta.textContent='★ BEST'; delta.className='pilot-delta faster'; }
-    else { delta.textContent=fmtDelta(d); delta.className='pilot-delta '+(d<0?'faster':'slower'); }
-  }
-
-  // Flash card
-  if (isNew) {
-    var card = document.getElementById('rc-'+p.id);
-    card.classList.remove('flash'); void card.offsetWidth;
-    card.classList.add('flash');
-    card.addEventListener('animationend',()=>card.classList.remove('flash'),{once:true});
-  }
-}
-
-function updateCalibCard(p) {
-  var el = id => document.getElementById(id);
-  var calN = el('calName'+p.id); if(calN) calN.textContent = esc(p.name);
-  var calR = el('calRssi'+p.id); if(calR) calR.textContent = p.rssi;
-  pushChart(p.id, p.rssi, p.crossing);
-}
-
-function syncCalib(id, which) {
-  var v = parseInt(document.getElementById('cal'+cap(which)+id).value);
-  document.getElementById('cal'+cap(which)+'N'+id).value = v;
-  pilots[id][which+'Rssi'] = v;
-  drawChart(id);
-}
-function syncCalibN(id, which) {
-  var el = document.getElementById('cal'+cap(which)+'N'+id);
-  var v = Math.max(-120, Math.min(-40, parseInt(el.value)||(-80)));
-  el.value = v;
-  document.getElementById('cal'+cap(which)+id).value = v;
-  pilots[id][which+'Rssi'] = v;
-  drawChart(id);
-}
-function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
-
-// ═══════════════════════════════════════════════════════════════
-// Tab switching
-// ═══════════════════════════════════════════════════════════════
-var currentTab = 'race';
-function switchTab(tab) {
+// ═══════════════════════════════════════════════════════════════════
+// Tab
+// ═══════════════════════════════════════════════════════════════════
+function switchTab(tab){
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('pane-'+tab).classList.add('active');
   document.querySelectorAll('.tab-btn')[['race','config','calib'].indexOf(tab)].classList.add('active');
-  currentTab = tab;
-  if (tab==='calib') {
-    setTimeout(()=>{
-      pilots.forEach(p=>{ var c=charts[p.id]; if(c){c.cv.width=c.cv.offsetWidth||300;drawChart(p.id);} });
-    }, 50);
-  }
+  if(tab==='calib')setTimeout(()=>{slots.forEach(p=>{var c=charts[p.id];if(c){c.cv.width=c.cv.offsetWidth||300;drawChart(p.id);}});},50);
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 // Race controls
-// ═══════════════════════════════════════════════════════════════
-function startRace() {
-  ensureAudio();
-  // Beep countdown then start
-  sfx.count();
-  setTimeout(async ()=>{
-    try { await fetch('/api/race/start',{method:'POST'}); } catch(e){}
-  }, 3300);
+// ═══════════════════════════════════════════════════════════════════
+function startRace(){
+  ensureAudio();sfx.count();
+  setTimeout(async()=>{try{await fetch('/api/race/start',{method:'POST'});}catch(e){}},3300);
 }
-function stopRace() {
-  ensureAudio();
-  beepSeq([[880,.2,'sine',0],[440,.2,'sine',220],[220,.3,'sine',440]]);
-  try { fetch('/api/race/stop',{method:'POST'}); } catch(e){}
+function stopRace(){
+  ensureAudio();beepSeq([[880,.2,'sine',0],[440,.2,'sine',220],[220,.3,'sine',440]]);
+  fetch('/api/race/stop',{method:'POST'}).catch(()=>{});
 }
-function clearAllLaps() {
-  pilots.forEach(p=>{
-    p.lapCount=0; p.bestLapMs=0; p.lapTimes=[]; p.cumulative=0;
-    var b=document.getElementById('lapBody'+p.id); if(b) b.innerHTML='';
-    var d=document.getElementById('rcDelta'+p.id); if(d) d.textContent='';
+function clearAllLaps(){
+  slots.forEach(p=>{
+    p.lapCount=0;p.bestLapMs=0;p.lapTimes=[];p.cumulative=0;
+    var b=document.getElementById('lapBody'+p.id);if(b)b.innerHTML='';
+    var d=document.getElementById('rcDelta'+p.id);if(d)d.textContent='';
     updateRaceCard(p);
   });
 }
-function setBtns(running) {
-  document.getElementById('btnStart').disabled = running;
-  document.getElementById('btnStop').disabled  = !running;
+function setBtns(running){
+  document.getElementById('btnStart').disabled=running;
+  document.getElementById('btnStop').disabled=!running;
 }
-
-// Total laps check
-var totalLapsSetting = 0;
-function checkFinished(p) {
-  totalLapsSetting = parseInt(document.getElementById('totalLaps').value)||0;
-  if (!raceRunning || totalLapsSetting===0) return;
-  if (p.lapCount >= totalLapsSetting) {
+function checkFinished(p){
+  var tot=parseInt(document.getElementById('totalLaps').value)||0;
+  if(!raceRunning||tot===0)return;
+  if(p.lapCount>=tot){
     beepSeq([[880,.2,'sine',0],[1320,.2,'sine',220],[1760,.3,'sine',440]]);
-    if (voiceEnabled && announceMode!=='beep' && announceMode!=='none') {
-      var u=new SpeechSynthesisUtterance(p.name+'、フィニッシュ');
-      u.lang='ja-JP'; u.rate=speechRate; speechSynthesis.speak(u);
+    if(voiceEnabled&&announceMode!=='beep'&&announceMode!=='none'){
+      var u=new SpeechSynthesisUtterance(p.name+'、フィニッシュ');u.lang='ja-JP';u.rate=speechRate;speechSynthesis.speak(u);
     }
   }
 }
-
-// ═══════════════════════════════════════════════════════════════
-// Config save
-// ═══════════════════════════════════════════════════════════════
-async function savePilotConfig(id) {
-  var name = document.getElementById('cfgName'+id).value.trim();
-  var mac  = document.getElementById('cfgMac'+id).value.trim().toUpperCase();
-  var validMac = /^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(mac);
-  if (mac && !validMac) { toast('⚠️ MAC形式が正しくありません (AA:BB:CC:DD:EE:FF)'); return; }
-  try {
-    var r = await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({id, name, uid: validMac ? mac : ''})});
-    if (r.ok) {
-      if (name) pilots[id].name = name;
-      toast('💾 Pilot '+(id+1)+' 保存完了');
-      refreshPilotNames();
-    } else toast('⚠️ 保存エラー');
-  } catch(e) { toast('⚠️ 接続エラー'); }
-}
-
-function saveGlobalConfig() {
-  announceMode = document.getElementById('announceMode').value;
-  speechRate   = parseFloat(document.getElementById('speechRateN').value)||1.1;
-  localStorage.setItem('announce', announceMode);
-  localStorage.setItem('srate', String(speechRate));
+function saveGlobalConfig(){
+  announceMode=document.getElementById('announceMode').value;
+  speechRate=parseFloat(document.getElementById('speechRateN').value)||1.1;
+  localStorage.setItem('announce',announceMode);localStorage.setItem('srate',String(speechRate));
   toast('💾 グローバル設定を保存しました');
 }
 
-async function saveCalibConfig(id) {
-  var enter = parseInt(document.getElementById('calEnterN'+id).value);
-  var exit_ = parseInt(document.getElementById('calExitN'+id).value);
-  if (enter <= exit_) { toast('⚠️ Enter > Exit にしてください'); return; }
-  pilots[id].enterRssi = enter;
-  pilots[id].exitRssi  = exit_;
-  try {
-    var r = await fetch('/api/calib',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({id, enter, exit:exit_})});
-    if (r.ok) toast('💾 Pilot '+(id+1)+' 閾値保存完了');
-    else toast('⚠️ 保存エラー');
-  } catch(e) { toast('⚠️ 接続エラー'); }
-}
-
-function refreshPilotNames() {
-  pilots.forEach(p=>{
-    var a=document.getElementById('rcName'+p.id); if(a) a.textContent=esc(p.name);
-    var b=document.getElementById('calName'+p.id); if(b) b.textContent=esc(p.name);
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Scan — aircraft MAC auto-detection + one-step registration
-// ═══════════════════════════════════════════════════════════════
-var scanResults = {};  // mac → { rssi, ts, assignedSlot, pilotName }
-
-function nextFreeSlot() {
-  for (var i = 0; i < N; i++) { if (!registeredSlots[i]) return i; }
-  return 0;
-}
-
-function updateScanList() {
-  var el = document.getElementById('scanList');
-  if (!el) return;
-  var macs = Object.keys(scanResults);
-  if (!macs.length) {
-    el.innerHTML = '<span style="color:var(--muted);font-size:12px">スキャン待機中... 機体の電源を入れてください</span>';
-    return;
-  }
-  el.innerHTML = macs.map(function(mac) {
-    var s = scanResults[mac];
-    var done = s.assignedSlot !== undefined && s.assignedSlot >= 0;
-    var autoSlot = done ? s.assignedSlot : nextFreeSlot();
-    var macId = mac.replace(/:/g,'');
-    var slotOpts = pilots.map(function(p,i) {
-      var sel = (i === autoSlot) ? ' selected' : '';
-      var lbl = (registeredSlots[i] && !done) ? 'P'+(i+1)+'(登録済)' : 'P'+(i+1);
-      return '<option value="'+i+'"'+sel+'>'+lbl+'</option>';
-    }).join('');
-    return '<div id="scan-'+macId+'" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:8px">'
-      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
-      +  '<span style="font-family:monospace;font-size:13px;color:var(--accent);flex:1">'+mac+'</span>'
-      +  '<span style="color:var(--muted);font-size:11px">'+s.rssi+' dBm</span>'
-      +  (done ? '<span style="color:var(--ok);font-size:11px;font-weight:700">✓ 登録済み (P'+(s.assignedSlot+1)+')</span>' : '')
-      +'</div>'
-      +'<div style="display:flex;gap:6px;align-items:center">'
-      +  '<input type="text" id="scanName-'+macId+'" placeholder="パイロット名" maxlength="20" value="'+(s.pilotName||'')+'" autocomplete="off"'
-      +    ' style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"'
-      +    (done?' disabled':'')+' onkeydown="if(event.key===\'Enter\')registerScanPilot(\''+mac+'\')">'
-      +  '<select id="scanSlot-'+macId+'" style="background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 6px;font-size:12px"'+(done?' disabled':'')+'>'+slotOpts+'</select>'
-      +  '<button id="scanBtn-'+macId+'" onclick="registerScanPilot(\''+mac+'\')" class="btn-success" style="font-size:12px;padding:5px 12px;white-space:nowrap"'+(done?' disabled':'')+'>登録</button>'
-      +'</div>'
-      +'</div>';
-  }).join('');
-}
-
-async function registerScanPilot(mac) {
-  var macId = mac.replace(/:/g,'');
-  var nameEl = document.getElementById('scanName-'+macId);
-  var slotEl = document.getElementById('scanSlot-'+macId);
-  if (!nameEl || !slotEl) return;
-  var slot = parseInt(slotEl.value);
-  var name = nameEl.value.trim() || ('Pilot '+(slot+1));
-  try {
-    var r = await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({id:slot, name:name, uid:mac})});
-    if (!r.ok) { toast('⚠️ 登録エラー'); return; }
-    pilots[slot].name = name;
-    registeredSlots[slot] = true;
-    scanResults[mac].assignedSlot = slot;
-    scanResults[mac].pilotName    = name;
-    var ni=document.getElementById('cfgName'+slot); if(ni) ni.value=name;
-    var mi=document.getElementById('cfgMac'+slot);  if(mi) mi.value=mac;
-    refreshPilotNames();
-    updateScanList();
-    toast('✓ '+name+' → Pilot '+(slot+1)+' 登録完了');
-  } catch(e) { toast('⚠️ 接続エラー'); }
-}
-
-function clearScan() {
-  scanResults = {};
-  updateScanList();
-  fetch('/api/scan/clear',{method:'POST'}).catch(function(){});
-}
-
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 // WebSocket
-// ═══════════════════════════════════════════════════════════════
-var ws = null, wsRetry = 1000;
-var wsDot = document.getElementById('wsDot');
-
-function wsConnect() {
-  ws = new WebSocket('ws://'+location.host+'/ws');
-  ws.onopen  = ()=>{ wsRetry=1000; wsDot.className='ws-dot connected'; };
-  ws.onerror = ()=>ws.close();
-  ws.onclose = ()=>{ wsDot.className='ws-dot disconnected';
-    setTimeout(()=>{ wsRetry=Math.min(wsRetry*2,16000); wsConnect(); }, wsRetry); };
-  ws.onmessage = e=>{ var d; try{d=JSON.parse(e.data);}catch(ex){return;} onMsg(d); };
+// ═══════════════════════════════════════════════════════════════════
+var wsConn=null,wsRetry=1000;
+var wsDot=document.getElementById('wsDot');
+function wsConnect(){
+  wsConn=new WebSocket('ws://'+location.host+'/ws');
+  wsConn.onopen=()=>{wsRetry=1000;wsDot.className='ws-dot connected';};
+  wsConn.onerror=()=>wsConn.close();
+  wsConn.onclose=()=>{wsDot.className='ws-dot disconnected';setTimeout(()=>{wsRetry=Math.min(wsRetry*2,16000);wsConnect();},wsRetry);};
+  wsConn.onmessage=e=>{var d;try{d=JSON.parse(e.data);}catch(ex){return;}onMsg(d);};
 }
 
-function onMsg(d) {
-  if (d.type==='init') {
-    raceRunning = d.raceRunning||false;
-    setBtns(raceRunning);
-    if (raceRunning) startTimer();
+function onMsg(d){
+  if(d.type==='init'){
+    raceRunning=d.raceRunning||false;setBtns(raceRunning);
+    if(raceRunning)startTimer();
     (d.pilots||[]).forEach(pd=>{
-      var p=pilots[pd.id];
-      if (pd.name)     p.name      = pd.name;
-      if (pd.lapCount) p.lapCount  = pd.lapCount;
-      if (pd.bestLap)  p.bestLapMs = pd.bestLap;
-      p.rssi     = pd.rssi    ||-120;
-      p.crossing = pd.crossing||false;
-      if (pd.enter !== undefined) { p.enterRssi=pd.enter; syncCalibUi(pd.id,pd.enter,p.exitRssi); }
-      if (pd.exit  !== undefined) { p.exitRssi =pd.exit;  syncCalibUi(pd.id,p.enterRssi,pd.exit); }
-      updateRaceCard(p);
-      updateCalibCard(p);
+      var p=slots[pd.slot];if(!p)return;
+      p.name=pd.name||'---';p.rosterIdx=pd.rosterIdx;
+      if(pd.lapCount)p.lapCount=pd.lapCount;
+      if(pd.bestLap)p.bestLapMs=pd.bestLap;
+      p.rssi=pd.rssi||-120;p.crossing=pd.crossing||false;
+      if(pd.enter!==undefined){p.enterRssi=pd.enter;syncCalibSliders(pd.slot,pd.enter,p.exitRssi);}
+      if(pd.exit!==undefined){p.exitRssi=pd.exit;syncCalibSliders(pd.slot,p.enterRssi,pd.exit);}
+      activeSlotsLocal[pd.slot]=pd.rosterIdx;
+      updateRaceCard(p);pushChart(p.id,p.rssi,p.crossing);
     });
     return;
   }
-  if (d.type==='scan') {
-    if (!scanResults[d.mac]) scanResults[d.mac] = {rssi:d.rssi, ts:d.ts};
-    else { scanResults[d.mac].rssi=d.rssi; scanResults[d.mac].ts=d.ts; }
-    updateScanList();
+  if(d.type==='active_update'){
+    (d.pilots||[]).forEach(pd=>{
+      var p=slots[pd.slot];if(!p)return;
+      p.name=pd.name||'---';p.rosterIdx=pd.rosterIdx;
+      if(pd.enter!==undefined){p.enterRssi=pd.enter;syncCalibSliders(pd.slot,pd.enter,p.exitRssi);}
+      if(pd.exit!==undefined){p.exitRssi=pd.exit;syncCalibSliders(pd.slot,p.enterRssi,pd.exit);}
+      activeSlotsLocal[pd.slot]=pd.rosterIdx;
+      updateRaceCard(p);
+    });
+    buildCalibCards();
     return;
   }
-  if (d.type==='rssi') {
-    var i=d.pilot; if(i<0||i>=N)return;
-    var p=pilots[i]; var wasC=p.crossing;
-    p.rssi     = d.rssi    !==undefined ? d.rssi     : p.rssi;
-    p.crossing = d.crossing!==undefined ? d.crossing : p.crossing;
+  if(d.type==='scan'){
+    if(!scanResults[d.mac])scanResults[d.mac]={rssi:d.rssi,ts:d.ts};
+    else{scanResults[d.mac].rssi=d.rssi;scanResults[d.mac].ts=d.ts;}
+    // Check if already in roster
+    var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===d.mac.toUpperCase());
+    if(found){scanResults[d.mac].assignedRosterId=found.id;scanResults[d.mac].pilotName=found.name;}
+    updateScanList();return;
+  }
+  if(d.type==='rssi'){
+    var s=d.pilot;if(s<0||s>=N)return;
+    var p=slots[s];
+    p.rssi=d.rssi!==undefined?d.rssi:p.rssi;
+    p.crossing=d.crossing!==undefined?d.crossing:p.crossing;
+    if(d.name&&d.name!=='---')p.name=d.name;
     updateRaceCard(p);
-    updateCalibCard(p);
+    var calR=document.getElementById('calRssi'+s);if(calR)calR.textContent=p.rssi;
+    pushChart(s,p.rssi,p.crossing);
     return;
   }
-  if (d.type==='lap') {
-    var i=d.pilot; if(i<0||i>=N)return;
-    var p=pilots[i];
-    p.name     = d.name    ||p.name;
-    p.lapCount = d.lapCount!==undefined ? d.lapCount : p.lapCount+1;
-    var lapMs  = d.lapTime||0;
-    p.lapTimes.push(lapMs);
-    p.cumulative += lapMs;
-    var prevBest = p.bestLapMs;
-    if (lapMs>0 && (!p.bestLapMs||lapMs<p.bestLapMs)) p.bestLapMs=lapMs;
-    updateRaceCard(p);
-    addLapRow(p, lapMs, p.cumulative, true);
-    checkFinished(p);
-    // Sound & voice
-    if (d.newBest||lapMs===p.bestLapMs) { sfx.best(); } else { speak(buildSpeech(p.name,p.lapCount,lapMs)); }
+  if(d.type==='lap'){
+    var s=d.pilot;if(s<0||s>=N)return;
+    var p=slots[s];
+    if(d.name&&d.name!=='---')p.name=d.name;
+    p.lapCount=d.lapCount!==undefined?d.lapCount:p.lapCount+1;
+    var lapMs=d.lapTime||0;
+    p.lapTimes.push(lapMs);p.cumulative+=lapMs;
+    if(lapMs>0&&(!p.bestLapMs||lapMs<p.bestLapMs))p.bestLapMs=lapMs;
+    updateRaceCard(p);addLapRow(p,lapMs,p.cumulative);checkFinished(p);
+    if(d.newBest||lapMs===p.bestLapMs)sfx.best();
+    else speak(buildSpeech(p.name,p.lapCount,lapMs));
     return;
   }
-  if (d.type==='race_start') {
-    raceRunning=true; setBtns(true); startTimer();
-    pilots.forEach(p=>{p.lapCount=0;p.bestLapMs=0;p.lapTimes=[];p.cumulative=0;
+  if(d.type==='race_start'){
+    raceRunning=true;setBtns(true);startTimer();
+    slots.forEach(p=>{p.lapCount=0;p.bestLapMs=0;p.lapTimes=[];p.cumulative=0;
       document.getElementById('lapBody'+p.id).innerHTML='';
       document.getElementById('rcDelta'+p.id).textContent='';
-      updateRaceCard(p);
+      updateRaceCard(p);});
+    return;
+  }
+  if(d.type==='race_stop'){raceRunning=false;setBtns(false);stopTimer();return;}
+}
+
+function syncCalibSliders(id,enter,exit_){
+  var eEl=document.getElementById('calEnter'+id),eN=document.getElementById('calEnterN'+id);
+  var xEl=document.getElementById('calExit'+id),xN=document.getElementById('calExitN'+id);
+  if(eEl)eEl.value=enter;if(eN)eN.value=enter;if(xEl)xEl.value=exit_;if(xN)xN.value=exit_;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Load from API
+// ═══════════════════════════════════════════════════════════════════
+async function loadRoster(){
+  try{
+    var r=await fetch('/api/pilots');if(!r.ok)return;
+    rosterData=await r.json();
+    renderRoster();buildPilotSelectGrid();
+    // Update active slot names
+    applyActiveToSlots();
+    buildRaceCards();
+    // Cross-reference scan results
+    Object.keys(scanResults).forEach(function(mac){
+      var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===mac.toUpperCase());
+      if(found){scanResults[mac].assignedRosterId=found.id;scanResults[mac].pilotName=found.name;}
     });
-    return;
-  }
-  if (d.type==='race_stop') {
-    raceRunning=false; setBtns(false); stopTimer();
-    return;
-  }
+    updateScanList();
+  }catch(e){}
 }
 
-function syncCalibUi(id, enter, exit_) {
-  var eEl=document.getElementById('calEnter'+id), eN=document.getElementById('calEnterN'+id);
-  var xEl=document.getElementById('calExit'+id),  xN=document.getElementById('calExitN'+id);
-  if(eEl){eEl.value=enter;} if(eN){eN.value=enter;}
-  if(xEl){xEl.value=exit_;} if(xN){xN.value=exit_;}
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Load config from API
-// ═══════════════════════════════════════════════════════════════
-async function loadAll() {
-  var pilotMacs = {};   // slot → mac string (for cross-reference)
-  try {
-    var r1=await fetch('/api/pilots'); if(r1.ok){
-      (await r1.json()).forEach(pd=>{
-        var p=pilots[pd.id];
-        if(pd.name) p.name=pd.name;
-        if(pd.uid) { registeredSlots[pd.id]=true; pilotMacs[pd.id]=pd.uid.toUpperCase(); }
-        var ni=document.getElementById('cfgName'+pd.id); if(ni) ni.value=pd.name||'';
-        var mi=document.getElementById('cfgMac'+pd.id); if(mi&&pd.uid) mi.value=pd.uid;
+async function loadAll(){
+  // Load active selection first
+  try{
+    var ra=await fetch('/api/active');if(ra.ok){
+      var active=await ra.json();
+      active.forEach(a=>{
+        activeSlotsLocal[a.slot]=a.rosterIdx;
+        var p=slots[a.slot];p.rosterIdx=a.rosterIdx;p.name=a.name||'---';
+        if(a.enter!==undefined)p.enterRssi=a.enter;
+        if(a.exit!==undefined)p.exitRssi=a.exit;
       });
-      refreshPilotNames();
     }
-  } catch(e){}
-  try {
-    var rs=await fetch('/api/scan'); if(rs.ok){
-      (await rs.json()).forEach(function(s){ scanResults[s.mac]={rssi:s.rssi,ts:s.ts}; });
-      // Cross-reference: mark already-registered MACs as done
-      Object.keys(scanResults).forEach(function(mac) {
-        Object.keys(pilotMacs).forEach(function(slot) {
-          if(pilotMacs[slot]===mac.toUpperCase()) {
-            scanResults[mac].assignedSlot = parseInt(slot);
-            scanResults[mac].pilotName = pilots[parseInt(slot)].name;
-          }
-        });
+  }catch(e){}
+
+  // Load roster
+  try{
+    var rp=await fetch('/api/pilots');if(rp.ok){
+      rosterData=await rp.json();
+      renderRoster();buildPilotSelectGrid();
+      applyActiveToSlots();buildRaceCards();buildCalibCards();
+    }
+  }catch(e){}
+
+  // Load calib
+  try{
+    var rc=await fetch('/api/active');if(rc.ok){
+      var ac=await rc.json();
+      ac.forEach(a=>{
+        var p=slots[a.slot];
+        if(a.enter!==undefined){p.enterRssi=a.enter;syncCalibSliders(a.slot,a.enter,p.exitRssi);}
+        if(a.exit!==undefined){p.exitRssi=a.exit;syncCalibSliders(a.slot,p.enterRssi,a.exit);}
+      });
+    }
+  }catch(e){}
+
+  // Load scan
+  try{
+    var rs=await fetch('/api/scan');if(rs.ok){
+      (await rs.json()).forEach(s=>{
+        scanResults[s.mac]={rssi:s.rssi,ts:s.ts};
+        var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===s.mac.toUpperCase());
+        if(found){scanResults[s.mac].assignedRosterId=found.id;scanResults[s.mac].pilotName=found.name;}
       });
       updateScanList();
     }
-  } catch(e){}
-  try {
-    var r2=await fetch('/api/calib'); if(r2.ok){
-      (await r2.json()).forEach(cd=>{
-        var p=pilots[cd.id];
-        p.enterRssi=cd.enter; p.exitRssi=cd.exit;
-        syncCalibUi(cd.id, cd.enter, cd.exit);
-      });
-    }
-  } catch(e){}
+  }catch(e){}
+
   // Restore UI settings
-  var am=document.getElementById('announceMode'); if(am) am.value=announceMode;
-  var sr=document.getElementById('speechRate');   if(sr) sr.value=speechRate;
-  var srN=document.getElementById('speechRateN'); if(srN) srN.value=speechRate;
+  var am=document.getElementById('announceMode');if(am)am.value=announceMode;
+  var sr=document.getElementById('speechRate');if(sr)sr.value=speechRate;
+  var srN=document.getElementById('speechRateN');if(srN)srN.value=speechRate;
   refreshVoiceBtns();
+
+  slots.forEach(p=>updateRaceCard(p));
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 // Init
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 buildRaceCards();
-buildConfigCards();
+buildPilotSelectGrid();
 buildCalibCards();
 wsConnect();
 loadAll();

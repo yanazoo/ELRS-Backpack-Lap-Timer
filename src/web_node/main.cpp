@@ -2,26 +2,33 @@
  * ELRS Backpack Lap Timer — Web Node
  * Hardware : XIAO ESP32-S3-B
  *
- * Roles
- *   - WiFi AP  SSID="ELRS bp-LT"  PASS="elrsbp-lt"  IP=20.0.0.1
- *   - Serve index.html from LittleFS
- *   - WebSocket /ws — real-time push to browsers
- *   - REST API:
- *       GET/POST /api/pilots    pilot name + MAC address
- *       GET/POST /api/calib     per-pilot Enter/Exit RSSI thresholds
- *       POST     /api/race/start|stop
- *       GET      /api/laps
- *       GET      /api/scan       recently detected unknown aircraft MACs
- *       POST     /api/scan/clear clear scan list
- *       GET      /api/status
- *   - Receive JSON lines from Gate Node via Serial1 (RX=GPIO3/D2)
- *   - Send sync commands to Gate Node via Serial1  (TX=GPIO2/D1)
- *   - Store pilot & calib config in NVS (Preferences)
+ * Pilot model
+ *   - Roster: up to MAX_REGISTERED (50) pilots stored in NVS
+ *     Each has a name + aircraft MAC (XIAO ESP32-C3 hardware MAC)
+ *   - Active: up to MAX_ACTIVE (4) pilots selected from the roster for a race
+ *     Only active pilots are sent to the Gate Node; gate slot 0-3 maps to them
  *
- * Wiring
- *   XIAO ESP32-S3 GPIO3 (D2/RX1) ← ESP32-WROVER-E GPIO26 (TX1)
- *   XIAO ESP32-S3 GPIO2 (D1/TX1) → ESP32-WROVER-E GPIO25 (RX1)
- *   Common GND
+ * REST API
+ *   GET/POST        /api/pilots          roster CRUD  {id?,name,uid}
+ *   POST            /api/pilots/delete   {id}
+ *   GET/POST        /api/active          active slot selection {slots:[idx,…]}
+ *   GET/POST        /api/calib           per-roster-pilot thresholds {id,enter,exit}
+ *   POST            /api/race/start|stop
+ *   GET             /api/laps
+ *   GET             /api/scan
+ *   POST            /api/scan/clear
+ *   GET             /api/status
+ *
+ * NVS layout ("pilots" namespace)
+ *   "ver"       int   = 2 (format version)
+ *   "count"     int   = number of registered pilots
+ *   "p%d_name"  str   pilot name
+ *   "p%d_uid"   str   "AA:BB:CC:DD:EE:FF" or ""
+ *   "p%d_enter" int   Enter RSSI threshold (dBm)
+ *   "p%d_exit"  int   Exit  RSSI threshold (dBm)
+ *
+ * NVS layout ("active" namespace)
+ *   "a0".."a3"  int   roster index for each race slot (-1 = empty)
  */
 
 #include <Arduino.h>
@@ -33,8 +40,8 @@
 #include <ArduinoJson.h>
 
 // ── Network ────────────────────────────────────────────────────────────────
-static const char*    AP_SSID    = "ELRS bp-LT";
-static const char*    AP_PASS    = "elrsbp-lt";
+static const char*     AP_SSID    = "ELRS bp-LT";
+static const char*     AP_PASS    = "elrsbp-lt";
 static const IPAddress AP_IP      (20, 0, 0, 1);
 static const IPAddress AP_GATEWAY (20, 0, 0, 1);
 static const IPAddress AP_SUBNET  (255, 255, 255, 0);
@@ -44,11 +51,16 @@ static const IPAddress AP_SUBNET  (255, 255, 255, 0);
 #define GATE_TX_PIN   2
 #define GATE_BAUD     115200
 
-// ── Data structures ────────────────────────────────────────────────────────
-#define MAX_PILOTS  4
-#define MAX_LAPS    200
+// ── Pilot limits ───────────────────────────────────────────────────────────
+// NVS budget: ~192 bytes/pilot × 50 = 9,600 bytes ≈ 48% of 20 KB NVS → safe
+#define MAX_REGISTERED  50
+#define MAX_ACTIVE       4
+#define MAX_LAPS       200
+#define DEFAULT_ENTER  (-80)
+#define DEFAULT_EXIT   (-90)
 
-struct PilotConfig {
+// ── Data structures ────────────────────────────────────────────────────────
+struct PilotRoster {
     char    name[32];
     uint8_t uid[6];
     bool    hasUid;
@@ -60,12 +72,13 @@ struct CalibConfig {
 };
 
 struct LapRecord {
-    int      pilotIdx;
+    int      slot;
+    int      rosterIdx;
     uint32_t lapTimeMs;
     uint32_t timestamp;
 };
 
-struct PilotRuntime {
+struct SlotRuntime {
     int      rssi;
     int      rawRssi;
     bool     crossing;
@@ -75,15 +88,17 @@ struct PilotRuntime {
     uint32_t lastLapTs;
 };
 
-static PilotConfig  cfg[MAX_PILOTS];
-static CalibConfig  cal[MAX_PILOTS];
-static PilotRuntime rt[MAX_PILOTS];
+static PilotRoster  roster[MAX_REGISTERED];
+static CalibConfig  rosterCal[MAX_REGISTERED];
+static int          rosterCount    = 0;
+static int          activePilots[MAX_ACTIVE];   // roster indices; -1 = empty slot
+static SlotRuntime  rt[MAX_ACTIVE];
 static LapRecord    laps[MAX_LAPS];
 static int          lapCount    = 0;
 static bool         raceRunning = false;
 static uint32_t     raceStartMs = 0;
 
-// ── Scan MAC list — unknown aircraft detected by gate node ─────────────────
+// ── Scan MAC list ──────────────────────────────────────────────────────────
 #define MAX_SCAN_MACS 8
 struct ScanMac { char mac[18]; int rssi; uint32_t ts; };
 static ScanMac scanMacs[MAX_SCAN_MACS];
@@ -92,9 +107,7 @@ static int     scanMacCount = 0;
 static void updateScanMac(const char* mac, int rssi) {
     for (int i = 0; i < scanMacCount; i++) {
         if (strcmp(scanMacs[i].mac, mac) == 0) {
-            scanMacs[i].rssi = rssi;
-            scanMacs[i].ts   = millis();
-            return;
+            scanMacs[i].rssi = rssi; scanMacs[i].ts = millis(); return;
         }
     }
     if (scanMacCount < MAX_SCAN_MACS) {
@@ -106,68 +119,96 @@ static void updateScanMac(const char* mac, int rssi) {
     }
 }
 
-// ── Server & WebSocket ─────────────────────────────────────────────────────
+// ── Server ─────────────────────────────────────────────────────────────────
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 Preferences    prefs;
 
-// ── NVS: pilots ────────────────────────────────────────────────────────────
-static void loadPilotConfig() {
+// ── Helpers ────────────────────────────────────────────────────────────────
+static void uidToStr(const uint8_t* uid, char* buf) {
+    snprintf(buf, 18, "%02X:%02X:%02X:%02X:%02X:%02X",
+             uid[0], uid[1], uid[2], uid[3], uid[4], uid[5]);
+}
+
+static const char* activeName(int slot) {
+    int ri = activePilots[slot];
+    return (ri >= 0 && ri < rosterCount) ? roster[ri].name : "---";
+}
+
+// Find which slot (0-3) a roster pilot occupies, -1 if not active
+static int activeSlotOf(int ri) {
+    for (int s = 0; s < MAX_ACTIVE; s++) if (activePilots[s] == ri) return s;
+    return -1;
+}
+
+// ── NVS: roster ────────────────────────────────────────────────────────────
+static void saveRosterPilot(int i) {
+    if (i < 0 || i >= rosterCount) return;
+    prefs.begin("pilots", false);
+    char key[24];
+    snprintf(key, sizeof(key), "p%d_name",  i); prefs.putString(key, roster[i].name);
+    snprintf(key, sizeof(key), "p%d_uid",   i);
+    if (roster[i].hasUid) {
+        char u[18]; uidToStr(roster[i].uid, u); prefs.putString(key, u);
+    } else { prefs.putString(key, ""); }
+    snprintf(key, sizeof(key), "p%d_enter", i); prefs.putInt(key, rosterCal[i].enterRssi);
+    snprintf(key, sizeof(key), "p%d_exit",  i); prefs.putInt(key, rosterCal[i].exitRssi);
+    prefs.putInt("count", rosterCount);
+    prefs.putInt("ver", 2);
+    prefs.end();
+}
+
+static void saveRosterCount() {
+    prefs.begin("pilots", false);
+    prefs.putInt("count", rosterCount);
+    prefs.putInt("ver", 2);
+    prefs.end();
+}
+
+static void loadRosterConfig() {
     prefs.begin("pilots", true);
-    for (int i = 0; i < MAX_PILOTS; i++) {
+    rosterCount = prefs.getInt("count", 0);
+    if (rosterCount > MAX_REGISTERED) rosterCount = MAX_REGISTERED;
+    for (int i = 0; i < rosterCount; i++) {
         char key[24];
         snprintf(key, sizeof(key), "p%d_name", i);
         String n = prefs.getString(key, "");
-        if (n.length()) strncpy(cfg[i].name, n.c_str(), sizeof(cfg[i].name) - 1);
-        else            snprintf(cfg[i].name, sizeof(cfg[i].name), "Pilot %d", i + 1);
+        if (n.length()) strncpy(roster[i].name, n.c_str(), sizeof(roster[i].name)-1);
+        else            snprintf(roster[i].name, sizeof(roster[i].name), "Pilot %d", i+1);
 
         snprintf(key, sizeof(key), "p%d_uid", i);
         String u = prefs.getString(key, "");
-        cfg[i].hasUid = (u.length() == 17);
-        if (cfg[i].hasUid) {
+        roster[i].hasUid = (u.length() == 17);
+        if (roster[i].hasUid)
             sscanf(u.c_str(), "%02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX",
-                   &cfg[i].uid[0], &cfg[i].uid[1], &cfg[i].uid[2],
-                   &cfg[i].uid[3], &cfg[i].uid[4], &cfg[i].uid[5]);
-        }
-    }
-    prefs.end();
-}
+                   &roster[i].uid[0], &roster[i].uid[1], &roster[i].uid[2],
+                   &roster[i].uid[3], &roster[i].uid[4], &roster[i].uid[5]);
 
-static void savePilot(int i) {
-    prefs.begin("pilots", false);
-    char key[24];
-    snprintf(key, sizeof(key), "p%d_name", i); prefs.putString(key, cfg[i].name);
-    snprintf(key, sizeof(key), "p%d_uid",  i);
-    if (cfg[i].hasUid) {
-        char u[18];
-        snprintf(u, sizeof(u), "%02X:%02X:%02X:%02X:%02X:%02X",
-                 cfg[i].uid[0], cfg[i].uid[1], cfg[i].uid[2],
-                 cfg[i].uid[3], cfg[i].uid[4], cfg[i].uid[5]);
-        prefs.putString(key, u);
-    } else {
-        prefs.putString(key, "");
-    }
-    prefs.end();
-}
-
-// ── NVS: calib ─────────────────────────────────────────────────────────────
-static void loadCalibConfig() {
-    prefs.begin("calib", true);
-    for (int i = 0; i < MAX_PILOTS; i++) {
-        char key[24];
         snprintf(key, sizeof(key), "p%d_enter", i);
-        cal[i].enterRssi = prefs.getInt(key, -80);
+        rosterCal[i].enterRssi = prefs.getInt(key, DEFAULT_ENTER);
         snprintf(key, sizeof(key), "p%d_exit", i);
-        cal[i].exitRssi  = prefs.getInt(key, -90);
+        rosterCal[i].exitRssi  = prefs.getInt(key, DEFAULT_EXIT);
     }
     prefs.end();
 }
 
-static void saveCalib(int i) {
-    prefs.begin("calib", false);
-    char key[24];
-    snprintf(key, sizeof(key), "p%d_enter", i); prefs.putInt(key, cal[i].enterRssi);
-    snprintf(key, sizeof(key), "p%d_exit",  i); prefs.putInt(key, cal[i].exitRssi);
+// ── NVS: active selection ──────────────────────────────────────────────────
+static void saveActive() {
+    prefs.begin("active", false);
+    for (int s = 0; s < MAX_ACTIVE; s++) {
+        char key[4]; snprintf(key, sizeof(key), "a%d", s);
+        prefs.putInt(key, activePilots[s]);
+    }
+    prefs.end();
+}
+
+static void loadActiveConfig() {
+    prefs.begin("active", true);
+    for (int s = 0; s < MAX_ACTIVE; s++) {
+        char key[4]; snprintf(key, sizeof(key), "a%d", s);
+        int ri = prefs.getInt(key, -1);
+        activePilots[s] = (ri >= 0 && ri < rosterCount) ? ri : -1;
+    }
     prefs.end();
 }
 
@@ -178,71 +219,73 @@ static void sendGateCmd(const char* action) {
     Serial1.println(buf);
 }
 
-static void sendGateThreshold(int i) {
+static void sendGatePilot(int slot) {
+    int ri = activePilots[slot];
     char buf[96];
-    snprintf(buf, sizeof(buf),
-             R"({"type":"cmd","action":"set_threshold","pilot":%d,"enter":%d,"exit":%d})",
-             i, cal[i].enterRssi, cal[i].exitRssi);
-    Serial1.println(buf);
-    Serial.printf("[Web] → Gate threshold p%d: enter=%d exit=%d\n",
-                  i, cal[i].enterRssi, cal[i].exitRssi);
-}
-
-static void sendAllThresholds() {
-    for (int i = 0; i < MAX_PILOTS; i++) { sendGateThreshold(i); delay(30); }
-}
-
-static void sendGatePilot(int i) {
-    char buf[96];
-    if (!cfg[i].hasUid) {
-        snprintf(buf, sizeof(buf),
-                 R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":""})", i);
+    if (ri < 0 || ri >= rosterCount || !roster[ri].hasUid) {
+        snprintf(buf, sizeof(buf), R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":""})", slot);
         Serial1.println(buf);
-        Serial.printf("[Web] → Gate pilot p%d cleared\n", i);
+        Serial.printf("[Web] → Gate slot%d cleared\n", slot);
     } else {
-        char uid[18];
-        snprintf(uid, sizeof(uid), "%02X:%02X:%02X:%02X:%02X:%02X",
-                 cfg[i].uid[0], cfg[i].uid[1], cfg[i].uid[2],
-                 cfg[i].uid[3], cfg[i].uid[4], cfg[i].uid[5]);
+        char uid[18]; uidToStr(roster[ri].uid, uid);
         snprintf(buf, sizeof(buf),
-                 R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":"%s"})", i, uid);
+                 R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":"%s"})", slot, uid);
         Serial1.println(buf);
-        Serial.printf("[Web] → Gate pilot p%d MAC=%s\n", i, uid);
+        Serial.printf("[Web] → Gate slot%d = %s (%s)\n", slot, roster[ri].name, uid);
     }
     delay(30);
 }
 
+static void sendGateThreshold(int slot) {
+    int ri = activePilots[slot];
+    int enter = (ri >= 0 && ri < rosterCount) ? rosterCal[ri].enterRssi : DEFAULT_ENTER;
+    int exit_ = (ri >= 0 && ri < rosterCount) ? rosterCal[ri].exitRssi  : DEFAULT_EXIT;
+    char buf[96];
+    snprintf(buf, sizeof(buf),
+             R"({"type":"cmd","action":"set_threshold","pilot":%d,"enter":%d,"exit":%d})",
+             slot, enter, exit_);
+    Serial1.println(buf);
+}
+
 static void sendAllPilots() {
-    for (int i = 0; i < MAX_PILOTS; i++) sendGatePilot(i);
+    for (int s = 0; s < MAX_ACTIVE; s++) { sendGatePilot(s); }
+}
+
+static void sendAllThresholds() {
+    for (int s = 0; s < MAX_ACTIVE; s++) { sendGateThreshold(s); delay(30); }
 }
 
 // ── JSON builders ──────────────────────────────────────────────────────────
-static String pilotsJson() {
+static String rosterJson() {
     JsonDocument doc;
     JsonArray arr = doc.to<JsonArray>();
-    for (int i = 0; i < MAX_PILOTS; i++) {
+    for (int i = 0; i < rosterCount; i++) {
         JsonObject o = arr.add<JsonObject>();
-        o["id"]   = i;
-        o["name"] = cfg[i].name;
-        if (cfg[i].hasUid) {
-            char u[18];
-            snprintf(u, sizeof(u), "%02X:%02X:%02X:%02X:%02X:%02X",
-                     cfg[i].uid[0], cfg[i].uid[1], cfg[i].uid[2],
-                     cfg[i].uid[3], cfg[i].uid[4], cfg[i].uid[5]);
-            o["uid"] = u;
-        } else { o["uid"] = ""; }
+        o["id"]         = i;
+        o["name"]       = roster[i].name;
+        o["uid"]        = roster[i].hasUid ? [&](){
+                            char u[18]; uidToStr(roster[i].uid, u); return String(u);
+                          }() : String("");
+        o["activeSlot"] = activeSlotOf(i);
+        o["enter"]      = rosterCal[i].enterRssi;
+        o["exit"]       = rosterCal[i].exitRssi;
     }
     String s; serializeJson(doc, s); return s;
 }
 
-static String calibJson() {
+static String activeJson() {
     JsonDocument doc;
     JsonArray arr = doc.to<JsonArray>();
-    for (int i = 0; i < MAX_PILOTS; i++) {
+    for (int s = 0; s < MAX_ACTIVE; s++) {
         JsonObject o = arr.add<JsonObject>();
-        o["id"]    = i;
-        o["enter"] = cal[i].enterRssi;
-        o["exit"]  = cal[i].exitRssi;
+        int ri = activePilots[s];
+        o["slot"]      = s;
+        o["rosterIdx"] = ri;
+        o["name"]      = activeName(s);
+        if (ri >= 0 && ri < rosterCount) {
+            o["enter"] = rosterCal[ri].enterRssi;
+            o["exit"]  = rosterCal[ri].exitRssi;
+        }
     }
     String s; serializeJson(doc, s); return s;
 }
@@ -252,10 +295,11 @@ static String lapsJson() {
     JsonArray arr = doc.to<JsonArray>();
     for (int i = 0; i < lapCount; i++) {
         JsonObject o = arr.add<JsonObject>();
-        o["pilot"]   = laps[i].pilotIdx;
+        int ri = laps[i].rosterIdx;
+        o["slot"]    = laps[i].slot;
+        o["name"]    = (ri >= 0 && ri < rosterCount) ? roster[ri].name : "---";
         o["lapTime"] = laps[i].lapTimeMs;
         o["ts"]      = laps[i].timestamp;
-        o["name"]    = cfg[laps[i].pilotIdx].name;
     }
     String s; serializeJson(doc, s); return s;
 }
@@ -265,9 +309,7 @@ static String scanJson() {
     JsonArray arr = doc.to<JsonArray>();
     for (int i = 0; i < scanMacCount; i++) {
         JsonObject o = arr.add<JsonObject>();
-        o["mac"]  = scanMacs[i].mac;
-        o["rssi"] = scanMacs[i].rssi;
-        o["ts"]   = scanMacs[i].ts;
+        o["mac"] = scanMacs[i].mac; o["rssi"] = scanMacs[i].rssi; o["ts"] = scanMacs[i].ts;
     }
     String s; serializeJson(doc, s); return s;
 }
@@ -278,216 +320,298 @@ static void wsText(const String& msg) { ws.textAll(msg); }
 static void onWsEvent(AsyncWebSocket*, AsyncWebSocketClient* client,
                       AwsEventType evType, void*, uint8_t*, size_t) {
     if (evType != WS_EVT_CONNECT) return;
-
     JsonDocument doc;
     doc["type"]        = "init";
     doc["raceRunning"] = raceRunning;
     doc["raceStartMs"] = raceStartMs;
     JsonArray pa = doc["pilots"].to<JsonArray>();
-    for (int i = 0; i < MAX_PILOTS; i++) {
+    for (int s = 0; s < MAX_ACTIVE; s++) {
         JsonObject o = pa.add<JsonObject>();
-        o["id"]       = i;
-        o["name"]     = cfg[i].name;
-        o["lapCount"] = rt[i].lapCount;
-        o["bestLap"]  = rt[i].bestLapMs;
-        o["rssi"]     = rt[i].rssi;
-        o["crossing"] = rt[i].crossing;
-        o["enter"]    = cal[i].enterRssi;
-        o["exit"]     = cal[i].exitRssi;
+        int ri = activePilots[s];
+        o["slot"]      = s;
+        o["rosterIdx"] = ri;
+        o["name"]      = activeName(s);
+        o["lapCount"]  = rt[s].lapCount;
+        o["bestLap"]   = rt[s].bestLapMs;
+        o["rssi"]      = rt[s].rssi;
+        o["crossing"]  = rt[s].crossing;
+        o["enter"]     = (ri >= 0) ? rosterCal[ri].enterRssi : DEFAULT_ENTER;
+        o["exit"]      = (ri >= 0) ? rosterCal[ri].exitRssi  : DEFAULT_EXIT;
     }
-    String msg; serializeJson(doc, msg);
-    client->text(msg);
+    String msg; serializeJson(doc, msg); client->text(msg);
 }
 
-// ── Gate Node line processor ───────────────────────────────────────────────
+// ── Gate line processor ────────────────────────────────────────────────────
 static void processGateLine(const String& line) {
     JsonDocument doc;
     if (deserializeJson(doc, line) != DeserializationError::Ok) return;
     const char* type = doc["type"] | "";
 
     if (strcmp(type, "ready") == 0) {
-        sendAllPilots();
-        sendAllThresholds();
-        Serial.println("[Web] Gate node ready — sent pilots + thresholds");
+        sendAllPilots(); sendAllThresholds();
+        Serial.println("[Web] Gate ready — sent pilots + thresholds");
         return;
     }
-
     if (strcmp(type, "scan") == 0) {
         const char* mac = doc["mac"] | "";
-        int rssi = doc["rssi"] | -120;
-        if (strlen(mac) == 17) updateScanMac(mac, rssi);
-        wsText(line);   // forward to browser for real-time display
-        return;
+        if (strlen(mac) == 17) updateScanMac(mac, doc["rssi"] | -120);
+        wsText(line); return;
     }
-
     if (strcmp(type, "rssi") == 0) {
-        int idx = doc["pilot"] | -1;
-        if (idx < 0 || idx >= MAX_PILOTS) return;
-        rt[idx].rssi     = doc["rssi"]     | -120;
-        rt[idx].rawRssi  = doc["raw"]      | -120;
-        rt[idx].crossing = doc["crossing"] | false;
-        rt[idx].lastTs   = doc["ts"]       | 0u;
-        wsText(line);
+        int s = doc["pilot"] | -1;
+        if (s < 0 || s >= MAX_ACTIVE) return;
+        rt[s].rssi     = doc["rssi"]     | -120;
+        rt[s].rawRssi  = doc["raw"]      | -120;
+        rt[s].crossing = doc["crossing"] | false;
+        rt[s].lastTs   = doc["ts"]       | 0u;
+        // Build ws message with active pilot name
+        JsonDocument wd;
+        wd["type"]     = "rssi";
+        wd["pilot"]    = s;
+        wd["name"]     = activeName(s);
+        wd["rssi"]     = rt[s].rssi;
+        wd["raw"]      = rt[s].rawRssi;
+        wd["crossing"] = rt[s].crossing;
+        wd["ts"]       = rt[s].lastTs;
+        String wm; serializeJson(wd, wm); wsText(wm);
         return;
     }
-
     if (strcmp(type, "lap") == 0) {
-        int      idx = doc["pilot"] | -1;
-        if (idx < 0 || idx >= MAX_PILOTS) return;
-        uint32_t ts  = doc["ts"] | 0u;
+        int s = doc["pilot"] | -1;
+        if (s < 0 || s >= MAX_ACTIVE) return;
+        int ri = activePilots[s];
+        uint32_t ts = doc["ts"] | 0u;
 
         uint32_t lapMs = 0;
-        if (rt[idx].lastLapTs > 0 && raceRunning)
-            lapMs = ts - rt[idx].lastLapTs;
-        rt[idx].lastLapTs = ts;
-        rt[idx].lapCount++;
+        if (rt[s].lastLapTs > 0 && raceRunning) lapMs = ts - rt[s].lastLapTs;
+        rt[s].lastLapTs = ts;
+        rt[s].lapCount++;
 
         bool newBest = false;
-        if (lapMs > 0 && (rt[idx].bestLapMs == 0 || lapMs < rt[idx].bestLapMs)) {
-            rt[idx].bestLapMs = lapMs;
-            newBest = true;
+        if (lapMs > 0 && (rt[s].bestLapMs == 0 || lapMs < rt[s].bestLapMs)) {
+            rt[s].bestLapMs = lapMs; newBest = true;
         }
-        if (lapCount < MAX_LAPS) laps[lapCount++] = { idx, lapMs, ts };
+        if (lapCount < MAX_LAPS) laps[lapCount++] = { s, ri, lapMs, ts };
 
         JsonDocument wd;
         wd["type"]     = "lap";
-        wd["pilot"]    = idx;
-        wd["name"]     = cfg[idx].name;
+        wd["pilot"]    = s;
+        wd["name"]     = activeName(s);
         wd["lapTime"]  = lapMs;
-        wd["bestLap"]  = rt[idx].bestLapMs;
-        wd["lapCount"] = rt[idx].lapCount;
+        wd["bestLap"]  = rt[s].bestLapMs;
+        wd["lapCount"] = rt[s].lapCount;
         wd["newBest"]  = newBest;
         wd["rssi"]     = doc["rssi"] | -120;
         wd["ts"]       = ts;
-        String wm; serializeJson(wd, wm);
-        wsText(wm);
+        String wm; serializeJson(wd, wm); wsText(wm);
     }
 }
 
 // ── POST body accumulator ──────────────────────────────────────────────────
 struct BodyBuf { char* buf; size_t total; };
-
 static void handleBody(AsyncWebServerRequest* req,
-                        uint8_t* data, size_t len, size_t index, size_t total,
-                        std::function<void(AsyncWebServerRequest*, const char*)> cb) {
-    if (index == 0) req->_tempObject = new BodyBuf{ new char[total + 1], total };
+                       uint8_t* data, size_t len, size_t index, size_t total,
+                       std::function<void(AsyncWebServerRequest*, const char*)> cb) {
+    if (index == 0) req->_tempObject = new BodyBuf{ new char[total+1], total };
     auto* bb = reinterpret_cast<BodyBuf*>(req->_tempObject);
     if (!bb) return;
     memcpy(bb->buf + index, data, len);
     if (index + len == total) {
         bb->buf[total] = '\0';
         cb(req, bb->buf);
-        delete[] bb->buf; delete bb;
-        req->_tempObject = nullptr;
+        delete[] bb->buf; delete bb; req->_tempObject = nullptr;
     }
 }
 
 // ── Setup ──────────────────────────────────────────────────────────────────
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n[Web] ELRS Backpack Lap Timer — Web Node");
+    Serial.println("\n[Web] ELRS Lap Timer — Web Node");
 
     Serial1.begin(GATE_BAUD, SERIAL_8N1, GATE_RX_PIN, GATE_TX_PIN);
 
-    loadPilotConfig();
-    loadCalibConfig();
+    for (int s = 0; s < MAX_ACTIVE; s++) activePilots[s] = -1;
     memset(rt, 0, sizeof(rt));
+    loadRosterConfig();
+    loadActiveConfig();
 
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
     WiFi.softAP(AP_SSID, AP_PASS, 6);
-    Serial.printf("[Web] AP up  SSID=%s  IP=%s  ch=6\n", AP_SSID, AP_IP.toString().c_str());
+    Serial.printf("[Web] AP  SSID=%s  IP=%s\n", AP_SSID, AP_IP.toString().c_str());
 
-    if (!LittleFS.begin(true))
-        Serial.println("[Web] LittleFS mount failed — upload data/ first");
+    if (!LittleFS.begin(true)) Serial.println("[Web] LittleFS failed");
 
     ws.onEvent(onWsEvent);
     server.addHandler(&ws);
 
     // ── GET /api/pilots ────────────────────────────────────────────────────
     server.on("/api/pilots", HTTP_GET, [](AsyncWebServerRequest* req) {
-        req->send(200, "application/json", pilotsJson());
+        req->send(200, "application/json", rosterJson());
     });
 
-    // ── POST /api/pilots ───────────────────────────────────────────────────
-    server.on("/api/pilots", HTTP_POST,
-        [](AsyncWebServerRequest*) {},
+    // ── POST /api/pilots  {id?:-1, name, uid} ─────────────────────────────
+    server.on("/api/pilots", HTTP_POST, [](AsyncWebServerRequest*){},
         nullptr,
-        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-            handleBody(req, data, len, index, total,
-                [](AsyncWebServerRequest* req2, const char* body) {
+        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
+            handleBody(req, data, len, idx, total,
+                [](AsyncWebServerRequest* req2, const char* body){
                     JsonDocument doc;
                     if (deserializeJson(doc, body) != DeserializationError::Ok)
-                        { req2->send(400, "application/json", R"({"error":"bad json"})"); return; }
-                    int id = doc["id"] | -1;
-                    if (id < 0 || id >= MAX_PILOTS)
-                        { req2->send(400, "application/json", R"({"error":"bad id"})"); return; }
-                    strncpy(cfg[id].name, doc["name"] | "", sizeof(cfg[id].name) - 1);
+                        { req2->send(400,"application/json",R"({"error":"bad json"})"); return; }
+                    int id = doc["id"] | -1;   // -1 = new pilot
+                    if (id < -1 || id >= rosterCount)
+                        { req2->send(400,"application/json",R"({"error":"bad id"})"); return; }
+                    if (id == -1) {
+                        if (rosterCount >= MAX_REGISTERED)
+                            { req2->send(400,"application/json",R"({"error":"roster full"})"); return; }
+                        id = rosterCount++;
+                        rosterCal[id].enterRssi = DEFAULT_ENTER;
+                        rosterCal[id].exitRssi  = DEFAULT_EXIT;
+                    }
+                    strncpy(roster[id].name, doc["name"] | "", sizeof(roster[id].name)-1);
                     const char* uid = doc["uid"] | "";
-                    cfg[id].hasUid = (strlen(uid) == 17);
-                    if (cfg[id].hasUid)
+                    roster[id].hasUid = (strlen(uid) == 17);
+                    if (roster[id].hasUid)
                         sscanf(uid, "%02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX",
-                               &cfg[id].uid[0], &cfg[id].uid[1], &cfg[id].uid[2],
-                               &cfg[id].uid[3], &cfg[id].uid[4], &cfg[id].uid[5]);
-                    savePilot(id);
-                    sendGatePilot(id);
-                    req2->send(200, "application/json", R"({"ok":true})");
+                               &roster[id].uid[0], &roster[id].uid[1], &roster[id].uid[2],
+                               &roster[id].uid[3], &roster[id].uid[4], &roster[id].uid[5]);
+                    saveRosterPilot(id);
+                    // If this pilot is active, sync gate
+                    int slot = activeSlotOf(id);
+                    if (slot >= 0) { sendGatePilot(slot); sendGateThreshold(slot); }
+                    JsonDocument resp; resp["ok"]=true; resp["id"]=id;
+                    String s; serializeJson(resp,s); req2->send(200,"application/json",s);
                 });
         });
 
-    // ── GET /api/calib ─────────────────────────────────────────────────────
-    server.on("/api/calib", HTTP_GET, [](AsyncWebServerRequest* req) {
-        req->send(200, "application/json", calibJson());
-    });
-
-    // ── POST /api/calib ────────────────────────────────────────────────────
-    server.on("/api/calib", HTTP_POST,
-        [](AsyncWebServerRequest*) {},
+    // ── POST /api/pilots/delete  {id} ─────────────────────────────────────
+    server.on("/api/pilots/delete", HTTP_POST, [](AsyncWebServerRequest*){},
         nullptr,
-        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-            handleBody(req, data, len, index, total,
-                [](AsyncWebServerRequest* req2, const char* body) {
+        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
+            handleBody(req, data, len, idx, total,
+                [](AsyncWebServerRequest* req2, const char* body){
                     JsonDocument doc;
                     if (deserializeJson(doc, body) != DeserializationError::Ok)
-                        { req2->send(400, "application/json", R"({"error":"bad json"})"); return; }
+                        { req2->send(400,"application/json",R"({"error":"bad json"})"); return; }
                     int id = doc["id"] | -1;
-                    if (id < 0 || id >= MAX_PILOTS)
-                        { req2->send(400, "application/json", R"({"error":"bad id"})"); return; }
-                    cal[id].enterRssi = doc["enter"] | cal[id].enterRssi;
-                    cal[id].exitRssi  = doc["exit"]  | cal[id].exitRssi;
-                    saveCalib(id);
-                    sendGateThreshold(id);
-                    req2->send(200, "application/json", R"({"ok":true})");
+                    if (id < 0 || id >= rosterCount)
+                        { req2->send(400,"application/json",R"({"error":"bad id"})"); return; }
+                    // Update active slots before shifting
+                    for (int s = 0; s < MAX_ACTIVE; s++) {
+                        if (activePilots[s] == id) activePilots[s] = -1;
+                        else if (activePilots[s] > id) activePilots[s]--;
+                    }
+                    // Shift roster + calib
+                    for (int i = id; i < rosterCount-1; i++) {
+                        roster[i]    = roster[i+1];
+                        rosterCal[i] = rosterCal[i+1];
+                    }
+                    rosterCount--;
+                    // Rewrite NVS: save all remaining pilots + new count
+                    prefs.begin("pilots", false);
+                    prefs.putInt("count", rosterCount);
+                    prefs.putInt("ver", 2);
+                    for (int i = id; i < rosterCount; i++) {
+                        char key[24];
+                        snprintf(key,sizeof(key),"p%d_name", i);  prefs.putString(key, roster[i].name);
+                        snprintf(key,sizeof(key),"p%d_uid",  i);
+                        if (roster[i].hasUid) {
+                            char u[18]; uidToStr(roster[i].uid,u); prefs.putString(key,u);
+                        } else { prefs.putString(key,""); }
+                        snprintf(key,sizeof(key),"p%d_enter",i);  prefs.putInt(key, rosterCal[i].enterRssi);
+                        snprintf(key,sizeof(key),"p%d_exit", i);  prefs.putInt(key, rosterCal[i].exitRssi);
+                    }
+                    // Clear the last shifted entry from NVS
+                    char key[24];
+                    snprintf(key,sizeof(key),"p%d_name", rosterCount);  prefs.remove(key);
+                    snprintf(key,sizeof(key),"p%d_uid",  rosterCount);  prefs.remove(key);
+                    snprintf(key,sizeof(key),"p%d_enter",rosterCount);  prefs.remove(key);
+                    snprintf(key,sizeof(key),"p%d_exit", rosterCount);  prefs.remove(key);
+                    prefs.end();
+                    saveActive();
+                    sendAllPilots();
+                    req2->send(200,"application/json",R"({"ok":true})");
+                });
+        });
+
+    // ── GET /api/active ────────────────────────────────────────────────────
+    server.on("/api/active", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->send(200, "application/json", activeJson());
+    });
+
+    // ── POST /api/active  {slots:[idx0,idx1,idx2,idx3]} ───────────────────
+    server.on("/api/active", HTTP_POST, [](AsyncWebServerRequest*){},
+        nullptr,
+        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
+            handleBody(req, data, len, idx, total,
+                [](AsyncWebServerRequest* req2, const char* body){
+                    JsonDocument doc;
+                    if (deserializeJson(doc, body) != DeserializationError::Ok)
+                        { req2->send(400,"application/json",R"({"error":"bad json"})"); return; }
+                    JsonArray slots = doc["slots"].as<JsonArray>();
+                    if (!slots) { req2->send(400,"application/json",R"({"error":"no slots"})"); return; }
+                    for (int s = 0; s < MAX_ACTIVE && s < (int)slots.size(); s++) {
+                        int ri = slots[s].as<int>();
+                        activePilots[s] = (ri >= 0 && ri < rosterCount) ? ri : -1;
+                    }
+                    saveActive();
+                    sendAllPilots();
+                    sendAllThresholds();
+                    // Notify all WS clients
+                    JsonDocument wd; wd["type"]="active_update";
+                    JsonArray pa = wd["pilots"].to<JsonArray>();
+                    for (int s=0;s<MAX_ACTIVE;s++){
+                        JsonObject o=pa.add<JsonObject>();
+                        int ri=activePilots[s];
+                        o["slot"]=s; o["rosterIdx"]=ri; o["name"]=activeName(s);
+                        if(ri>=0){o["enter"]=rosterCal[ri].enterRssi; o["exit"]=rosterCal[ri].exitRssi;}
+                    }
+                    String wm; serializeJson(wd,wm); wsText(wm);
+                    req2->send(200,"application/json",R"({"ok":true})");
+                });
+        });
+
+    // ── POST /api/calib  {id, enter, exit} ────────────────────────────────
+    server.on("/api/calib", HTTP_POST, [](AsyncWebServerRequest*){},
+        nullptr,
+        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
+            handleBody(req, data, len, idx, total,
+                [](AsyncWebServerRequest* req2, const char* body){
+                    JsonDocument doc;
+                    if (deserializeJson(doc, body) != DeserializationError::Ok)
+                        { req2->send(400,"application/json",R"({"error":"bad json"})"); return; }
+                    int id = doc["id"] | -1;
+                    if (id < 0 || id >= rosterCount)
+                        { req2->send(400,"application/json",R"({"error":"bad id"})"); return; }
+                    rosterCal[id].enterRssi = doc["enter"] | rosterCal[id].enterRssi;
+                    rosterCal[id].exitRssi  = doc["exit"]  | rosterCal[id].exitRssi;
+                    saveRosterPilot(id);
+                    int slot = activeSlotOf(id);
+                    if (slot >= 0) sendGateThreshold(slot);
+                    req2->send(200,"application/json",R"({"ok":true})");
                 });
         });
 
     // ── POST /api/race/start ───────────────────────────────────────────────
     server.on("/api/race/start", HTTP_POST, [](AsyncWebServerRequest* req) {
-        raceRunning = true;
-        raceStartMs = millis();
-        lapCount    = 0;
-        for (int i = 0; i < MAX_PILOTS; i++) {
-            rt[i].lapCount  = 0;
-            rt[i].bestLapMs = 0;
-            rt[i].lastLapTs = 0;
+        raceRunning = true; raceStartMs = millis(); lapCount = 0;
+        for (int s = 0; s < MAX_ACTIVE; s++) {
+            rt[s].lapCount=0; rt[s].bestLapMs=0; rt[s].lastLapTs=0;
         }
+        sendAllPilots();
         sendGateCmd("race_start");
-        JsonDocument doc;
-        doc["type"] = "race_start";
-        doc["ts"]   = raceStartMs;
-        String msg; serializeJson(doc, msg);
-        wsText(msg);
-        req->send(200, "application/json", R"({"ok":true})");
+        JsonDocument doc; doc["type"]="race_start"; doc["ts"]=raceStartMs;
+        String msg; serializeJson(doc,msg); wsText(msg);
+        req->send(200,"application/json",R"({"ok":true})");
     });
 
     // ── POST /api/race/stop ────────────────────────────────────────────────
     server.on("/api/race/stop", HTTP_POST, [](AsyncWebServerRequest* req) {
         raceRunning = false;
-        JsonDocument doc;
-        doc["type"] = "race_stop";
-        String msg; serializeJson(doc, msg);
-        wsText(msg);
-        req->send(200, "application/json", R"({"ok":true})");
+        JsonDocument doc; doc["type"]="race_stop";
+        String msg; serializeJson(doc,msg); wsText(msg);
+        req->send(200,"application/json",R"({"ok":true})");
     });
 
     // ── GET /api/laps ──────────────────────────────────────────────────────
@@ -495,44 +619,38 @@ void setup() {
         req->send(200, "application/json", lapsJson());
     });
 
-    // ── GET /api/scan ──────────────────────────────────────────────────────
+    // ── GET /api/scan / POST /api/scan/clear ──────────────────────────────
     server.on("/api/scan", HTTP_GET, [](AsyncWebServerRequest* req) {
         req->send(200, "application/json", scanJson());
     });
-
-    // ── POST /api/scan/clear ───────────────────────────────────────────────
     server.on("/api/scan/clear", HTTP_POST, [](AsyncWebServerRequest* req) {
-        scanMacCount = 0;
-        req->send(200, "application/json", R"({"ok":true})");
+        scanMacCount = 0; req->send(200,"application/json",R"({"ok":true})");
     });
 
     // ── GET /api/status ────────────────────────────────────────────────────
     server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* req) {
         JsonDocument doc;
-        doc["raceRunning"] = raceRunning;
-        doc["raceStartMs"] = raceStartMs;
-        doc["lapCount"]    = lapCount;
+        doc["raceRunning"] = raceRunning; doc["raceStartMs"] = raceStartMs;
+        doc["lapCount"]    = lapCount;    doc["rosterCount"]  = rosterCount;
         doc["uptime"]      = millis();
-        String s; serializeJson(doc, s);
-        req->send(200, "application/json", s);
+        String s; serializeJson(doc,s); req->send(200,"application/json",s);
     });
 
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
     server.begin();
-    Serial.println("[Web] HTTP server started");
+    Serial.printf("[Web] HTTP started  roster=%d/%d  active=%d,%d,%d,%d\n",
+                  rosterCount, MAX_REGISTERED,
+                  activePilots[0], activePilots[1], activePilots[2], activePilots[3]);
 
     delay(500);
     sendAllPilots();
     sendAllThresholds();
-    Serial.println("[Web] Boot sync: sent pilots + thresholds to Gate Node");
 }
 
 // ── Loop ───────────────────────────────────────────────────────────────────
 static String uartBuf;
-
 void loop() {
     ws.cleanupClients();
-
     while (Serial1.available()) {
         char c = (char)Serial1.read();
         if (c == '\n') {
