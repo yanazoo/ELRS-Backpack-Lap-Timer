@@ -7,20 +7,29 @@
  *   - EMA filter + RotorHazard-style state machine for gate-crossing detection
  *   - Per-pilot runtime-configurable Enter/Exit RSSI thresholds
  *   - Only processes packets from pre-registered UIDs (set via set_pilot command)
+ *   - SD card logging: race CSV files + pilot backup/restore
  *
  * UART protocol — Gate→Web (1 JSON line per event):
- *   {"type":"lap",   "pilot":0,"uid":"AA:BB","rssi":-72,"ts":123456}
- *   {"type":"rssi",  "pilot":0,"rssi":-85,"raw":-87,"crossing":false,"ts":123460}
- *   {"type":"ready", "pilots":4}          — sent on boot
+ *   {"type":"lap",    "pilot":0,"uid":"AA:BB","rssi":-72,"ts":123456}
+ *   {"type":"rssi",   "pilot":0,"rssi":-85,"raw":-87,"crossing":false,"ts":123460}
+ *   {"type":"ready",  "pilots":4}             — sent on boot
+ *   {"type":"sd_status","present":true/false} — sent on boot after SD init
+ *   {"type":"sd_pilot_row",<pilot fields>}    — sent per line during restore
+ *   {"type":"sd_restore_done"}               — sent after all restore rows sent
  *
  * UART protocol — Web→Gate (sync commands):
  *   {"type":"cmd","action":"race_start"}
  *   {"type":"cmd","action":"set_pilot","pilot":0,"uid":"AA:BB:CC:DD:EE:FF"}
  *   {"type":"cmd","action":"set_threshold","pilot":0,"enter":-80,"exit":-90}
+ *   {"type":"cmd","action":"sd_begin_backup"}
+ *   {"type":"cmd","action":"sd_backup_row","name":"...","yomi":"...","mac":"...","enter":-80,"exit":-90}
+ *   {"type":"cmd","action":"sd_end_backup"}
+ *   {"type":"cmd","action":"sd_restore_request"}
  *
  * Wiring
  *   ESP32-WROVER-E GPIO26 (TX1) → XIAO ESP32-S3 GPIO3  (D2/RX1)
  *   ESP32-WROVER-E GPIO25 (RX1) ← XIAO ESP32-S3 GPIO2  (D1/TX1)
+ *   SD card (SPI mode): CS=5, MOSI=23, MISO=19, SCK=18
  *   Common GND
  */
 
@@ -29,12 +38,20 @@
 #include <freertos/queue.h>
 #include <esp_wifi.h>
 #include <ArduinoJson.h>
+#include <SD.h>
+#include <SPI.h>
 
 // ── Pins & UART ────────────────────────────────────────────────────────────
 #define WEB_NODE_TX_PIN   26
 #define WEB_NODE_RX_PIN   25
 #define DEBUG_BAUD        115200
 #define UART_BAUD         115200
+
+// ── SD SPI Pins ────────────────────────────────────────────────────────────
+#define SD_CS_PIN    5
+#define SD_MOSI_PIN  23
+#define SD_MISO_PIN  19
+#define SD_SCK_PIN   18
 
 // ── WiFi channel ───────────────────────────────────────────────────────────
 // Aircraft node (XIAO ESP32-C3) broadcasts ESP-NOW on ch1.
@@ -151,6 +168,58 @@ static void reportScanMac(const uint8_t* mac, int8_t rssi) {
     Serial.printf("[Gate] SCAN %s rssi=%d\n", macStr, (int)rssi);
 }
 
+// ── SD card state ──────────────────────────────────────────────────────────
+static bool     sdPresent    = false;
+static File     raceFile;            // open during a race for CSV append
+static int      raceFileNum  = 0;    // auto-incrementing race file number
+static File     backupFile;          // open during pilot backup write
+
+// ── SD: find next race file number (race_001.csv, race_002.csv, …) ─────────
+static int findNextRaceNum() {
+    int n = 1;
+    char path[32];
+    while (n < 1000) {
+        snprintf(path, sizeof(path), "/race_%03d.csv", n);
+        if (!SD.exists(path)) break;
+        n++;
+    }
+    return n;
+}
+
+// ── SD: open a new race CSV file and write the header row ──────────────────
+static void sdBeginRace() {
+    if (!sdPresent) return;
+    raceFileNum = findNextRaceNum();
+    char path[32];
+    snprintf(path, sizeof(path), "/race_%03d.csv", raceFileNum);
+    raceFile = SD.open(path, FILE_WRITE);
+    if (raceFile) {
+        raceFile.println("Slot,UID,RSSI_dBm,Timestamp_ms");
+        raceFile.flush();
+        Serial.printf("[Gate] SD race file opened: %s\n", path);
+    } else {
+        Serial.printf("[Gate] SD race file open FAILED: %s\n", path);
+    }
+}
+
+// ── SD: append a lap row to the open race CSV ─────────────────────────────
+static void sdWriteLap(int slotIdx) {
+    if (!sdPresent || !raceFile) return;
+    char macStr[18];
+    macToStr(pilots[slotIdx].uid, macStr);
+    raceFile.printf("%d,%s,%d,%lu\n",
+                    slotIdx, macStr,
+                    pilots[slotIdx].peakRssi,
+                    (unsigned long)pilots[slotIdx].peakTime);
+    raceFile.flush();
+}
+
+// ── SD: close race CSV on stop / new race ─────────────────────────────────
+static void sdEndRace() {
+    if (raceFile) { raceFile.close(); Serial.println("[Gate] SD race file closed"); }
+}
+
+// ── UART helpers ───────────────────────────────────────────────────────────
 static void sendLap(int idx) {
     char macStr[18];
     macToStr(pilots[idx].uid, macStr);
@@ -163,6 +232,9 @@ static void sendLap(int idx) {
     serializeJson(doc, Serial1);
     Serial1.print('\n');
     Serial.printf("[Gate] LAP  pilot=%d  rssi=%d\n", idx, pilots[idx].peakRssi);
+
+    // Also append to the open race CSV on SD
+    sdWriteLap(idx);
 }
 
 static void sendRssi(int idx, uint32_t now) {
@@ -193,6 +265,37 @@ static void resetPilots() {
     Serial.println("[Gate] Pilot state reset");
 }
 
+// ── SD: restore — read /pilots.json and send each line as sd_pilot_row ─────
+static void sdHandleRestore() {
+    if (!sdPresent) {
+        Serial1.println(R"({"type":"sd_restore_done"})");
+        return;
+    }
+    File f = SD.open("/pilots.json", FILE_READ);
+    if (!f) {
+        Serial.println("[Gate] SD restore: /pilots.json not found");
+        Serial1.println(R"({"type":"sd_restore_done"})");
+        return;
+    }
+    Serial.println("[Gate] SD restore: reading /pilots.json");
+    while (f.available()) {
+        String line = f.readStringUntil('\n');
+        line.trim();
+        if (!line.length()) continue;
+        // Wrap in a sd_pilot_row envelope and forward to web node
+        // Re-parse and re-emit so we can set the type field correctly
+        JsonDocument row;
+        if (deserializeJson(row, line) == DeserializationError::Ok) {
+            row["type"] = "sd_pilot_row";
+            serializeJson(row, Serial1);
+            Serial1.print('\n');
+        }
+    }
+    f.close();
+    Serial1.println(R"({"type":"sd_restore_done"})");
+    Serial.println("[Gate] SD restore done");
+}
+
 // ── Handle commands from Web Node ──────────────────────────────────────────
 static void processWebCmd(const String& line) {
     JsonDocument doc;
@@ -203,7 +306,9 @@ static void processWebCmd(const String& line) {
     const char* action = doc["action"] | "";
 
     if (strcmp(action, "race_start") == 0) {
+        sdEndRace();   // close any previously open race file
         resetPilots();
+        sdBeginRace(); // open new race file on SD
 
     } else if (strcmp(action, "set_pilot") == 0) {
         int idx = doc["pilot"] | -1;
@@ -227,6 +332,33 @@ static void processWebCmd(const String& line) {
         pilots[idx].exitThreshold  = doc["exit"]  | DEFAULT_EXIT_THR;
         Serial.printf("[Gate] Threshold p%d: enter=%d exit=%d\n",
                       idx, pilots[idx].entryThreshold, pilots[idx].exitThreshold);
+
+    } else if (strcmp(action, "sd_begin_backup") == 0) {
+        // Open (overwrite) /pilots.json for writing
+        if (!sdPresent) { Serial.println("[Gate] SD backup: no SD"); return; }
+        backupFile = SD.open("/pilots.json", FILE_WRITE);
+        if (backupFile) Serial.println("[Gate] SD backup: /pilots.json opened");
+        else            Serial.println("[Gate] SD backup: open failed");
+
+    } else if (strcmp(action, "sd_backup_row") == 0) {
+        // Append one pilot JSON line to /pilots.json
+        if (!backupFile) return;
+        // Build a clean object with only the pilot fields
+        JsonDocument row;
+        row["name"]  = doc["name"]  | "";
+        row["yomi"]  = doc["yomi"]  | "";
+        row["mac"]   = doc["mac"]   | "";
+        row["enter"] = doc["enter"] | DEFAULT_ENTRY_THR;
+        row["exit"]  = doc["exit"]  | DEFAULT_EXIT_THR;
+        serializeJson(row, backupFile);
+        backupFile.println();
+        backupFile.flush();
+
+    } else if (strcmp(action, "sd_end_backup") == 0) {
+        if (backupFile) { backupFile.close(); Serial.println("[Gate] SD backup: done"); }
+
+    } else if (strcmp(action, "sd_restore_request") == 0) {
+        sdHandleRestore();
     }
 }
 
@@ -245,6 +377,22 @@ void setup() {
     initPilots();
     packetQueue = xQueueCreate(64, sizeof(PacketInfo));
 
+    // ── SD card initialisation (SPI mode) ─────────────────────────────────
+    SPI.begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
+    if (SD.begin(SD_CS_PIN)) {
+        sdPresent = true;
+        Serial.println("[Gate] SD card OK");
+    } else {
+        sdPresent = false;
+        Serial.println("[Gate] SD card not found");
+    }
+    // Inform web node of SD status immediately after Serial1 is ready
+    char sdBuf[48];
+    snprintf(sdBuf, sizeof(sdBuf), R"({"type":"sd_status","present":%s})",
+             sdPresent ? "true" : "false");
+    Serial1.println(sdBuf);
+
+    // ── WiFi promiscuous setup ─────────────────────────────────────────────
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_wifi_init(&cfg);
     esp_wifi_set_storage(WIFI_STORAGE_RAM);
@@ -290,7 +438,7 @@ void loop() {
             if (webCmdBuf.length()) { processWebCmd(webCmdBuf); webCmdBuf = ""; }
         } else if (c != '\r') {
             webCmdBuf += c;
-            if (webCmdBuf.length() > 256) webCmdBuf = "";
+            if (webCmdBuf.length() > 512) webCmdBuf = "";
         }
     }
 
