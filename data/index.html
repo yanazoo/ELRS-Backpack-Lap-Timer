@@ -50,13 +50,6 @@ button:not(:disabled):hover{filter:brightness(1.15)}
 .lap-count-row{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;flex-wrap:wrap;justify-content:center}
 .lap-count-row input[type="number"]{width:56px;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:4px 6px;text-align:center;font-size:14px}
 
-/* ── Pilot select grid ── */
-.pilot-select-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%}
-.slot-select-card{background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:8px 10px}
-.slot-label{font-size:11px;font-weight:700;margin-bottom:4px}
-.slot-label.p0{color:var(--p0)}.slot-label.p1{color:var(--p1)}.slot-label.p2{color:var(--p2)}.slot-label.p3{color:var(--p3)}
-.slot-select-card select{width:100%;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:5px;padding:4px 5px;font-size:12px}
-
 /* ── Pilot race grid ── */
 .pilot-race-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .pilot-race-card{background:var(--sf);border:1px solid var(--bd);border-radius:8px;overflow:hidden}
@@ -100,14 +93,18 @@ button:not(:disabled):hover{filter:brightness(1.15)}
 .roster-item:last-child{border-bottom:none}
 .roster-item:hover{background:var(--sf2)}
 .roster-name{font-weight:600;font-size:13px;flex:1;min-width:80px}
+.roster-yomi{font-size:10px;color:var(--muted);display:block;font-weight:normal}
 .roster-mac{font-family:monospace;font-size:11px;color:var(--muted);min-width:120px}
 .active-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;white-space:nowrap}
 .active-badge.p0{background:var(--p0-bg);color:var(--p0);border:1px solid var(--p0)}
 .active-badge.p1{background:var(--p1-bg);color:var(--p1);border:1px solid var(--p1)}
 .active-badge.p2{background:var(--p2-bg);color:var(--p2);border:1px solid var(--p2)}
 .active-badge.p3{background:var(--p3-bg);color:var(--p3);border:1px solid var(--p3)}
-.roster-actions{display:flex;gap:4px;flex-shrink:0}
+.online-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(63,185,80,.15);color:var(--ok);border:1px solid var(--ok);white-space:nowrap}
+.roster-actions{display:flex;gap:4px;flex-shrink:0;align-items:center}
 .roster-item input[type="text"]{background:var(--bg);border:1px solid var(--accent);color:var(--tx);border-radius:5px;padding:3px 7px;font-size:12px}
+/* Per-pilot channel dropdown in roster */
+.ch-select{background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:5px;padding:3px 5px;font-size:11px;cursor:pointer}
 
 /* ── Calib ── */
 .calib-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
@@ -121,30 +118,33 @@ button:not(:disabled):hover{filter:brightness(1.15)}
 .rssi-live-badge strong{font-weight:700}
 .calib-card canvas{width:100%;height:130px;display:block;background:var(--bg)}
 .calib-sliders{padding:8px 12px;display:flex;flex-direction:column;gap:8px}
-.calib-card .btn-save{margin:0 12px 10px;width:calc(100% - 24px)}
-.config-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.config-row label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;width:110px;flex-shrink:0}
-.slider-num{display:flex;align-items:center;gap:6px;flex:1}
-.slider-num input[type="range"]{flex:1;accent-color:var(--accent);cursor:pointer}
-.slider-num input[type="number"]{width:58px;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:4px 5px;font-size:13px;text-align:center}
+
+/* Item 4: calib layout overflow fix */
+.config-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:nowrap}
+.config-row label{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px;width:70px;flex-shrink:0}
+.slider-num{display:flex;align-items:center;gap:4px;flex:1;min-width:0}
+.slider-num input[type="range"]{flex:1;min-width:50px;accent-color:var(--accent);cursor:pointer}
+.slider-num input[type="number"]{width:50px;flex-shrink:0;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:4px 3px;font-size:12px;text-align:center}
 .slider-num input[type="number"]:focus{outline:none;border-color:var(--accent)}
-.unit{font-size:11px;color:var(--muted);flex-shrink:0}
+.unit{font-size:10px;color:var(--muted);flex-shrink:0}
 
 /* ── Global config ── */
 .global-config-card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:12px}
 .global-title{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
 .voice-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 
+/* Global settings config-row label override (wider) */
+.global-config-card .config-row label{width:110px;font-size:10px}
+
 /* ── Footer / Toast ── */
 footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;padding:10px;font-size:12px;color:var(--muted)}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px 20px;font-size:13px;z-index:1000;transition:transform .3s;pointer-events:none;white-space:nowrap}
 .toast.show{transform:translateX(-50%) translateY(0)}
 
-@media(max-width:900px){.pilot-race-grid{grid-template-columns:1fr 1fr}.calib-grid{grid-template-columns:1fr 1fr}.pilot-select-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.pilot-race-grid{grid-template-columns:1fr 1fr}.calib-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){
   .header-inner{flex-direction:column;gap:6px;align-items:flex-start}
   .pilot-race-grid{grid-template-columns:1fr 1fr}.calib-grid{grid-template-columns:1fr 1fr}
-  .pilot-select-grid{grid-template-columns:1fr 1fr}
   #timer{font-size:32px}
 }
 </style>
@@ -170,14 +170,7 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
 <!-- ═══════════════════════════ RACE ═══════════════════════════ -->
 <section id="pane-race" class="tab-pane active">
 
-  <!-- パイロット選択 -->
-  <div class="card" id="pilotSelectCard">
-    <div class="card-title">🏎 レースパイロット選択（最大4人）</div>
-    <div class="pilot-select-grid" id="pilotSelectGrid"></div>
-    <button onclick="saveActiveSelection()" class="btn-save" style="margin-top:10px">✅ パイロット確定</button>
-  </div>
-
-  <!-- レース制御 -->
+  <!-- レース制御 (Item 2: パイロット選択カードを削除) -->
   <div class="race-controls">
     <div id="timer">00:00</div>
     <div class="race-buttons">
@@ -194,6 +187,7 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
     </div>
   </div>
 
+  <!-- 4チャンネル レースカード (パイロットはConfig画面のドロップダウンで割当) -->
   <div class="pilot-race-grid" id="pilotGrid"></div>
 </section>
 
@@ -201,28 +195,29 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
 <section id="pane-config" class="tab-pane">
   <h2 class="section-title">設定</h2>
 
-  <!-- スキャン -->
+  <!-- 機体スキャン -->
   <div class="global-config-card">
     <h3 class="global-title">📡 機体スキャン</h3>
-    <p class="section-desc">機体（XIAO ESP32-C3）の電源を入れると自動検出されます。名前を入力してロースターに登録してください。</p>
+    <p class="section-desc">機体（XIAO ESP32-C3）の電源を入れると自動検出されます。名前を入力してパイロット情報に登録してください。</p>
     <div id="scanList" style="min-height:32px"><span style="color:var(--muted);font-size:12px">スキャン待機中... 機体の電源を入れてください</span></div>
     <button onclick="clearScan()" class="btn-secondary" style="width:100%;margin-top:8px;font-size:12px">スキャンリストをクリア</button>
   </div>
 
-  <!-- ロースター -->
+  <!-- パイロット情報 (Item 12: ロースター→パイロット情報) -->
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="card-title" style="margin:0">👥 パイロットロースター <span id="rosterCountBadge" style="color:var(--muted);font-weight:normal"></span></div>
+      <div class="card-title" style="margin:0">👥 パイロット情報 <span id="rosterCountBadge" style="color:var(--muted);font-weight:normal"></span></div>
       <button onclick="showAddForm()" class="btn-success" style="font-size:12px;padding:5px 12px">＋ 追加</button>
     </div>
     <div class="search-row">
       <input type="text" class="search-input" id="searchInput" placeholder="🔍 名前・MACで検索..." oninput="renderRoster()">
     </div>
-    <!-- Add form (hidden by default) -->
+    <!-- 新規パイロット追加フォーム -->
     <div id="addForm" style="display:none;background:var(--sf2);border:1px solid var(--accent);border-radius:8px;padding:10px 12px;margin-bottom:10px">
       <div style="font-size:12px;color:var(--accent);font-weight:600;margin-bottom:8px">新規パイロット追加</div>
-      <div class="config-row"><label>名前</label><input type="text" id="addName" placeholder="パイロット名" maxlength="20" autocomplete="off" style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"></div>
-      <div class="config-row"><label>機体 MAC</label><input type="text" id="addMac" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" autocomplete="off" style="flex:1;font-family:monospace;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"></div>
+      <div class="config-row" style="gap:8px"><label style="width:70px;font-size:11px">名前</label><input type="text" id="addName" placeholder="パイロット名" maxlength="20" autocomplete="off" style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"></div>
+      <div class="config-row" style="gap:8px"><label style="width:70px;font-size:11px">読み方</label><input type="text" id="addYomi" placeholder="パイロット名のよみかた" maxlength="20" autocomplete="off" style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"></div>
+      <div class="config-row" style="gap:8px"><label style="width:70px;font-size:11px">機体 MAC</label><input type="text" id="addMac" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" autocomplete="off" style="flex:1;font-family:monospace;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"></div>
       <div style="display:flex;gap:8px;margin-top:4px">
         <button onclick="submitAdd()" class="btn-success" style="flex:1;font-size:12px">登録</button>
         <button onclick="hideAddForm()" class="btn-secondary" style="flex:1;font-size:12px">キャンセル</button>
@@ -231,13 +226,13 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
     <div class="roster-list" id="rosterList"></div>
   </div>
 
-  <!-- グローバル設定 -->
+  <!-- グローバル設定 (Item 10: 保存ボタン削除、changeで自動保存) -->
   <div class="global-config-card">
     <h3 class="global-title">グローバル設定</h3>
     <div style="padding:0">
       <div class="config-row">
         <label>アナウンス</label>
-        <select id="announceMode" style="flex:1;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:6px 8px;font-size:13px">
+        <select id="announceMode" onchange="saveGlobalConfig()" style="flex:1;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:6px 8px;font-size:13px">
           <option value="laptime">名前＆ラップタイム</option>
           <option value="lap_laptime">名前＆周回数＆ラップタイム</option>
           <option value="beep">ビープ音のみ</option>
@@ -248,9 +243,9 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
         <label>読み上げ速度</label>
         <div class="slider-num">
           <input type="range" id="speechRate" min="0.5" max="2.0" step="0.1" value="1.1"
-            oninput="document.getElementById('speechRateN').value=this.value">
+            oninput="document.getElementById('speechRateN').value=this.value;saveGlobalConfig()">
           <input type="number" id="speechRateN" min="0.5" max="2.0" step="0.1" value="1.1"
-            onchange="document.getElementById('speechRate').value=Math.min(2,Math.max(0.5,+this.value))">
+            onchange="document.getElementById('speechRate').value=Math.min(2,Math.max(0.5,+this.value));saveGlobalConfig()">
         </div>
       </div>
     </div>
@@ -258,7 +253,16 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
       <button id="voiceBtn2" onclick="toggleVoice()" class="btn-voice on">🔊 音声 ON</button>
       <button onclick="testVoice()" class="btn-secondary">🔊 テスト</button>
     </div>
-    <button onclick="saveGlobalConfig()" class="btn-save">💾 グローバル設定を保存</button>
+  </div>
+
+  <!-- SDカードセクション (Item 7: sdPresent=trueの時のみ表示) -->
+  <div class="global-config-card" id="sdSection" style="display:none">
+    <h3 class="global-title">💾 SDカード</h3>
+    <p class="section-desc">パイロット情報をSDカードにバックアップ・復元します。</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="sdBackup()" class="btn-secondary" style="flex:1">📥 SDバックアップ保存</button>
+      <button onclick="sdRestore()" class="btn-secondary" style="flex:1">📤 SDから復元</button>
+    </div>
   </div>
 </section>
 
@@ -277,32 +281,39 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
 'use strict';
 
 // ═══════════════════════════════════════════════════════════════════
-// Constants & state
+// 定数・グローバル状態
 // ═══════════════════════════════════════════════════════════════════
 const PCOLORS = ['var(--p0)','var(--p1)','var(--p2)','var(--p3)'];
 const PCLS    = ['p0','p1','p2','p3'];
-const N = 4, DB_MIN = -120, DB_MAX = -40;
+const N = 4;
 
-// Race slot state (indexed by slot 0-3)
+// レーススロット状態 (インデックス = チャンネル 0-3)
 const slots = Array.from({length:N}, (_,i) => ({
-  id:i, name:'---', rosterIdx:-1, rssi:-120, crossing:false,
+  id:i, name:'---', yomi:'', rosterIdx:-1, rssi:-120, crossing:false,
   lapCount:0, bestLapMs:0, lapTimes:[], cumulative:0,
   enterRssi:-80, exitRssi:-90
 }));
 
-// Roster: all registered pilots (loaded from /api/pilots)
-var rosterData = [];              // [{id,name,uid,activeSlot,enter,exit}]
-var activeSlotsLocal = [-1,-1,-1,-1]; // current race selection (roster indices)
+// ロースターデータ (サーバーから取得)
+var rosterData = [];   // [{id,name,yomi,uid,activeSlot,enter,exit}]
+var activeSlotsLocal = [-1,-1,-1,-1]; // 現在のスロット割当 (roster indices)
 
 var raceRunning=false, raceStartPerf=0, timerH=null;
 var voiceEnabled = localStorage.getItem('voice')!=='0';
 var announceMode = localStorage.getItem('announce')||'laptime';
 var speechRate   = parseFloat(localStorage.getItem('srate')||'1.1');
-var scanResults  = {};  // mac → {rssi,ts,assignedRosterId,pilotName}
-var editingRosterId = null;
+
+// スキャン結果: mac → {rssi, ts, assignedRosterId, pilotName, inputName, receivedAt}
+var scanResults  = {};
+
+var editingRosterId = null;  // ロースター編集中の pilot id (null=非編集)
+var sdPresent = false;       // SDカードの有無 (gate_nodeから報告)
+
+// キャリブ自動保存のデバウンスタイマー
+var calibSaveTimers = {};
 
 // ═══════════════════════════════════════════════════════════════════
-// Toast
+// トースト通知
 // ═══════════════════════════════════════════════════════════════════
 function toast(msg, dur) {
   dur=dur||2000;
@@ -312,7 +323,7 @@ function toast(msg, dur) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Audio
+// 音声・効果音
 // ═══════════════════════════════════════════════════════════════════
 var actx=null;
 function ensureAudio(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();}
@@ -325,7 +336,7 @@ var sfx={
 };
 
 // ═══════════════════════════════════════════════════════════════════
-// Voice (always announces pilot name)
+// 音声読み上げ (Item 13: yomiフィールドを使用)
 // ═══════════════════════════════════════════════════════════════════
 var speechQ=[],speechBusy=false;
 function speak(text){
@@ -343,12 +354,15 @@ function nextSpeech(){
   u.onerror=()=>{clearTimeout(timeout);speechBusy=false;nextSpeech();};
   speechSynthesis.speak(u);
 }
-function buildSpeech(pilotName, lapCount, lapMs) {
+// パイロットの読み上げ名: yomiがあればyomiを使用、なければname
+function getSpokenName(p){return (p.yomi&&p.yomi!=='')?p.yomi:p.name;}
+function buildSpeech(p, lapCount, lapMs) {
+  var spokenName=getSpokenName(p);
   var s=Math.floor(lapMs/1000),ms=Math.floor((lapMs%1000)/100);
   var m=Math.floor(s/60);s=s%60;
   var tStr=m>0?m+'分'+s+'秒'+ms:s+'秒'+ms;
-  if(announceMode==='lap_laptime') return pilotName+'、'+lapCount+'周、'+tStr;
-  return pilotName+'、'+tStr;
+  if(announceMode==='lap_laptime') return spokenName+'、'+lapCount+'周、'+tStr;
+  return spokenName+'、'+tStr;
 }
 function testVoice(){
   ensureAudio();sfx.lap();
@@ -363,24 +377,27 @@ function refreshVoiceBtns(){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Formatting
+// フォーマット関数
 // ═══════════════════════════════════════════════════════════════════
 function pad(n,w){return String(n).padStart(w,'0')}
 function fmt(ms){if(!ms)return'--:--.---';var m=Math.floor(ms/60000),s=Math.floor((ms%60000)/1000),f=ms%1000;return m+':'+pad(s,2)+'.'+pad(f,3);}
 function fmtTimer(ms){var h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000),s=Math.floor((ms%60000)/1000);if(h>0)return pad(h,2)+':'+pad(m,2)+':'+pad(s,2);return pad(m,2)+':'+pad(s,2);}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function dbPct(db){return Math.max(0,Math.min(100,((db-DB_MIN)/(DB_MAX-DB_MIN))*100));}
+function dbPct(db){
+  // RSSI棒グラフ用 (-120〜-40の範囲で0-100%)
+  return Math.max(0,Math.min(100,((db-(-120))/((-40)-(-120)))*100));
+}
 function fmtDelta(ms){return(ms>0?'+':'')+(ms/1000).toFixed(3)+'s';}
 
 // ═══════════════════════════════════════════════════════════════════
-// Race timer
+// レースタイマー
 // ═══════════════════════════════════════════════════════════════════
 var timerEl=document.getElementById('timer');
 function startTimer(){raceStartPerf=performance.now();timerEl.classList.add('running');timerH=setInterval(()=>{timerEl.textContent=fmtTimer(performance.now()-raceStartPerf);},500);}
 function stopTimer(){clearInterval(timerH);timerH=null;timerEl.classList.remove('running');}
 
 // ═══════════════════════════════════════════════════════════════════
-// Race pilot grid
+// レースパイロットカード (Item 2: 選択UIなし — 割当はConfig画面)
 // ═══════════════════════════════════════════════════════════════════
 function buildRaceCards(){
   var g=document.getElementById('pilotGrid');g.innerHTML='';
@@ -389,7 +406,7 @@ function buildRaceCards(){
     d.id='rc-'+p.id;d.className='pilot-race-card';
     d.innerHTML=
       '<div class="pilot-card-header '+PCLS[p.id]+'">'
-        +'<span class="p-name" id="rcName'+p.id+'">'+esc(p.name)+'</span>'
+        +'<span class="p-name" id="rcName'+p.id+'">'+esc(p.name==='---'?'Ch'+(p.id+1):p.name)+'</span>'
         +'<span class="crossing-badge" id="rcBadge'+p.id+'">CROSSING</span>'
         +'<span class="p-lapcount" id="rcLaps'+p.id+'"></span>'
       +'</div>'
@@ -413,7 +430,7 @@ function buildRaceCards(){
 
 function updateRaceCard(p){
   var $=id=>document.getElementById(id);
-  $('rcName'+p.id).textContent=p.name==='---'?'P'+(p.id+1):esc(p.name);
+  $('rcName'+p.id).textContent=p.name==='---'?'Ch'+(p.id+1):p.name;
   $('rcLaps'+p.id).textContent=p.lapCount?p.lapCount+'周':'';
   $('rssiBar'+p.id).style.width=dbPct(p.rssi)+'%';
   $('rssiVal'+p.id).textContent=p.rssi+' dBm';
@@ -439,59 +456,31 @@ function addLapRow(p, lapMs, cumMs){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Pilot selection (Race tab)
+// スロット→ロースター同期
 // ═══════════════════════════════════════════════════════════════════
-function buildPilotSelectGrid(){
-  var g=document.getElementById('pilotSelectGrid');g.innerHTML='';
-  for(var s=0;s<N;s++){
-    var d=document.createElement('div');d.className='slot-select-card';
-    var opts='<option value="-1">── 未選択 ──</option>';
-    rosterData.forEach(function(r){
-      var sel=(activeSlotsLocal[s]===r.id)?' selected':'';
-      opts+='<option value="'+r.id+'"'+sel+'>'+esc(r.name)+'</option>';
-    });
-    d.innerHTML='<div class="slot-label '+PCLS[s]+'">P'+(s+1)+'</div>'
-      +'<select id="slotSel'+s+'">'+opts+'</select>';
-    g.appendChild(d);
-  }
-}
-
-async function saveActiveSelection(){
-  var newSlots=[];
-  for(var s=0;s<N;s++){
-    var el=document.getElementById('slotSel'+s);
-    newSlots.push(el?parseInt(el.value):-1);
-  }
-  // Check for duplicates
-  var used={};
-  for(var i=0;i<N;i++){if(newSlots[i]>=0){if(used[newSlots[i]]){toast('⚠️ 同じパイロットを複数スロットに設定できません');return;}used[newSlots[i]]=true;}}
-  try{
-    var r=await fetch('/api/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slots:newSlots})});
-    if(r.ok){
-      activeSlotsLocal=newSlots;
-      applyActiveToSlots();
-      buildRaceCards();
-      buildCalibCards();
-      toast('✅ パイロット確定');
-    }else toast('⚠️ 保存エラー');
-  }catch(e){toast('⚠️ 接続エラー');}
-}
-
 function applyActiveToSlots(){
   for(var s=0;s<N;s++){
     var ri=activeSlotsLocal[s];
     var r=rosterData.find(x=>x.id===ri);
     slots[s].rosterIdx=ri;
     slots[s].name=r?r.name:'---';
+    slots[s].yomi=r?r.yomi:'';
     slots[s].enterRssi=r?r.enter:-80;
     slots[s].exitRssi =r?r.exit :-90;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Roster management
+// パイロット情報 (ロースター) — Item 2: チャンネル割当ドロップダウン付き
 // ═══════════════════════════════════════════════════════════════════
 function renderRoster(){
+  // Item 9: 再描画前に入力中の名前を保存
+  Object.keys(scanResults).forEach(mac => {
+    var macId = mac.replace(/:/g, '');
+    var el = document.getElementById('scanName-' + macId);
+    if (el && el.value.trim()) scanResults[mac].inputName = el.value;
+  });
+
   var filter=(document.getElementById('searchInput').value||'').toLowerCase().trim();
   var list=document.getElementById('rosterList');
   var badge=document.getElementById('rosterCountBadge');
@@ -500,6 +489,15 @@ function renderRoster(){
   var filtered=rosterData.filter(function(r){
     if(!filter)return true;
     return r.name.toLowerCase().includes(filter)||(r.uid||'').toLowerCase().includes(filter);
+  });
+
+  // Item 8: オンラインのパイロットを先頭に並べ替え
+  var now=Date.now();
+  filtered.sort(function(a,b){
+    var aOn=isOnline(a.uid,now),bOn=isOnline(b.uid,now);
+    if(aOn&&!bOn)return -1;
+    if(!aOn&&bOn)return 1;
+    return a.id-b.id;
   });
 
   if(!filtered.length){
@@ -511,24 +509,43 @@ function renderRoster(){
   filtered.forEach(function(r){
     var isEditing=(editingRosterId===r.id);
     var item=document.createElement('div');item.className='roster-item';item.id='ri-'+r.id;
+    var onlineMark=isOnline(r.uid,now)?'<span class="online-badge">📶 オンライン</span>':'';
 
+    // アクティブバッジ
     var activeBadge='';
-    if(r.activeSlot>=0)activeBadge='<span class="active-badge '+PCLS[r.activeSlot]+'">P'+(r.activeSlot+1)+'</span>';
+    if(r.activeSlot>=0)activeBadge='<span class="active-badge '+PCLS[r.activeSlot]+'">Ch'+(r.activeSlot+1)+'</span>';
 
     if(isEditing){
+      // Item 11: 編集フォーム (保存後にリスト表示に戻る)
       item.innerHTML=
-        '<input type="text" id="editName" value="'+esc(r.name)+'" maxlength="20" style="flex:1;min-width:80px" autocomplete="off">'
-        +'<input type="text" id="editMac" value="'+esc(r.uid||'')+'" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" style="width:140px;font-family:monospace" autocomplete="off">'
+        '<div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px">'
+          +'<input type="text" id="editName" value="'+esc(r.name)+'" maxlength="20" placeholder="パイロット名" autocomplete="off" style="background:var(--bg);border:1px solid var(--accent);color:var(--tx);border-radius:5px;padding:3px 7px;font-size:12px;width:100%">'
+          +'<input type="text" id="editYomi" value="'+esc(r.yomi||'')+'" maxlength="20" placeholder="読み方（よみかた）" autocomplete="off" style="background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:5px;padding:3px 7px;font-size:11px;width:100%">'
+        +'</div>'
+        +'<input type="text" id="editMac" value="'+esc(r.uid||'')+'" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" style="width:140px;font-family:monospace;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:5px;padding:3px 7px;font-size:12px" autocomplete="off">'
         +'<div class="roster-actions">'
           +'<button onclick="submitEdit('+r.id+')" class="btn-success" style="font-size:11px;padding:3px 9px">保存</button>'
           +'<button onclick="cancelEdit()" class="btn-secondary" style="font-size:11px;padding:3px 9px">×</button>'
         +'</div>';
     } else {
+      // チャンネル割当ドロップダウン (Item 2)
+      var chOpts='<option value="-1"'+(r.activeSlot<0?' selected':'')+'>未割当</option>';
+      for(var ch=0;ch<N;ch++){
+        var selAttr=(r.activeSlot===ch)?' selected':'';
+        chOpts+='<option value="'+ch+'"'+selAttr+'>Ch'+(ch+1)+'</option>';
+      }
+      var yomiLine=r.yomi?'<span class="roster-yomi">'+esc(r.yomi)+'</span>':'';
       item.innerHTML=
-        '<span class="roster-name">'+esc(r.name)+'</span>'
+        '<div style="flex:1;min-width:80px">'
+          +'<span class="roster-name">'+esc(r.name)+yomiLine+'</span>'
+        +'</div>'
         +'<span class="roster-mac">'+(r.uid||'<span style="color:var(--err)">MAC未設定</span>')+'</span>'
+        +onlineMark
         +activeBadge
         +'<div class="roster-actions">'
+          +'<select class="ch-select" data-rid="'+r.id+'" onchange="onChSelectChange(this)">'
+            +chOpts
+          +'</select>'
           +'<button onclick="startEdit('+r.id+')" class="btn-secondary" style="font-size:11px;padding:3px 8px">編集</button>'
           +'<button onclick="deleteRosterPilot('+r.id+')" class="btn-danger" style="font-size:11px;padding:3px 8px">削除</button>'
         +'</div>';
@@ -537,18 +554,60 @@ function renderRoster(){
   });
 }
 
+// Item 8: MACがスキャン結果に30秒以内に見えているか確認
+function isOnline(uid, now){
+  if(!uid)return false;
+  var sr=scanResults[uid.toUpperCase()]||scanResults[uid];
+  if(!sr)return false;
+  return sr.receivedAt && (now - sr.receivedAt < 30000);
+}
+
+// Item 2: チャンネルドロップダウン変更 → POST /api/active で即座に保存
+async function onChSelectChange(sel){
+  var rid=parseInt(sel.dataset.rid);
+  var newCh=parseInt(sel.value); // -1=未割当, 0-3=チャンネル
+  var newSlots=activeSlotsLocal.slice();
+
+  // 同じパイロットが既に別チャンネルに割り当てられていたら解除
+  for(var i=0;i<N;i++) if(newSlots[i]===rid) newSlots[i]=-1;
+
+  // 他のパイロットが対象チャンネルを使用していたら解除
+  if(newCh>=0){
+    for(var i=0;i<N;i++) if(newSlots[i]!==rid&&newSlots[i]===newSlots[newCh])newSlots[i]=-1;
+    newSlots[newCh]=rid;
+  }
+
+  try{
+    var r=await fetch('/api/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slots:newSlots})});
+    if(r.ok){
+      activeSlotsLocal=newSlots;
+      applyActiveToSlots();
+      buildRaceCards();
+      buildCalibCards();
+      await loadRoster(); // バッジを更新するため再描画
+      toast('✅ チャンネル割当を保存しました');
+    }else toast('⚠️ 保存エラー');
+  }catch(e){toast('⚠️ 接続エラー');}
+}
+
 function showAddForm(){document.getElementById('addForm').style.display='block';document.getElementById('addName').focus();}
-function hideAddForm(){document.getElementById('addForm').style.display='none';document.getElementById('addName').value='';document.getElementById('addMac').value='';}
+function hideAddForm(){
+  document.getElementById('addForm').style.display='none';
+  document.getElementById('addName').value='';
+  document.getElementById('addYomi').value='';
+  document.getElementById('addMac').value='';
+}
 
 async function submitAdd(){
   var name=document.getElementById('addName').value.trim();
+  var yomi=document.getElementById('addYomi').value.trim();
   var mac=document.getElementById('addMac').value.trim().toUpperCase();
   if(!name){toast('⚠️ 名前を入力してください');return;}
   var validMac=/^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(mac);
   if(mac&&!validMac){toast('⚠️ MAC形式: AA:BB:CC:DD:EE:FF');return;}
   try{
     var r=await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name,uid:validMac?mac:''})});
+      body:JSON.stringify({name,yomi,uid:validMac?mac:''})});
     if(r.ok){await loadRoster();hideAddForm();toast('✓ '+name+' を登録しました');}
     else toast('⚠️ 登録エラー');
   }catch(e){toast('⚠️ 接続エラー');}
@@ -557,17 +616,24 @@ async function submitAdd(){
 function startEdit(id){editingRosterId=id;renderRoster();setTimeout(()=>{var el=document.getElementById('editName');if(el)el.focus();},0);}
 function cancelEdit(){editingRosterId=null;renderRoster();}
 
+// Item 11: 保存後にリスト表示に戻る
 async function submitEdit(id){
   var name=document.getElementById('editName').value.trim();
+  var yomi=document.getElementById('editYomi').value.trim();
   var mac=document.getElementById('editMac').value.trim().toUpperCase();
   if(!name){toast('⚠️ 名前を入力してください');return;}
   var validMac=/^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(mac);
   if(mac&&!validMac){toast('⚠️ MAC形式: AA:BB:CC:DD:EE:FF');return;}
   try{
     var r=await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({id,name,uid:validMac?mac:''})});
-    if(r.ok){editingRosterId=null;await loadRoster();applyActiveToSlots();buildRaceCards();toast('✓ 更新しました');}
-    else toast('⚠️ 更新エラー');
+      body:JSON.stringify({id,name,yomi,uid:validMac?mac:''})});
+    if(r.ok){
+      editingRosterId=null;  // 編集モード終了 → リスト表示に戻る
+      await loadRoster();
+      applyActiveToSlots();
+      buildRaceCards();
+      toast('✓ 更新しました');
+    }else toast('⚠️ 更新エラー');
   }catch(e){toast('⚠️ 接続エラー');}
 }
 
@@ -576,15 +642,16 @@ async function deleteRosterPilot(id){
   if(!confirm((r?r.name:'このパイロット')+'を削除しますか？'))return;
   try{
     var res=await fetch('/api/pilots/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-    if(res.ok){await loadRoster();applyActiveToSlots();buildPilotSelectGrid();buildRaceCards();buildCalibCards();toast('削除しました');}
+    if(res.ok){await loadRoster();applyActiveToSlots();buildRaceCards();buildCalibCards();toast('削除しました');}
     else toast('⚠️ 削除エラー');
   }catch(e){toast('⚠️ 接続エラー');}
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Scan
+// スキャン (Item 8/9)
 // ═══════════════════════════════════════════════════════════════════
 function updateScanList(){
+  // Item 9: 再描画前に入力中テキストを保存済み (renderRoster内で実施)
   var el=document.getElementById('scanList');if(!el)return;
   var macs=Object.keys(scanResults);
   if(!macs.length){el.innerHTML='<span style="color:var(--muted);font-size:12px">スキャン待機中... 機体の電源を入れてください</span>';return;}
@@ -592,6 +659,8 @@ function updateScanList(){
     var s=scanResults[mac];
     var done=s.assignedRosterId!==undefined&&s.assignedRosterId>=0;
     var macId=mac.replace(/:/g,'');
+    // Item 9: 入力値を保持
+    var savedName=s.inputName||s.pilotName||'';
     return '<div id="scan-'+macId+'" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:8px">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
       +  '<span style="font-family:monospace;font-size:13px;color:var(--accent);flex:1">'+mac+'</span>'
@@ -599,10 +668,10 @@ function updateScanList(){
       +  (done?'<span style="color:var(--ok);font-size:11px;font-weight:700">✓ 登録済み</span>':'')
       +'</div>'
       +'<div style="display:flex;gap:6px;align-items:center">'
-      +  '<input type="text" id="scanName-'+macId+'" placeholder="パイロット名" maxlength="20" value="'+(s.pilotName||'')+'" autocomplete="off"'
+      +  '<input type="text" id="scanName-'+macId+'" placeholder="パイロット名" maxlength="20" value="'+esc(savedName)+'" autocomplete="off"'
       +    ' style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"'
       +    (done?' disabled':'')+' onkeydown="if(event.key===\'Enter\')registerScanPilot(\''+mac+'\')">'
-      +  '<button id="scanBtn-'+macId+'" onclick="registerScanPilot(\''+mac+'\')" class="btn-success" style="font-size:12px;padding:5px 12px;white-space:nowrap"'+(done?' disabled':'')+'>ロースターに追加</button>'
+      +  '<button id="scanBtn-'+macId+'" onclick="registerScanPilot(\''+mac+'\')" class="btn-success" style="font-size:12px;padding:5px 12px;white-space:nowrap"'+(done?' disabled':'')+'>パイロット情報に追加</button>'
       +'</div>'
       +'</div>';
   }).join('');
@@ -616,30 +685,51 @@ async function registerScanPilot(mac){
   if(!name){toast('⚠️ 名前を入力してください');return;}
   try{
     var r=await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name,uid:mac})});
+      body:JSON.stringify({name,yomi:'',uid:mac})});
     if(!r.ok){toast('⚠️ 登録エラー');return;}
     var body=await r.json();
     scanResults[mac].assignedRosterId=body.id;
     scanResults[mac].pilotName=name;
+    scanResults[mac].inputName='';
     await loadRoster();
     updateScanList();
-    toast('✓ '+name+' をロースターに追加しました');
+    toast('✓ '+name+' をパイロット情報に追加しました');
   }catch(e){toast('⚠️ 接続エラー');}
 }
 
 function clearScan(){scanResults={};updateScanList();fetch('/api/scan/clear',{method:'POST'}).catch(()=>{});}
 
 // ═══════════════════════════════════════════════════════════════════
-// Calibration (active pilots only)
+// SDカードバックアップ・復元 (Item 7)
+// ═══════════════════════════════════════════════════════════════════
+async function sdBackup(){
+  try{
+    var r=await fetch('/api/sd/pilots/backup',{method:'POST'});
+    if(r.ok)toast('✅ SDカードにバックアップしました');
+    else toast('⚠️ バックアップエラー: '+(await r.text()));
+  }catch(e){toast('⚠️ 接続エラー');}
+}
+async function sdRestore(){
+  if(!confirm('SDカードからパイロット情報を復元します。現在のデータは上書きされます。よろしいですか？'))return;
+  try{
+    var r=await fetch('/api/sd/pilots/restore',{method:'POST'});
+    if(r.ok)toast('📤 復元要求を送信しました。完了まで少々お待ちください…',4000);
+    else toast('⚠️ 復元エラー');
+  }catch(e){toast('⚠️ 接続エラー');}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// キャリブレーション (Item 1/5/10)
 // ═══════════════════════════════════════════════════════════════════
 var charts={};
+
 function buildCalibCards(){
   var g=document.getElementById('calibGrid');g.innerHTML='';
   slots.forEach(function(p){
     var d=document.createElement('div');d.className='calib-card';
     d.innerHTML=
       '<div class="calib-header '+PCLS[p.id]+'">'
-        +'<span id="calName'+p.id+'">'+esc(p.name==='---'?'P'+(p.id+1):p.name)+'</span>'
+        +'<span id="calName'+p.id+'">'+esc(p.name==='---'?'Ch'+(p.id+1):p.name)+'</span>'
         +'<span class="rssi-live-badge">RSSI: <strong id="calRssi'+p.id+'">---</strong> dBm</span>'
       +'</div>'
       +'<canvas id="calCanvas'+p.id+'"></canvas>'
@@ -656,85 +746,149 @@ function buildCalibCards(){
             +'<input type="number" id="calExitN'+p.id+'" min="-120" max="-40" step="1" value="'+p.exitRssi+'" onchange="syncCalibN('+p.id+',\'exit\')">'
             +'<span class="unit">dBm</span>'
           +'</div></div>'
-      +'</div>'
-      +'<button onclick="saveCalibConfig('+p.id+')" class="btn-save" style="margin:0 12px 10px;width:calc(100% - 24px)">💾 保存</button>';
+      +'</div>';
+    // Item 10: 保存ボタン削除 (changeイベントで自動保存)
     g.appendChild(d);
+    // Item 1: タブ非表示時でもcanvasサイズを確保するため遅延初期化
     setTimeout(()=>initChart(p.id),0);
   });
 }
 
+// Item 1/5: チャートの初期化 (タブが隠れていてもデフォルトサイズで初期化)
 function initChart(id){
   var cv=document.getElementById('calCanvas'+id);if(!cv)return;
-  cv.width=cv.offsetWidth||300;cv.height=cv.offsetHeight||130;
+  // offsetWidthが0の場合（タブ非表示時）はデフォルト値を使用
+  cv.width = cv.offsetWidth || cv.parentElement.offsetWidth || 300;
+  cv.height = 130;
   charts[id]={cv,ctx:cv.getContext('2d'),data:new Float32Array(200).fill(-120),cross:new Uint8Array(200)};
   drawChart(id);
 }
+
 function pushChart(id,rssi,crossing){
   var c=charts[id];if(!c)return;
   c.data.copyWithin(0,1);c.data[199]=rssi;c.cross.copyWithin(0,1);c.cross[199]=crossing?1:0;
   drawChart(id);
 }
+
+// Item 5: 動的Y軸スケール
+function calcChartRange(id){
+  var c=charts[id];var p=slots[id];
+  // 実際のRSSIデータ（-120埋め値を無視）のmin/max
+  var hasData=false;var dMin=0;var dMax=-200;
+  for(var i=0;i<200;i++){
+    if(c.data[i]>-119){  // -120は初期値なのでスキップ
+      if(!hasData||c.data[i]<dMin)dMin=c.data[i];
+      if(!hasData||c.data[i]>dMax)dMax=c.data[i];
+      hasData=true;
+    }
+  }
+  // 閾値も範囲に含める
+  var allVals=hasData?[dMin,dMax,p.enterRssi,p.exitRssi]:[p.enterRssi,p.exitRssi];
+  var yMin=Math.min.apply(null,allVals)-5;  // 5dBmパディング
+  var yMax=Math.max.apply(null,allVals)+5;
+  // 最小レンジ20dBm
+  if(yMax-yMin<20){var mid=(yMax+yMin)/2;yMin=mid-10;yMax=mid+10;}
+  return {yMin,yMax};
+}
+
 function drawChart(id){
   var c=charts[id];if(!c)return;
   var cv=c.cv,ctx=c.ctx,w=cv.width,h=cv.height,p=slots[id];
-  var rng=DB_MAX-DB_MIN,toY=v=>h-((Math.max(DB_MIN,Math.min(DB_MAX,v))-DB_MIN)/rng)*h;
-  var dx=w/200,col=getComputedStyle(document.documentElement).getPropertyValue('--p'+id).trim();
+  // 動的スケール計算
+  var range=calcChartRange(id);
+  var yMin=range.yMin,yMax=range.yMax,rng=yMax-yMin;
+  var toY=function(v){return h-((Math.max(yMin,Math.min(yMax,v))-yMin)/rng)*h;};
+  var dx=w/200;
+  var col=getComputedStyle(document.documentElement).getPropertyValue('--p'+id).trim();
+  // 背景クリア
   ctx.fillStyle='#0d1117';ctx.fillRect(0,0,w,h);
+  // CROSSING区間をハイライト
   ctx.fillStyle=col+'22';
   for(var i=0;i<200;i++)if(c.cross[i])ctx.fillRect(i*dx,0,dx+1,h);
+  // Y軸グリッド線 (10dBm刻みで範囲内のものを描画)
   ctx.strokeStyle='#1e2530';ctx.lineWidth=1;ctx.setLineDash([]);
-  [-60,-80,-100].forEach(db=>{ctx.beginPath();ctx.moveTo(0,toY(db));ctx.lineTo(w,toY(db));ctx.stroke();});
+  var tickStart=Math.ceil(yMin/10)*10;
+  for(var db=tickStart;db<=yMax;db+=10){
+    var ty=toY(db);
+    ctx.beginPath();ctx.moveTo(0,ty);ctx.lineTo(w,ty);ctx.stroke();
+    // Y軸ラベル
+    ctx.fillStyle='#444';ctx.font='9px monospace';ctx.fillText(db+'dB',2,ty-2);
+  }
+  // Enter閾値 (緑破線)
   ctx.setLineDash([4,4]);ctx.lineWidth=1;
   ctx.strokeStyle='#3fb95088';ctx.beginPath();ctx.moveTo(0,toY(p.enterRssi));ctx.lineTo(w,toY(p.enterRssi));ctx.stroke();
+  // Exit閾値 (赤破線)
   ctx.strokeStyle='#f8514988';ctx.beginPath();ctx.moveTo(0,toY(p.exitRssi));ctx.lineTo(w,toY(p.exitRssi));ctx.stroke();
   ctx.setLineDash([]);
+  // RSSIの波形
   ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.beginPath();
   for(var j=0;j<200;j++){var x=j*dx,y=toY(c.data[j]);j===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
   ctx.stroke();
 }
+
 function syncCalib(id,which){
   var v=parseInt(document.getElementById('cal'+cap(which)+id).value);
   document.getElementById('cal'+cap(which)+'N'+id).value=v;
   slots[id][which+'Rssi']=v;drawChart(id);
+  // Item 10: 変更後にデバウンスして自動保存
+  scheduleCalibSave(id);
 }
 function syncCalibN(id,which){
   var el=document.getElementById('cal'+cap(which)+'N'+id);
   var v=Math.max(-120,Math.min(-40,parseInt(el.value)||(-80)));
   el.value=v;document.getElementById('cal'+cap(which)+id).value=v;
   slots[id][which+'Rssi']=v;drawChart(id);
+  scheduleCalibSave(id);
 }
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+
+// Item 10: デバウンス自動保存 (800ms)
+function scheduleCalibSave(slotId){
+  if(calibSaveTimers[slotId])clearTimeout(calibSaveTimers[slotId]);
+  calibSaveTimers[slotId]=setTimeout(()=>saveCalibConfig(slotId),800);
+}
 
 async function saveCalibConfig(slotId){
   var enter=parseInt(document.getElementById('calEnterN'+slotId).value);
   var exit_=parseInt(document.getElementById('calExitN'+slotId).value);
   if(enter<=exit_){toast('⚠️ Enter > Exit にしてください');return;}
   var ri=activeSlotsLocal[slotId];
-  if(ri<0){toast('⚠️ スロットにパイロットが割り当てられていません');return;}
+  if(ri<0){return;}  // スロット未割当時はスキップ
   slots[slotId].enterRssi=enter;slots[slotId].exitRssi=exit_;
   try{
     var r=await fetch('/api/calib',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({id:ri,enter,exit:exit_})});
     if(r.ok){
       var rd=rosterData.find(x=>x.id===ri);if(rd){rd.enter=enter;rd.exit=exit_;}
-      toast('💾 閾値保存完了');
+      toast('💾 閾値を保存しました',1500);
     }else toast('⚠️ 保存エラー');
   }catch(e){toast('⚠️ 接続エラー');}
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Tab
+// タブ切替 (Item 1: キャリブタブに切り替わった時にチャートをリサイズ)
 // ═══════════════════════════════════════════════════════════════════
 function switchTab(tab){
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('pane-'+tab).classList.add('active');
   document.querySelectorAll('.tab-btn')[['race','config','calib'].indexOf(tab)].classList.add('active');
-  if(tab==='calib')setTimeout(()=>{slots.forEach(p=>{var c=charts[p.id];if(c){c.cv.width=c.cv.offsetWidth||300;drawChart(p.id);}});},50);
+  if(tab==='calib'){
+    // タブ表示後にcanvasサイズを実際の幅に合わせてリサイズ・再描画
+    setTimeout(()=>{
+      slots.forEach(p=>{
+        var c=charts[p.id];
+        if(!c)return;
+        var newW=c.cv.offsetWidth||300;
+        if(newW!==c.cv.width){c.cv.width=newW;}
+        drawChart(p.id);
+      });
+    },50);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Race controls
+// レース制御
 // ═══════════════════════════════════════════════════════════════════
 function startRace(){
   ensureAudio();sfx.count();
@@ -762,15 +916,17 @@ function checkFinished(p){
   if(p.lapCount>=tot){
     beepSeq([[880,.2,'sine',0],[1320,.2,'sine',220],[1760,.3,'sine',440]]);
     if(voiceEnabled&&announceMode!=='beep'&&announceMode!=='none'){
-      var u=new SpeechSynthesisUtterance(p.name+'、フィニッシュ');u.lang='ja-JP';u.rate=speechRate;speechSynthesis.speak(u);
+      var u=new SpeechSynthesisUtterance(getSpokenName(p)+'、フィニッシュ');u.lang='ja-JP';u.rate=speechRate;speechSynthesis.speak(u);
     }
   }
 }
+
+// Item 10: グローバル設定をlocalStorageに自動保存 (ボタン不要)
 function saveGlobalConfig(){
   announceMode=document.getElementById('announceMode').value;
   speechRate=parseFloat(document.getElementById('speechRateN').value)||1.1;
-  localStorage.setItem('announce',announceMode);localStorage.setItem('srate',String(speechRate));
-  toast('💾 グローバル設定を保存しました');
+  localStorage.setItem('announce',announceMode);
+  localStorage.setItem('srate',String(speechRate));
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -790,9 +946,11 @@ function onMsg(d){
   if(d.type==='init'){
     raceRunning=d.raceRunning||false;setBtns(raceRunning);
     if(raceRunning)startTimer();
+    // SDカード状態を反映
+    if(d.sdPresent!==undefined)updateSdSection(d.sdPresent);
     (d.pilots||[]).forEach(pd=>{
       var p=slots[pd.slot];if(!p)return;
-      p.name=pd.name||'---';p.rosterIdx=pd.rosterIdx;
+      p.name=pd.name||'---';p.yomi=pd.yomi||'';p.rosterIdx=pd.rosterIdx;
       if(pd.lapCount)p.lapCount=pd.lapCount;
       if(pd.bestLap)p.bestLapMs=pd.bestLap;
       p.rssi=pd.rssi||-120;p.crossing=pd.crossing||false;
@@ -806,7 +964,7 @@ function onMsg(d){
   if(d.type==='active_update'){
     (d.pilots||[]).forEach(pd=>{
       var p=slots[pd.slot];if(!p)return;
-      p.name=pd.name||'---';p.rosterIdx=pd.rosterIdx;
+      p.name=pd.name||'---';p.yomi=pd.yomi||'';p.rosterIdx=pd.rosterIdx;
       if(pd.enter!==undefined){p.enterRssi=pd.enter;syncCalibSliders(pd.slot,pd.enter,p.exitRssi);}
       if(pd.exit!==undefined){p.exitRssi=pd.exit;syncCalibSliders(pd.slot,p.enterRssi,pd.exit);}
       activeSlotsLocal[pd.slot]=pd.rosterIdx;
@@ -816,9 +974,9 @@ function onMsg(d){
     return;
   }
   if(d.type==='scan'){
-    if(!scanResults[d.mac])scanResults[d.mac]={rssi:d.rssi,ts:d.ts};
-    else{scanResults[d.mac].rssi=d.rssi;scanResults[d.mac].ts=d.ts;}
-    // Check if already in roster
+    // Item 8: 受信時刻を記録してオンライン判定に使用
+    var prev=scanResults[d.mac]||{};
+    scanResults[d.mac]=Object.assign(prev,{rssi:d.rssi,ts:d.ts,receivedAt:Date.now()});
     var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===d.mac.toUpperCase());
     if(found){scanResults[d.mac].assignedRosterId=found.id;scanResults[d.mac].pilotName=found.name;}
     updateScanList();return;
@@ -838,13 +996,14 @@ function onMsg(d){
     var s=d.pilot;if(s<0||s>=N)return;
     var p=slots[s];
     if(d.name&&d.name!=='---')p.name=d.name;
+    if(d.yomi!==undefined)p.yomi=d.yomi;
     p.lapCount=d.lapCount!==undefined?d.lapCount:p.lapCount+1;
     var lapMs=d.lapTime||0;
     p.lapTimes.push(lapMs);p.cumulative+=lapMs;
     if(lapMs>0&&(!p.bestLapMs||lapMs<p.bestLapMs))p.bestLapMs=lapMs;
     updateRaceCard(p);addLapRow(p,lapMs,p.cumulative);checkFinished(p);
     if(d.newBest||lapMs===p.bestLapMs)sfx.best();
-    else speak(buildSpeech(p.name,p.lapCount,lapMs));
+    else speak(buildSpeech(p,p.lapCount,lapMs));
     return;
   }
   if(d.type==='race_start'){
@@ -856,6 +1015,12 @@ function onMsg(d){
     return;
   }
   if(d.type==='race_stop'){raceRunning=false;setBtns(false);stopTimer();return;}
+  if(d.type==='sd_restore_done'){
+    // SDから復元完了 → ロースターを再読込
+    toast('✅ SDから'+((d.pilots&&JSON.parse(d.pilots).length)||'?')+'人分を復元しました',3000);
+    loadRoster();
+    return;
+  }
 }
 
 function syncCalibSliders(id,enter,exit_){
@@ -864,18 +1029,25 @@ function syncCalibSliders(id,enter,exit_){
   if(eEl)eEl.value=enter;if(eN)eN.value=enter;if(xEl)xEl.value=exit_;if(xN)xN.value=exit_;
 }
 
+// SDカードセクションの表示/非表示 (Item 7)
+function updateSdSection(present){
+  sdPresent=present;
+  var sec=document.getElementById('sdSection');
+  if(sec)sec.style.display=present?'block':'none';
+}
+
 // ═══════════════════════════════════════════════════════════════════
-// Load from API
+// APIからの読み込み
 // ═══════════════════════════════════════════════════════════════════
 async function loadRoster(){
   try{
     var r=await fetch('/api/pilots');if(!r.ok)return;
     rosterData=await r.json();
-    renderRoster();buildPilotSelectGrid();
-    // Update active slot names
+    renderRoster();
+    // アクティブスロット名を更新
     applyActiveToSlots();
     buildRaceCards();
-    // Cross-reference scan results
+    // スキャン結果とクロスリファレンス
     Object.keys(scanResults).forEach(function(mac){
       var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===mac.toUpperCase());
       if(found){scanResults[mac].assignedRosterId=found.id;scanResults[mac].pilotName=found.name;}
@@ -885,29 +1057,35 @@ async function loadRoster(){
 }
 
 async function loadAll(){
-  // Load active selection first
+  // SDカード状態を確認
+  try{
+    var rs=await fetch('/api/sd/status');
+    if(rs.ok){var sd=await rs.json();updateSdSection(sd.present);}
+  }catch(e){}
+
+  // アクティブ選択を先に読み込む
   try{
     var ra=await fetch('/api/active');if(ra.ok){
       var active=await ra.json();
       active.forEach(a=>{
         activeSlotsLocal[a.slot]=a.rosterIdx;
-        var p=slots[a.slot];p.rosterIdx=a.rosterIdx;p.name=a.name||'---';
+        var p=slots[a.slot];p.rosterIdx=a.rosterIdx;p.name=a.name||'---';p.yomi=a.yomi||'';
         if(a.enter!==undefined)p.enterRssi=a.enter;
         if(a.exit!==undefined)p.exitRssi=a.exit;
       });
     }
   }catch(e){}
 
-  // Load roster
+  // ロースターを読み込む
   try{
     var rp=await fetch('/api/pilots');if(rp.ok){
       rosterData=await rp.json();
-      renderRoster();buildPilotSelectGrid();
+      renderRoster();
       applyActiveToSlots();buildRaceCards();buildCalibCards();
     }
   }catch(e){}
 
-  // Load calib
+  // キャリブ閾値を再確認 (アクティブAPIから)
   try{
     var rc=await fetch('/api/active');if(rc.ok){
       var ac=await rc.json();
@@ -919,11 +1097,11 @@ async function loadAll(){
     }
   }catch(e){}
 
-  // Load scan
+  // スキャン結果を読み込む
   try{
-    var rs=await fetch('/api/scan');if(rs.ok){
-      (await rs.json()).forEach(s=>{
-        scanResults[s.mac]={rssi:s.rssi,ts:s.ts};
+    var rsc=await fetch('/api/scan');if(rsc.ok){
+      (await rsc.json()).forEach(s=>{
+        scanResults[s.mac]=Object.assign(scanResults[s.mac]||{},{rssi:s.rssi,ts:s.ts});
         var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===s.mac.toUpperCase());
         if(found){scanResults[s.mac].assignedRosterId=found.id;scanResults[s.mac].pilotName=found.name;}
       });
@@ -931,7 +1109,7 @@ async function loadAll(){
     }
   }catch(e){}
 
-  // Restore UI settings
+  // UI設定を復元
   var am=document.getElementById('announceMode');if(am)am.value=announceMode;
   var sr=document.getElementById('speechRate');if(sr)sr.value=speechRate;
   var srN=document.getElementById('speechRateN');if(srN)srN.value=speechRate;
@@ -941,10 +1119,9 @@ async function loadAll(){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Init
+// 初期化
 // ═══════════════════════════════════════════════════════════════════
 buildRaceCards();
-buildPilotSelectGrid();
 buildCalibCards();
 wsConnect();
 loadAll();
