@@ -208,12 +208,28 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
       <div class="config-row" style="gap:8px"><label style="width:70px;font-size:11px">名前</label><input type="text" id="addName" placeholder="パイロット名" maxlength="20" autocomplete="off" style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"></div>
       <div class="config-row" style="gap:8px"><label style="width:70px;font-size:11px">読み方</label><input type="text" id="addYomi" placeholder="パイロット名のよみかた" maxlength="20" autocomplete="off" style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"></div>
       <div class="config-row" style="gap:8px"><label style="width:70px;font-size:11px">機体 MAC</label><input type="text" id="addMac" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" autocomplete="off" style="flex:1;font-family:monospace;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"></div>
+      <div class="config-row" style="gap:8px">
+        <label style="width:70px;font-size:11px">入RSSI</label>
+        <input type="number" id="addEnter" value="-80" min="-120" max="0" style="width:70px;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px;text-align:center">
+        <span style="font-size:12px;color:var(--muted)">dBm &nbsp; 出RSSI</span>
+        <input type="number" id="addExit" value="-90" min="-120" max="0" style="width:70px;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px;text-align:center">
+        <span style="font-size:12px;color:var(--muted)">dBm</span>
+      </div>
       <div style="display:flex;gap:8px;margin-top:4px">
         <button onclick="submitAdd()" class="btn-success" style="flex:1;font-size:12px">登録</button>
         <button onclick="hideAddForm()" class="btn-secondary" style="flex:1;font-size:12px">キャンセル</button>
       </div>
     </div>
     <div class="roster-list" id="rosterList"></div>
+  </div>
+
+  <div class="global-config-card" id="sdSection" style="display:none">
+    <h3 class="global-title">💾 SDカード</h3>
+    <p class="section-desc">パイロット情報をSDカードにバックアップ・復元します（CSV形式）。</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="sdBackup()" class="btn-secondary" style="flex:1">📥 SDバックアップ保存</button>
+      <button onclick="sdRestore()" class="btn-secondary" style="flex:1">📤 SDから復元</button>
+    </div>
   </div>
 
   <div class="global-config-card">
@@ -241,15 +257,6 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
     <div class="voice-row">
       <button id="voiceBtn2" onclick="toggleVoice()" class="btn-voice on">🔊 音声 ON</button>
       <button onclick="testVoice()" class="btn-secondary">🔊 テスト</button>
-    </div>
-  </div>
-
-  <div class="global-config-card" id="sdSection" style="display:none">
-    <h3 class="global-title">💾 SDカード</h3>
-    <p class="section-desc">パイロット情報をSDカードにバックアップ・復元します。</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button onclick="sdBackup()" class="btn-secondary" style="flex:1">📥 SDバックアップ保存</button>
-      <button onclick="sdRestore()" class="btn-secondary" style="flex:1">📤 SDから復元</button>
     </div>
   </div>
 </section>

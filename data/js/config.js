@@ -44,12 +44,26 @@ function renderRoster(){
     if(r.activeSlot>=0)activeBadge='<span class="active-badge '+PCLS[r.activeSlot]+'">Ch'+(r.activeSlot+1)+'</span>';
 
     if(isEditing){
+      var enterVal=(r.enter!=null?r.enter:-80);
+      var exitVal=(r.exit!=null?r.exit:-90);
       item.innerHTML=
         '<div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px">'
           +'<input type="text" id="editName" value="'+esc(r.name)+'" maxlength="20" placeholder="パイロット名" autocomplete="off" style="background:var(--bg);border:1px solid var(--accent);color:var(--tx);border-radius:5px;padding:3px 7px;font-size:12px;width:100%">'
           +'<input type="text" id="editYomi" value="'+esc(r.yomi||'')+'" maxlength="20" placeholder="読み方（よみかた）" autocomplete="off" style="background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:5px;padding:3px 7px;font-size:11px;width:100%">'
         +'</div>'
-        +'<input type="text" id="editMac" value="'+esc(r.uid||'')+'" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" style="width:140px;font-family:monospace;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:5px;padding:3px 7px;font-size:12px" autocomplete="off">'
+        +'<input type="text" id="editMac" value="'+esc(r.uid||'')+'" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" style="width:130px;font-family:monospace;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:5px;padding:3px 7px;font-size:12px" autocomplete="off">'
+        +'<div style="display:flex;flex-direction:column;gap:2px">'
+          +'<div style="display:flex;align-items:center;gap:3px">'
+            +'<label style="color:var(--muted);font-size:10px;width:20px">入</label>'
+            +'<input type="number" id="editEnter" value="'+enterVal+'" min="-120" max="0" style="width:58px;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:5px;padding:2px 4px;font-size:11px;text-align:center">'
+            +'<span style="color:var(--muted);font-size:10px">dBm</span>'
+          +'</div>'
+          +'<div style="display:flex;align-items:center;gap:3px">'
+            +'<label style="color:var(--muted);font-size:10px;width:20px">出</label>'
+            +'<input type="number" id="editExit" value="'+exitVal+'" min="-120" max="0" style="width:58px;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:5px;padding:2px 4px;font-size:11px;text-align:center">'
+            +'<span style="color:var(--muted);font-size:10px">dBm</span>'
+          +'</div>'
+        +'</div>'
         +'<div class="roster-actions">'
           +'<button onclick="submitEdit('+r.id+')" class="btn-success" style="font-size:11px;padding:3px 9px">保存</button>'
           +'<button onclick="cancelEdit()" class="btn-secondary" style="font-size:11px;padding:3px 9px">×</button>'
@@ -100,18 +114,26 @@ function hideAddForm(){
   document.getElementById('addName').value='';
   document.getElementById('addYomi').value='';
   document.getElementById('addMac').value='';
+  document.getElementById('addEnter').value='-80';
+  document.getElementById('addExit').value='-90';
 }
 
 async function submitAdd(){
   var name=document.getElementById('addName').value.trim();
   var yomi=document.getElementById('addYomi').value.trim();
   var mac=document.getElementById('addMac').value.trim().toUpperCase();
+  var enter=parseInt(document.getElementById('addEnter').value)||(-80);
+  var exit_=parseInt(document.getElementById('addExit').value)||(-90);
   if(!name){toast('⚠️ 名前を入力してください');return;}
   var validMac=/^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(mac);
   if(mac&&!validMac){toast('⚠️ MAC形式: AA:BB:CC:DD:EE:FF');return;}
   try{
     var r=await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,yomi,uid:validMac?mac:''})});
-    if(r.ok){await loadRoster();hideAddForm();toast('✓ '+name+' を登録しました');}
+    if(r.ok){
+      var body=await r.json();
+      await fetch('/api/calib',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:body.id,enter,exit:exit_})});
+      await loadRoster();hideAddForm();toast('✓ '+name+' を登録しました');
+    }
     else toast('⚠️ 登録エラー');
   }catch(e){toast('⚠️ 接続エラー');}
 }
@@ -123,12 +145,17 @@ async function submitEdit(id){
   var name=document.getElementById('editName').value.trim();
   var yomi=document.getElementById('editYomi').value.trim();
   var mac=document.getElementById('editMac').value.trim().toUpperCase();
+  var enter=parseInt(document.getElementById('editEnter').value)||(-80);
+  var exit_=parseInt(document.getElementById('editExit').value)||(-90);
   if(!name){toast('⚠️ 名前を入力してください');return;}
   var validMac=/^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(mac);
   if(mac&&!validMac){toast('⚠️ MAC形式: AA:BB:CC:DD:EE:FF');return;}
   try{
     var r=await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,yomi,uid:validMac?mac:''})});
-    if(r.ok){editingRosterId=null;await loadRoster();applyActiveToSlots();buildRaceCards();toast('✓ 更新しました');}
+    if(r.ok){
+      await fetch('/api/calib',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,enter,exit:exit_})});
+      editingRosterId=null;await loadRoster();applyActiveToSlots();buildRaceCards();toast('✓ 更新しました');
+    }
     else toast('⚠️ 更新エラー');
   }catch(e){toast('⚠️ 接続エラー');}
 }
@@ -136,11 +163,14 @@ async function submitEdit(id){
 async function deleteRosterPilot(id){
   var r=rosterData.find(x=>x.id===id);
   if(!confirm((r?r.name:'このパイロット')+'を削除しますか？'))return;
+  if(editingRosterId===id) editingRosterId=null;
+  rosterData=rosterData.filter(x=>x.id!==id);
+  renderRoster();
   try{
     var res=await fetch('/api/pilots/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
     if(res.ok){await loadRoster();applyActiveToSlots();buildRaceCards();buildCalibCards();toast('削除しました');}
-    else toast('⚠️ 削除エラー');
-  }catch(e){toast('⚠️ 接続エラー');}
+    else{await loadRoster();toast('⚠️ 削除エラー');}
+  }catch(e){await loadRoster();toast('⚠️ 接続エラー');}
 }
 
 function updateScanList(){

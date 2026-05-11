@@ -54,4 +54,5 @@ function switchTab(tab){
       });
     },50);
   }
+  if(tab==='sd') refreshSdFiles();
 }
