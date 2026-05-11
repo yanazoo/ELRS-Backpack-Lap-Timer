@@ -76,22 +76,20 @@ void sdEndRace() {
 
 void sdBeginBackup() {
     if (!sdPresent) { Serial.println("[Gate] SD backup: no SD"); return; }
-    backupFile = SD.open("/pilots.json", FILE_WRITE);
-    if (backupFile) Serial.println("[Gate] SD backup: /pilots.json opened");
-    else            Serial.println("[Gate] SD backup: open failed");
+    backupFile = SD.open("/pilots.csv", FILE_WRITE);
+    if (backupFile) {
+        backupFile.println("name,yomi,mac,enter,exit");
+        backupFile.flush();
+        Serial.println("[Gate] SD backup: /pilots.csv opened");
+    } else {
+        Serial.println("[Gate] SD backup: open failed");
+    }
 }
 
 void sdWriteBackupRow(const char* name, const char* yomi,
                       const char* mac, int enter, int exit_) {
     if (!backupFile) return;
-    JsonDocument row;
-    row["name"]  = name;
-    row["yomi"]  = yomi;
-    row["mac"]   = mac;
-    row["enter"] = enter;
-    row["exit"]  = exit_;
-    serializeJson(row, backupFile);
-    backupFile.println();
+    backupFile.printf("%s,%s,%s,%d,%d\n", name, yomi, mac, enter, exit_);
     backupFile.flush();
 }
 
@@ -104,23 +102,33 @@ void sdHandleRestore() {
         Serial1.println(R"({"type":"sd_restore_done"})");
         return;
     }
-    File f = SD.open("/pilots.json", FILE_READ);
+    File f = SD.open("/pilots.csv", FILE_READ);
     if (!f) {
-        Serial.println("[Gate] SD restore: /pilots.json not found");
+        Serial.println("[Gate] SD restore: /pilots.csv not found");
         Serial1.println(R"({"type":"sd_restore_done"})");
         return;
     }
-    Serial.println("[Gate] SD restore: reading /pilots.json");
+    Serial.println("[Gate] SD restore: reading /pilots.csv");
+    bool firstLine = true;
     while (f.available()) {
         String line = f.readStringUntil('\n');
         line.trim();
         if (!line.length()) continue;
+        if (firstLine) { firstLine = false; continue; }  // skip header
+        int c1 = line.indexOf(',');
+        int c2 = line.indexOf(',', c1 + 1);
+        int c3 = line.indexOf(',', c2 + 1);
+        int c4 = line.indexOf(',', c3 + 1);
+        if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0) continue;
         JsonDocument row;
-        if (deserializeJson(row, line) == DeserializationError::Ok) {
-            row["type"] = "sd_pilot_row";
-            serializeJson(row, Serial1);
-            Serial1.print('\n');
-        }
+        row["type"]  = "sd_pilot_row";
+        row["name"]  = line.substring(0, c1);
+        row["yomi"]  = line.substring(c1 + 1, c2);
+        row["mac"]   = line.substring(c2 + 1, c3);
+        row["enter"] = line.substring(c3 + 1, c4).toInt();
+        row["exit"]  = line.substring(c4 + 1).toInt();
+        serializeJson(row, Serial1);
+        Serial1.print('\n');
     }
     f.close();
     Serial1.println(R"({"type":"sd_restore_done"})");
