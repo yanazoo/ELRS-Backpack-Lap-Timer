@@ -34,6 +34,10 @@ void sdInit() {
         sdPresent = false;
         Serial.println("[Gate] SD card not found");
     }
+    sdSendStatus();
+}
+
+void sdSendStatus() {
     char buf[48];
     snprintf(buf, sizeof(buf), R"({"type":"sd_status","present":%s})",
              sdPresent ? "true" : "false");
