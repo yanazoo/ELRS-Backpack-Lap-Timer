@@ -62,6 +62,7 @@ void processWebCmd(const String& line) {
             pilots[idx].hasUid = false;
             Serial.printf("[Gate] Pilot #%d cleared\n", idx);
         }
+        sdSendStatus();
 
     } else if (strcmp(action, "set_threshold") == 0) {
         int idx = doc["pilot"] | -1;

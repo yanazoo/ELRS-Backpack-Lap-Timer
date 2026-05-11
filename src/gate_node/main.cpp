@@ -58,13 +58,14 @@ void setup() {
 void loop() {
     uint32_t now = millis();
 
-    // Re-send "ready" every 10 s until Web Node registers at least one pilot
+    // Re-send "ready" + "sd_status" every 10 s until Web Node registers at least one pilot
     if (!anyPilotRegistered() && now - lastReadySend >= 10000UL) {
         lastReadySend = now;
         char buf[64];
         snprintf(buf, sizeof(buf), R"({"type":"ready","pilots":%d})", MAX_PILOTS);
         Serial1.println(buf);
-        Serial.println("[Gate] Re-sent ready (no pilots registered)");
+        sdSendStatus();
+        Serial.println("[Gate] Re-sent ready + sd_status (no pilots registered)");
     }
 
     // Read commands from Web Node

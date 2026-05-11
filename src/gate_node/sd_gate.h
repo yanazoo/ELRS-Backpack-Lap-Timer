@@ -3,6 +3,7 @@
 extern bool sdPresent;
 
 void sdInit();
+void sdSendStatus();
 void sdBeginRace();
 void sdWriteLap(int slotIdx);
 void sdEndRace();
