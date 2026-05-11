@@ -25,9 +25,11 @@ static int findNextRaceNum() {
 
 void sdInit() {
     SPI.begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
-    if (SD.begin(SD_CS_PIN)) {
+    delay(10);
+    if (SD.begin(SD_CS_PIN, SPI, 4000000)) {
         sdPresent = true;
-        Serial.println("[Gate] SD card OK");
+        Serial.printf("[Gate] SD card OK  size=%lluMB\n",
+                      SD.cardSize() / (1024ULL * 1024ULL));
     } else {
         sdPresent = false;
         Serial.println("[Gate] SD card not found");
