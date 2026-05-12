@@ -77,3 +77,7 @@ void reportScanMac(const uint8_t* mac, int8_t rssi) {
     Serial1.println(buf);
     Serial.printf("[Gate] SCAN %s rssi=%d\n", macStr, (int)rssi);
 }
+
+void resetScanTimers() {
+    for (int k = 0; k < scanCount; k++) scanTable[k].lastSent = 0;
+}

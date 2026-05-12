@@ -2,6 +2,7 @@
 #include <Arduino.h>
 
 void sendGateCmd(const char* action);
+void sendGateCooldown();
 void sendGatePilot(int slot);
 void sendGateThreshold(int slot);
 void sendAllPilots();

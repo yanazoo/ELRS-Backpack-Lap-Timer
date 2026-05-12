@@ -9,9 +9,12 @@
 SlotRuntime rt[MAX_ACTIVE];
 LapRecord   laps[MAX_LAPS];
 int         lapCount    = 0;
-bool        raceRunning = false;
-uint32_t    raceStartMs = 0;
-bool        sdPresent   = false;
+bool        raceRunning      = false;
+uint32_t    raceStartMs      = 0;
+bool        sdPresent        = false;
+uint8_t     lapMode          = 0;       // 0=holeshot, 1=immediate
+uint32_t    gateRaceStartTs  = 0;
+uint32_t    cooldownMs       = 3000;
 String      restoreBuffer[MAX_REGISTERED];
 int         restoreCount = 0;
 ScanMac     scanMacs[MAX_SCAN_MACS];
@@ -30,6 +33,12 @@ void updateScanMac(const char* mac, int rssi) {
         scanMacs[scanMacCount].ts      = millis();
         scanMacCount++;
     }
+}
+
+void sendGateCooldown() {
+    char buf[64];
+    snprintf(buf, sizeof(buf), R"({"type":"cmd","action":"set_cooldown","ms":%lu})", (unsigned long)cooldownMs);
+    Serial1.println(buf);
 }
 
 void sendGateCmd(const char* action) {
@@ -81,8 +90,8 @@ void processGateLine(const String& line) {
     const char* type = doc["type"] | "";
 
     if (strcmp(type, "ready") == 0) {
-        sendAllPilots(); sendAllThresholds();
-        Serial.println("[Web] Gate ready — sent pilots + thresholds");
+        sendAllPilots(); sendAllThresholds(); sendGateCooldown();
+        Serial.println("[Web] Gate ready — sent pilots + thresholds + cooldown");
         return;
     }
     if (strcmp(type, "sd_status") == 0) {
@@ -113,6 +122,13 @@ void processGateLine(const String& line) {
         String wm; serializeJson(wd, wm); wsText(wm);
         return;
     }
+    if (strcmp(type, "race_start_ack") == 0) {
+        gateRaceStartTs = doc["ts"] | 0u;
+        if (lapMode == 1) {
+            for (int s = 0; s < MAX_ACTIVE; s++) rt[s].lastLapTs = gateRaceStartTs;
+        }
+        return;
+    }
     if (strcmp(type, "lap") == 0) {
         if (!raceRunning) return;
         int s = doc["pilot"] | -1;
@@ -120,11 +136,27 @@ void processGateLine(const String& line) {
         int ri = activePilots[s];
         uint32_t ts = doc["ts"] | 0u;
 
+        bool isFirst = (rt[s].lastLapTs == 0);
         uint32_t lapMs = 0;
-        if (rt[s].lastLapTs > 0) lapMs = ts - rt[s].lastLapTs;
+        if (!isFirst) {
+            lapMs = ts - rt[s].lastLapTs;
+        } else if (lapMode == 1 && gateRaceStartTs > 0) {
+            lapMs = ts - gateRaceStartTs;
+        }
         rt[s].lastLapTs = ts;
-        rt[s].lapCount++;
 
+        if (isFirst && lapMs == 0) {
+            // Holeshot crossing — notify frontend to play gate-cross sound
+            JsonDocument wd;
+            wd["type"]  = "gate_start";
+            wd["pilot"] = s;
+            wd["name"]  = activeName(s);
+            wd["ts"]    = ts;
+            String wm; serializeJson(wd, wm); wsText(wm);
+            return;
+        }
+
+        rt[s].lapCount++;
         bool newBest = false;
         if (lapMs > 0 && (rt[s].bestLapMs == 0 || lapMs < rt[s].bestLapMs)) {
             rt[s].bestLapMs = lapMs; newBest = true;

@@ -65,6 +65,14 @@ function onMsg(d){
     pushChart(s,p.rssi,p.crossing);
     return;
   }
+  if(d.type==='gate_start'){
+    var s=d.pilot;if(s<0||s>=N)return;
+    var p=slots[s];
+    if(d.name&&d.name!=='---')p.name=d.name;
+    ensureAudio();sfx.enter();
+    updateRaceCard(p);
+    return;
+  }
   if(d.type==='lap'){
     var s=d.pilot;if(s<0||s>=N)return;
     var p=slots[s];
@@ -179,8 +187,16 @@ async function loadAll(){
   var am=document.getElementById('announceMode');if(am)am.value=announceMode;
   var sr=document.getElementById('speechRate');if(sr)sr.value=speechRate;
   var srN=document.getElementById('speechRateN');if(srN)srN.value=speechRate;
+  var lms=document.getElementById('lapModeSelect');if(lms)lms.value=lapMode;
+  var cdEl=document.getElementById('cooldownInput');if(cdEl)cdEl.value=cooldownMs;
   refreshVoiceBtns();
   slots.forEach(p=>updateRaceCard(p));
+
+  // Push current settings to web node so it stays in sync after page reload
+  try{
+    await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lapMode:lapMode==='immediate'?1:0,cooldownMs:cooldownMs})});
+  }catch(e){}
 }
 
 // App init

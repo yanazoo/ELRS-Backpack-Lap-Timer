@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>ELRS Lap Timer</title>
+<title>ESP-NOW Lap Timer</title>
 <style>
 :root {
   --bg:#0d1117;--sf:#161b22;--sf2:#21262d;--bd:#30363d;
@@ -132,6 +132,14 @@ button:not(:disabled):hover{filter:brightness(1.15)}
 .voice-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .global-config-card .config-row label{width:110px;font-size:10px}
 
+/* ── Toggle switch ── */
+.toggle-sw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;-webkit-user-select:none}
+.toggle-sw input[type="checkbox"]{position:absolute;opacity:0;width:0;height:0}
+.toggle-track{position:relative;width:44px;height:24px;background:var(--bd);border-radius:12px;transition:.2s;flex-shrink:0}
+.toggle-track::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s}
+.toggle-sw input:checked + .toggle-track{background:var(--ok)}
+.toggle-sw input:checked + .toggle-track::after{transform:translateX(20px)}
+
 /* ── Footer / Toast ── */
 footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;padding:10px;font-size:12px;color:var(--muted)}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px 20px;font-size:13px;z-index:1000;transition:transform .3s;pointer-events:none;white-space:nowrap}
@@ -150,7 +158,7 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
 <header>
   <div class="header-inner">
     <div class="logo">
-      <h1>ELRS Lap Timer</h1>
+      <h1>ESP-NOW Lap Timer</h1>
       <span id="wsDot" class="ws-dot disconnected"></span>
     </div>
     <nav class="tab-bar">
@@ -178,7 +186,11 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
       <input type="number" id="totalLaps" min="0" max="99" value="0">
       <span style="font-size:11px;color:var(--muted)">（0=無制限）</span>
       <span style="color:var(--bd);margin:0 4px">｜</span>
-      <button id="voiceBtn" onclick="toggleVoice()" class="btn-voice on">🔊 音声 ON</button>
+      <label class="toggle-sw">
+        <input type="checkbox" id="voiceToggle" onchange="toggleVoice()" checked>
+        <span class="toggle-track"></span>
+        🔊 音声
+      </label>
     </div>
   </div>
   <div class="pilot-race-grid" id="pilotGrid"></div>
@@ -190,9 +202,12 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
 
   <div class="global-config-card">
     <h3 class="global-title">📡 機体スキャン</h3>
-    <p class="section-desc">機体（XIAO ESP32-C3）の電源を入れると自動検出されます。名前を入力してパイロット情報に登録してください。</p>
+    <p class="section-desc">機体（XIAO ESP32-C3）の電源を入れると自動検出されます。名前を入力してパイロット情報に登録してください。入RSSI・出RSSIはスキャン時の電波強度から自動設定されます。</p>
     <div id="scanList" style="min-height:32px"><span style="color:var(--muted);font-size:12px">スキャン待機中... 機体の電源を入れてください</span></div>
-    <button onclick="clearScan()" class="btn-secondary" style="width:100%;margin-top:8px;font-size:12px">スキャンリストをクリア</button>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button onclick="scanRefresh()" class="btn-secondary" style="flex:1;font-size:12px">🔄 スキャン更新</button>
+      <button onclick="clearScan()" class="btn-secondary" style="flex:1;font-size:12px">🗑 リストをクリア</button>
+    </div>
   </div>
 
   <div class="card">
@@ -236,6 +251,21 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
     <h3 class="global-title">グローバル設定</h3>
     <div style="padding:0">
       <div class="config-row">
+        <label>初回ラップ</label>
+        <select id="lapModeSelect" onchange="saveGlobalConfig()" style="flex:1;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:6px 8px;font-size:13px">
+          <option value="holeshot">ホールショット（計測開始のみ）</option>
+          <option value="immediate">計測（スタートから計測）</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <label>クールダウン</label>
+        <div class="slider-num">
+          <input type="number" id="cooldownInput" min="500" max="30000" step="100" value="3000"
+            onchange="saveGlobalConfig()" style="width:80px">
+          <span class="unit">ms</span>
+        </div>
+      </div>
+      <div class="config-row">
         <label>アナウンス</label>
         <select id="announceMode" onchange="saveGlobalConfig()" style="flex:1;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:6px 8px;font-size:13px">
           <option value="laptime">名前＆ラップタイム</option>
@@ -254,8 +284,12 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
         </div>
       </div>
     </div>
-    <div class="voice-row">
-      <button id="voiceBtn2" onclick="toggleVoice()" class="btn-voice on">🔊 音声 ON</button>
+    <div class="voice-row" style="align-items:center">
+      <label class="toggle-sw">
+        <input type="checkbox" id="voiceToggle2" onchange="toggleVoice()" checked>
+        <span class="toggle-track"></span>
+        🔊 音声 ON/OFF
+      </label>
       <button onclick="testVoice()" class="btn-secondary">🔊 テスト</button>
     </div>
   </div>
@@ -281,7 +315,7 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
 </section>
 
 </main>
-<footer><p>ELRS Lap Timer — MAX 50 pilots</p></footer>
+<footer><p>ESP-NOW Lap Timer — MAX 50 pilots</p></footer>
 <div id="toast" class="toast"></div>
 
 <script src="/js/globals.js"></script>

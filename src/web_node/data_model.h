@@ -58,6 +58,9 @@ extern int         lapCount;                  // gate_comm.cpp
 extern bool        raceRunning;               // gate_comm.cpp
 extern uint32_t    raceStartMs;               // gate_comm.cpp
 extern bool        sdPresent;                 // gate_comm.cpp
+extern uint8_t     lapMode;                   // gate_comm.cpp
+extern uint32_t    gateRaceStartTs;           // gate_comm.cpp
+extern uint32_t    cooldownMs;                // gate_comm.cpp
 extern String      restoreBuffer[MAX_REGISTERED]; // gate_comm.cpp
 extern int         restoreCount;              // gate_comm.cpp
 extern ScanMac     scanMacs[MAX_SCAN_MACS];   // gate_comm.cpp

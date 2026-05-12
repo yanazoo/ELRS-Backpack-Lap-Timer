@@ -14,6 +14,7 @@
  *   {"type":"cmd","action":"race_start"}
  *   {"type":"cmd","action":"set_pilot","pilot":0,"uid":"AA:BB:CC:DD:EE:FF"}
  *   {"type":"cmd","action":"set_threshold","pilot":0,"enter":-80,"exit":-90}
+ *   {"type":"cmd","action":"scan_refresh"}
  *   {"type":"cmd","action":"sd_begin_backup"}
  *   {"type":"cmd","action":"sd_backup_row","name":"...","yomi":"...","mac":"...","enter":-80,"exit":-90}
  *   {"type":"cmd","action":"sd_end_backup"}
@@ -95,8 +96,6 @@ void loop() {
     for (int i = 0; i < MAX_PILOTS; i++) {
         if (!pilots[i].hasUid) continue;
         PilotState& p = pilots[i];
-        // Simple per-loop EMA: rawRssi holds the last received packet value,
-        // so EMA naturally converges to and holds that value between packets.
         p.emaRssi = EMA_ALPHA * p.rawRssi + (1.0f - EMA_ALPHA) * p.emaRssi;
         float ema = p.emaRssi;
 
@@ -109,7 +108,7 @@ void loop() {
         } else {
             if ((int)ema > p.peakRssi) { p.peakRssi = (int)ema; p.peakTime = now; }
             if (ema < p.exitThreshold) {
-                if (now - p.lastLapTime >= COOLDOWN_MS) {
+                if (now - p.lastLapTime >= gCooldownMs) {
                     p.lastLapTime = now;
                     sendLap(i);
                 }
