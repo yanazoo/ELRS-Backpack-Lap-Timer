@@ -74,8 +74,10 @@ void loop() {
             if ((int)ema > p.peakRssi) { p.peakRssi = (int)ema; p.peakTime = now; }
             if (ema < p.exitThreshold) {
                 if (now - p.lastLapTime >= gCooldownMs) {
-                    p.lastLapTime = now;
-                    sendLap(i);
+                    uint32_t lapMs = (p.lastPeakTime > 0) ? (p.peakTime - p.lastPeakTime) : 0;
+                    p.lastPeakTime = p.peakTime;
+                    p.lastLapTime  = now;
+                    sendLap(i, lapMs);
                 }
                 p.crossing = false;
             }

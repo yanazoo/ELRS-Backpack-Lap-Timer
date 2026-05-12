@@ -9,11 +9,13 @@ void initPilots() {
     for (int i = 0; i < MAX_PILOTS; i++) {
         memset(pilots[i].uid, 0, 6);
         pilots[i].hasUid         = false;
+        pilots[i].name[0]        = '\0';
         pilots[i].emaRssi        = -120.0f;
         pilots[i].rawRssi        = -120;
         pilots[i].crossing       = false;
         pilots[i].peakRssi       = -120;
         pilots[i].peakTime       = 0;
+        pilots[i].lastPeakTime   = 0;
         pilots[i].lastLapTime    = 0;
         pilots[i].entryThreshold = DEFAULT_ENTRY_THR;
         pilots[i].exitThreshold  = DEFAULT_EXIT_THR;
@@ -22,12 +24,13 @@ void initPilots() {
 
 void resetPilots() {
     for (int i = 0; i < MAX_PILOTS; i++) {
-        pilots[i].crossing    = false;
-        pilots[i].peakRssi    = -120;
-        pilots[i].peakTime    = 0;
-        pilots[i].lastLapTime = 0;
-        pilots[i].emaRssi     = -120.0f;
-        pilots[i].rawRssi     = -120;
+        pilots[i].crossing      = false;
+        pilots[i].peakRssi      = -120;
+        pilots[i].peakTime      = 0;
+        pilots[i].lastPeakTime  = 0;
+        pilots[i].lastLapTime   = 0;
+        pilots[i].emaRssi       = -120.0f;
+        pilots[i].rawRssi       = -120;
     }
     Serial.println("[Gate] Pilot state reset");
 }

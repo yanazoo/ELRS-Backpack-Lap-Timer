@@ -7,19 +7,21 @@
 
 uint32_t gCooldownMs = COOLDOWN_MS;
 
-void sendLap(int idx) {
+void sendLap(int idx, uint32_t lapMs) {
     char macStr[18];
     macToStr(pilots[idx].uid, macStr);
     JsonDocument doc;
-    doc["type"]  = "lap";
-    doc["pilot"] = idx;
-    doc["uid"]   = macStr;
-    doc["rssi"]  = pilots[idx].peakRssi;
-    doc["ts"]    = pilots[idx].peakTime;
+    doc["type"]   = "lap";
+    doc["pilot"]  = idx;
+    doc["uid"]    = macStr;
+    doc["rssi"]   = pilots[idx].peakRssi;
+    doc["ts"]     = pilots[idx].peakTime;
+    doc["lapMs"]  = lapMs;
     serializeJson(doc, Serial1);
     Serial1.print('\n');
-    Serial.printf("[Gate] LAP  pilot=%d  rssi=%d\n", idx, pilots[idx].peakRssi);
-    sdWriteLap(idx);
+    Serial.printf("[Gate] LAP  pilot=%d  rssi=%d  lapMs=%lu\n",
+                  idx, pilots[idx].peakRssi, (unsigned long)lapMs);
+    sdWriteLap(idx, lapMs);
 }
 
 void sendRssi(int idx, uint32_t now) {
@@ -56,15 +58,19 @@ void processWebCmd(const String& line) {
     } else if (strcmp(action, "set_pilot") == 0) {
         int idx = doc["pilot"] | -1;
         if (idx < 0 || idx >= MAX_PILOTS) return;
-        const char* uidStr = doc["uid"] | "";
+        const char* uidStr  = doc["uid"]  | "";
+        const char* nameStr = doc["name"] | "";
         if (strlen(uidStr) == 17) {
             sscanf(uidStr, "%02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX",
                    &pilots[idx].uid[0], &pilots[idx].uid[1], &pilots[idx].uid[2],
                    &pilots[idx].uid[3], &pilots[idx].uid[4], &pilots[idx].uid[5]);
             pilots[idx].hasUid = true;
-            Serial.printf("[Gate] Pilot #%d registered  %s\n", idx, uidStr);
+            strncpy(pilots[idx].name, nameStr, sizeof(pilots[idx].name) - 1);
+            pilots[idx].name[sizeof(pilots[idx].name) - 1] = '\0';
+            Serial.printf("[Gate] Pilot #%d registered  %s  \"%s\"\n", idx, uidStr, pilots[idx].name);
         } else {
-            pilots[idx].hasUid = false;
+            pilots[idx].hasUid  = false;
+            pilots[idx].name[0] = '\0';
             Serial.printf("[Gate] Pilot #%d cleared\n", idx);
         }
         sdSendStatus();

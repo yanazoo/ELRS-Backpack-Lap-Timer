@@ -5,7 +5,7 @@ extern bool sdPresent;
 void sdInit();
 void sdSendStatus();
 void sdBeginRace();
-void sdWriteLap(int slotIdx);
+void sdWriteLap(int slotIdx, uint32_t lapMs);
 void sdEndRace();
 void sdBeginBackup();
 void sdWriteBackupRow(const char* name, const char* yomi,

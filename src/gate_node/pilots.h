@@ -11,11 +11,13 @@ struct PacketInfo {
 struct PilotState {
     uint8_t  uid[6];
     bool     hasUid;
+    char     name[32];
     float    emaRssi;
     int      rawRssi;
     bool     crossing;
     int      peakRssi;
     uint32_t peakTime;
+    uint32_t lastPeakTime;
     uint32_t lastLapTime;
     int      entryThreshold;
     int      exitThreshold;

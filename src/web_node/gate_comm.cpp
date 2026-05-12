@@ -52,12 +52,13 @@ void sendGatePilot(int slot) {
     char buf[96];
     if (ri < 0 || ri >= rosterCount || !roster[ri].hasUid) {
         snprintf(buf, sizeof(buf),
-                 R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":""})", slot);
+                 R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":"","name":""})", slot);
         Serial1.println(buf);
     } else {
         char uid[18]; uidToStr(roster[ri].uid, uid);
         snprintf(buf, sizeof(buf),
-                 R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":"%s"})", slot, uid);
+                 R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":"%s","name":"%s"})",
+                 slot, uid, roster[ri].name);
         Serial1.println(buf);
     }
     delay(30);

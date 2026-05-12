@@ -51,7 +51,7 @@ void sdBeginRace() {
     snprintf(path, sizeof(path), "/race_%03d.csv", raceFileNum);
     raceFile = SD.open(path, FILE_WRITE);
     if (raceFile) {
-        raceFile.println("Slot,UID,RSSI_dBm,Timestamp_ms");
+        raceFile.println("Slot,Name,UID,LapTime_ms,RSSI_dBm,Timestamp_ms");
         raceFile.flush();
         Serial.printf("[Gate] SD race file opened: %s\n", path);
     } else {
@@ -59,12 +59,14 @@ void sdBeginRace() {
     }
 }
 
-void sdWriteLap(int slotIdx) {
+void sdWriteLap(int slotIdx, uint32_t lapMs) {
     if (!sdPresent || !raceFile) return;
     char macStr[18];
     macToStr(pilots[slotIdx].uid, macStr);
-    raceFile.printf("%d,%s,%d,%lu\n",
-                    slotIdx, macStr,
+    const char* name = pilots[slotIdx].name[0] ? pilots[slotIdx].name : macStr;
+    raceFile.printf("%d,%s,%s,%lu,%d,%lu\n",
+                    slotIdx, name, macStr,
+                    (unsigned long)lapMs,
                     pilots[slotIdx].peakRssi,
                     (unsigned long)pilots[slotIdx].peakTime);
     raceFile.flush();
