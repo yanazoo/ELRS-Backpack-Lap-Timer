@@ -25,4 +25,4 @@
 
 // MAC scan
 #define MAX_SCAN_MACS    8
-#define SCAN_INTERVAL_MS 5000UL
+#define SCAN_INTERVAL_MS 2000UL

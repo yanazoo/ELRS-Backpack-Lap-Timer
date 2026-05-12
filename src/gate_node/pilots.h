@@ -29,3 +29,4 @@ int  findPilot(const uint8_t* mac);
 bool anyPilotRegistered();
 void macToStr(const uint8_t* mac, char* buf);
 void reportScanMac(const uint8_t* mac, int8_t rssi);
+void resetScanTimers();

@@ -5,6 +5,8 @@
 #include "sd_gate.h"
 #include "config.h"
 
+uint32_t gCooldownMs = COOLDOWN_MS;
+
 void sendLap(int idx) {
     char macStr[18];
     macToStr(pilots[idx].uid, macStr);
@@ -47,6 +49,9 @@ void processWebCmd(const String& line) {
         sdEndRace();
         resetPilots();
         sdBeginRace();
+        char ackBuf[48];
+        snprintf(ackBuf, sizeof(ackBuf), R"({"type":"race_start_ack","ts":%lu})", (unsigned long)millis());
+        Serial1.println(ackBuf);
 
     } else if (strcmp(action, "set_pilot") == 0) {
         int idx = doc["pilot"] | -1;
@@ -63,6 +68,14 @@ void processWebCmd(const String& line) {
             Serial.printf("[Gate] Pilot #%d cleared\n", idx);
         }
         sdSendStatus();
+
+    } else if (strcmp(action, "set_cooldown") == 0) {
+        gCooldownMs = (uint32_t)(doc["ms"] | (int)COOLDOWN_MS);
+        Serial.printf("[Gate] Cooldown set to %lu ms\n", (unsigned long)gCooldownMs);
+
+    } else if (strcmp(action, "scan_refresh") == 0) {
+        resetScanTimers();
+        Serial.println("[Gate] Scan timers reset");
 
     } else if (strcmp(action, "set_threshold") == 0) {
         int idx = doc["pilot"] | -1;
