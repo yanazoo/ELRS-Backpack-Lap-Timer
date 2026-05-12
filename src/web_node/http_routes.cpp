@@ -9,12 +9,10 @@
 #include "ws_handler.h"
 
 void registerHttpRoutes() {
-    // ── GET /api/pilots ────────────────────────────────────────────────────────
     server.on("/api/pilots", HTTP_GET, [](AsyncWebServerRequest* req) {
         req->send(200, "application/json", rosterJson());
     });
 
-    // ── POST /api/pilots  {id?:-1, name, yomi, uid} ───────────────────────────
     server.on("/api/pilots", HTTP_POST, [](AsyncWebServerRequest*){},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
@@ -49,7 +47,6 @@ void registerHttpRoutes() {
                 });
         });
 
-    // ── POST /api/pilots/delete  {id} ─────────────────────────────────────────
     server.on("/api/pilots/delete", HTTP_POST, [](AsyncWebServerRequest*){},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
@@ -77,12 +74,10 @@ void registerHttpRoutes() {
                 });
         });
 
-    // ── GET /api/active ────────────────────────────────────────────────────────
     server.on("/api/active", HTTP_GET, [](AsyncWebServerRequest* req) {
         req->send(200, "application/json", activeJson());
     });
 
-    // ── POST /api/active  {slots:[idx0,idx1,idx2,idx3]} ───────────────────────
     server.on("/api/active", HTTP_POST, [](AsyncWebServerRequest*){},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
@@ -114,7 +109,6 @@ void registerHttpRoutes() {
                 });
         });
 
-    // ── POST /api/calib  {id, enter, exit} ────────────────────────────────────
     server.on("/api/calib", HTTP_POST, [](AsyncWebServerRequest*){},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
@@ -135,7 +129,6 @@ void registerHttpRoutes() {
                 });
         });
 
-    // ── POST /api/race/start ───────────────────────────────────────────────────
     server.on("/api/race/start", HTTP_POST, [](AsyncWebServerRequest* req) {
         raceRunning = true; raceStartMs = millis(); lapCount = 0;
         for (int s = 0; s < MAX_ACTIVE; s++) {
@@ -148,7 +141,6 @@ void registerHttpRoutes() {
         req->send(200,"application/json",R"({"ok":true})");
     });
 
-    // ── POST /api/race/stop ────────────────────────────────────────────────────
     server.on("/api/race/stop", HTTP_POST, [](AsyncWebServerRequest* req) {
         raceRunning = false;
         JsonDocument doc; doc["type"]="race_stop";
@@ -156,20 +148,21 @@ void registerHttpRoutes() {
         req->send(200,"application/json",R"({"ok":true})");
     });
 
-    // ── GET /api/laps ──────────────────────────────────────────────────────────
     server.on("/api/laps", HTTP_GET, [](AsyncWebServerRequest* req) {
         req->send(200, "application/json", lapsJson());
     });
 
-    // ── GET /api/scan / POST /api/scan/clear ──────────────────────────────────
     server.on("/api/scan", HTTP_GET, [](AsyncWebServerRequest* req) {
         req->send(200, "application/json", scanJson());
     });
     server.on("/api/scan/clear", HTTP_POST, [](AsyncWebServerRequest* req) {
         scanMacCount = 0; req->send(200,"application/json",R"({"ok":true})");
     });
+    server.on("/api/scan/refresh", HTTP_POST, [](AsyncWebServerRequest* req) {
+        sendGateCmd("scan_refresh");
+        req->send(200,"application/json",R"({"ok":true})");
+    });
 
-    // ── GET /api/status ────────────────────────────────────────────────────────
     server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* req) {
         JsonDocument doc;
         doc["raceRunning"] = raceRunning; doc["raceStartMs"] = raceStartMs;
@@ -178,13 +171,11 @@ void registerHttpRoutes() {
         String s; serializeJson(doc,s); req->send(200,"application/json",s);
     });
 
-    // ── GET /api/sd/status ─────────────────────────────────────────────────────
     server.on("/api/sd/status", HTTP_GET, [](AsyncWebServerRequest* req) {
         JsonDocument doc; doc["present"] = sdPresent;
         String s; serializeJson(doc,s); req->send(200,"application/json",s);
     });
 
-    // ── POST /api/sd/pilots/backup ─────────────────────────────────────────────
     server.on("/api/sd/pilots/backup", HTTP_POST, [](AsyncWebServerRequest* req) {
         if (!sdPresent) { req->send(503,"application/json",R"({"error":"no sd card"})"); return; }
         sendGateCmd("sd_begin_backup");
@@ -209,7 +200,6 @@ void registerHttpRoutes() {
         Serial.printf("[Web] SD backup: sent %d pilots\n", rosterCount);
     });
 
-    // ── POST /api/sd/pilots/restore ───────────────────────────────────────────
     server.on("/api/sd/pilots/restore", HTTP_POST, [](AsyncWebServerRequest* req) {
         if (!sdPresent) { req->send(503,"application/json",R"({"error":"no sd card"})"); return; }
         restoreCount = 0;
@@ -218,14 +208,12 @@ void registerHttpRoutes() {
         Serial.println("[Web] SD restore: request sent to gate");
     });
 
-    // ── POST /api/sd/files/list ────────────────────────────────────────────────
     server.on("/api/sd/files/list", HTTP_POST, [](AsyncWebServerRequest* req) {
         if (!sdPresent) { req->send(503,"application/json",R"({"error":"no sd card"})"); return; }
         sendGateCmd("sd_list_files");
         req->send(200,"application/json",R"({"ok":true})");
     });
 
-    // ── POST /api/sd/files/download {path} ────────────────────────────────────
     server.on("/api/sd/files/download", HTTP_POST, [](AsyncWebServerRequest*){},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
@@ -245,7 +233,6 @@ void registerHttpRoutes() {
                 });
         });
 
-    // ── POST /api/sd/files/delete {path} ──────────────────────────────────────
     server.on("/api/sd/files/delete", HTTP_POST, [](AsyncWebServerRequest*){},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
@@ -265,22 +252,55 @@ void registerHttpRoutes() {
                 });
         });
 
-    // ── Captive portal ─────────────────────────────────────────────────────────
-    auto cpRedirect = [](AsyncWebServerRequest* req) { req->redirect("http://20.0.0.1/"); };
-    server.on("/generate_204",              HTTP_GET, cpRedirect);
-    server.on("/gen_204",                   HTTP_GET, cpRedirect);
-    server.on("/hotspot-detect.html",       HTTP_GET, cpRedirect);
-    server.on("/library/test/success.html", HTTP_GET, cpRedirect);
-    server.on("/bag",                       HTTP_GET, cpRedirect);
-    server.on("/connecttest.txt",           HTTP_GET, cpRedirect);
-    server.on("/ncsi.txt",                  HTTP_GET, cpRedirect);
-    server.on("/redirect",                  HTTP_GET, cpRedirect);
-    server.on("/success.txt",               HTTP_GET, cpRedirect);
-    server.on("/canonical.html",            HTTP_GET, cpRedirect);
+    server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest* req) {
+        JsonDocument doc;
+        doc["lapMode"]    = lapMode;
+        doc["cooldownMs"] = cooldownMs;
+        String s; serializeJson(doc,s); req->send(200,"application/json",s);
+    });
+
+    server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest*){},
+        nullptr,
+        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
+            handleBody(req, data, len, idx, total,
+                [](AsyncWebServerRequest* req2, const char* body){
+                    JsonDocument doc;
+                    if (deserializeJson(doc, body) != DeserializationError::Ok)
+                        { req2->send(400,"application/json",R"({"error":"bad json"})"); return; }
+                    if (!doc["lapMode"].isNull())    lapMode    = (uint8_t)(int)(doc["lapMode"]);
+                    if (!doc["cooldownMs"].isNull()) {
+                        cooldownMs = (uint32_t)(int)(doc["cooldownMs"]);
+                        if (cooldownMs < 500)  cooldownMs = 500;
+                        if (cooldownMs > 30000) cooldownMs = 30000;
+                        sendGateCooldown();
+                    }
+                    req2->send(200,"application/json",R"({"ok":true})");
+                });
+        });
+
+    auto cpRedirect = [](AsyncWebServerRequest* req) {
+        req->redirect("http://20.0.0.1/");
+    };
+    server.on("/generate_204",              HTTP_ANY, cpRedirect);
+    server.on("/gen_204",                   HTTP_ANY, cpRedirect);
+    server.on("/hotspot-detect.html",       HTTP_ANY, cpRedirect);
+    server.on("/library/test/success.html", HTTP_ANY, cpRedirect);
+    server.on("/success.txt",               HTTP_ANY, cpRedirect);
+    server.on("/canonical.html",            HTTP_ANY, cpRedirect);
+    server.on("/ncsi.txt",                  HTTP_ANY, cpRedirect);
+    server.on("/connecttest.txt",           HTTP_ANY, cpRedirect);
+    server.on("/redirect",                  HTTP_ANY, cpRedirect);
+    server.on("/fwlink",                    HTTP_ANY, cpRedirect);
+    server.on("/wpad.dat",                  HTTP_ANY, cpRedirect);
+    server.on("/bag",                       HTTP_ANY, cpRedirect);
+    server.on("/kindle-wifi/wifistub.html", HTTP_ANY, cpRedirect);
+    server.on("/favicon.ico",              HTTP_ANY, [](AsyncWebServerRequest* req){ req->send(204); });
+    server.on("/apple-touch-icon.png",     HTTP_ANY, [](AsyncWebServerRequest* req){ req->send(204); });
 
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
     server.onNotFound([](AsyncWebServerRequest* req) {
+        if (req->method() == HTTP_OPTIONS) { req->send(204); return; }
         if (req->url().startsWith("/api"))
             req->send(404,"application/json",R"({"error":"not found"})");
         else

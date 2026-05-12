@@ -182,17 +182,30 @@ function updateScanList(){
     var done=s.assignedRosterId!==undefined&&s.assignedRosterId>=0;
     var macId=mac.replace(/:/g,'');
     var savedName=s.inputName||s.pilotName||'';
+    var rssi=typeof s.rssi==='number'?s.rssi:-80;
+    var enterDef=Math.max(-120,Math.min(-1,rssi-5));
+    var exitDef=Math.max(-120,Math.min(-1,enterDef-5));
     return '<div id="scan-'+macId+'" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:8px">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
       +  '<span style="font-family:monospace;font-size:13px;color:var(--accent);flex:1">'+mac+'</span>'
       +  '<span style="color:var(--muted);font-size:11px">'+s.rssi+' dBm</span>'
       +  (done?'<span style="color:var(--ok);font-size:11px;font-weight:700">✓ 登録済み</span>':'')
       +'</div>'
-      +'<div style="display:flex;gap:6px;align-items:center">'
+      +'<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'
       +  '<input type="text" id="scanName-'+macId+'" placeholder="パイロット名" maxlength="20" value="'+esc(savedName)+'" autocomplete="off"'
       +    ' style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:13px"'
-      +    (done?' disabled':'')+' onkeydown="if(event.key===\'Enter\')registerScanPilot(\''+mac+'\')">'
-      +  '<button id="scanBtn-'+macId+'" onclick="registerScanPilot(\''+mac+'\')" class="btn-success" style="font-size:12px;padding:5px 12px;white-space:nowrap"'+(done?' disabled':'')+'>パイロット情報に追加</button>'
+      +    (done?' disabled':'')+' onkeydown="if(event.key===\'Enter\')registerScanPilot(\''+mac+'\')">' 
+      +'</div>'
+      +'<div style="display:flex;gap:5px;align-items:center">'
+      +  '<span style="font-size:11px;color:var(--muted)">入</span>'
+      +  '<input type="number" id="scanEnter-'+macId+'" value="'+(done?-80:enterDef)+'" min="-120" max="-1"'+(done?' disabled':'')
+      +    ' style="width:62px;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:4px 5px;font-size:12px;text-align:center">'
+      +  '<span style="font-size:10px;color:var(--muted)">dBm</span>'
+      +  '<span style="font-size:11px;color:var(--muted);margin-left:4px">出</span>'
+      +  '<input type="number" id="scanExit-'+macId+'" value="'+(done?-90:exitDef)+'" min="-120" max="-1"'+(done?' disabled':'')
+      +    ' style="width:62px;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:4px 5px;font-size:12px;text-align:center">'
+      +  '<span style="font-size:10px;color:var(--muted)">dBm</span>'
+      +  '<button id="scanBtn-'+macId+'" onclick="registerScanPilot(\''+mac+'\')" class="btn-success" style="font-size:12px;padding:5px 10px;white-space:nowrap;margin-left:auto"'+(done?' disabled':'')+'>パイロット情報に追加</button>'
       +'</div>'
       +'</div>';
   }).join('');
@@ -204,16 +217,25 @@ async function registerScanPilot(mac){
   if(!nameEl)return;
   var name=nameEl.value.trim();
   if(!name){toast('⚠️ 名前を入力してください');return;}
+  var enterEl=document.getElementById('scanEnter-'+macId);
+  var exitEl=document.getElementById('scanExit-'+macId);
+  var enter=enterEl?parseInt(enterEl.value)||(-80):-80;
+  var exit_=exitEl?parseInt(exitEl.value)||(-90):-90;
   try{
     var r=await fetch('/api/pilots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,yomi:'',uid:mac})});
     if(!r.ok){toast('⚠️ 登録エラー');return;}
     var body=await r.json();
+    await fetch('/api/calib',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:body.id,enter,exit:exit_})});
     scanResults[mac].assignedRosterId=body.id;
     scanResults[mac].pilotName=name;
     scanResults[mac].inputName='';
     await loadRoster();updateScanList();
     toast('✓ '+name+' をパイロット情報に追加しました');
   }catch(e){toast('⚠️ 接続エラー');}
+}
+
+async function scanRefresh(){
+  try{await fetch('/api/scan/refresh',{method:'POST'});}catch(e){}
 }
 
 function clearScan(){scanResults={};updateScanList();fetch('/api/scan/clear',{method:'POST'}).catch(()=>{});}
@@ -237,8 +259,16 @@ async function sdRestore(){
 function saveGlobalConfig(){
   announceMode=document.getElementById('announceMode').value;
   speechRate=parseFloat(document.getElementById('speechRateN').value)||1.1;
+  lapMode=document.getElementById('lapModeSelect').value;
+  var cdRaw=parseInt(document.getElementById('cooldownInput').value)||3000;
+  cooldownMs=Math.max(500,Math.min(30000,cdRaw));
+  document.getElementById('cooldownInput').value=cooldownMs;
   localStorage.setItem('announce',announceMode);
   localStorage.setItem('srate',String(speechRate));
+  localStorage.setItem('lapMode',lapMode);
+  localStorage.setItem('cooldownMs',String(cooldownMs));
+  fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({lapMode:lapMode==='immediate'?1:0,cooldownMs:cooldownMs})}).catch(()=>{});
 }
 
 function updateSdSection(present){

@@ -17,6 +17,8 @@ var raceRunning=false, raceStartPerf=0, timerH=null, countdownH=null;
 var voiceEnabled = localStorage.getItem('voice')!=='0';
 var announceMode = localStorage.getItem('announce')||'laptime';
 var speechRate   = parseFloat(localStorage.getItem('srate')||'1.1');
+var lapMode      = localStorage.getItem('lapMode')||'holeshot';
+var cooldownMs   = parseInt(localStorage.getItem('cooldownMs')||'3000');
 
 var scanResults  = {};
 var editingRosterId = null;
@@ -24,6 +26,7 @@ var sdPresent = false;
 var sdFileList = [];
 var sdDownloadBuf = [], sdDownloadPath = '';
 var calibSaveTimers = {};
+var scanAutoRefreshH = null;
 
 function toast(msg, dur) {
   dur=dur||2000;
@@ -55,4 +58,9 @@ function switchTab(tab){
     },50);
   }
   if(tab==='sd') refreshSdFiles();
+  if(tab==='config'){
+    if(!scanAutoRefreshH) scanAutoRefreshH=setInterval(scanRefresh,5000);
+  } else {
+    if(scanAutoRefreshH){clearInterval(scanAutoRefreshH);scanAutoRefreshH=null;}
+  }
 }
