@@ -12,7 +12,7 @@ int         lapCount    = 0;
 bool        raceRunning      = false;
 uint32_t    raceStartMs      = 0;
 bool        sdPresent        = false;
-uint8_t     lapMode          = 0;       // 0=holeshot, 1=immediate
+uint8_t     lapMode          = 0;
 uint32_t    gateRaceStartTs  = 0;
 uint32_t    cooldownMs       = 3000;
 String      restoreBuffer[MAX_REGISTERED];
@@ -54,13 +54,11 @@ void sendGatePilot(int slot) {
         snprintf(buf, sizeof(buf),
                  R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":""})", slot);
         Serial1.println(buf);
-        Serial.printf("[Web] → Gate slot%d cleared\n", slot);
     } else {
         char uid[18]; uidToStr(roster[ri].uid, uid);
         snprintf(buf, sizeof(buf),
                  R"({"type":"cmd","action":"set_pilot","pilot":%d,"uid":"%s"})", slot, uid);
         Serial1.println(buf);
-        Serial.printf("[Web] → Gate slot%d = %s (%s)\n", slot, roster[ri].name, uid);
     }
     delay(30);
 }
@@ -91,12 +89,10 @@ void processGateLine(const String& line) {
 
     if (strcmp(type, "ready") == 0) {
         sendAllPilots(); sendAllThresholds(); sendGateCooldown();
-        Serial.println("[Web] Gate ready — sent pilots + thresholds + cooldown");
         return;
     }
     if (strcmp(type, "sd_status") == 0) {
         sdPresent = doc["present"] | false;
-        Serial.printf("[Web] SD status from gate: %s\n", sdPresent ? "present" : "absent");
         return;
     }
     if (strcmp(type, "scan") == 0) {
@@ -146,7 +142,6 @@ void processGateLine(const String& line) {
         rt[s].lastLapTs = ts;
 
         if (isFirst && lapMs == 0) {
-            // Holeshot crossing — notify frontend to play gate-cross sound
             JsonDocument wd;
             wd["type"]  = "gate_start";
             wd["pilot"] = s;
@@ -188,7 +183,6 @@ void processGateLine(const String& line) {
         wsText(line); return;
     }
     if (strcmp(type, "sd_restore_done") == 0) {
-        Serial.printf("[Web] SD restore: applying %d pilots\n", restoreCount);
         rosterCount = 0;
         for (int i = 0; i < MAX_ACTIVE; i++) activePilots[i] = -1;
         for (int i = 0; i < restoreCount && i < MAX_REGISTERED; i++) {
@@ -215,7 +209,6 @@ void processGateLine(const String& line) {
         wd["type"]   = "sd_restore_done";
         wd["pilots"] = serialized(rosterJson());
         String wm; serializeJson(wd, wm); wsText(wm);
-        Serial.println("[Web] SD restore applied to roster");
         return;
     }
 }

@@ -87,7 +87,6 @@ void processWebCmd(const String& line) {
 
     } else if (strcmp(action, "sd_begin_backup") == 0) {
         sdBeginBackup();
-
     } else if (strcmp(action, "sd_backup_row") == 0) {
         sdWriteBackupRow(
             doc["name"]  | "",
@@ -96,19 +95,14 @@ void processWebCmd(const String& line) {
             doc["enter"] | DEFAULT_ENTRY_THR,
             doc["exit"]  | DEFAULT_EXIT_THR
         );
-
     } else if (strcmp(action, "sd_end_backup") == 0) {
         sdEndBackup();
-
     } else if (strcmp(action, "sd_restore_request") == 0) {
         sdHandleRestore();
-
     } else if (strcmp(action, "sd_list_files") == 0) {
         sdListFiles();
-
     } else if (strcmp(action, "sd_read_file") == 0) {
         sdReadFile(doc["path"] | "");
-
     } else if (strcmp(action, "sd_delete_file") == 0) {
         sdDeleteFile(doc["path"] | "");
     }

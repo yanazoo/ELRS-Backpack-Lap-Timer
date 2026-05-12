@@ -1,34 +1,3 @@
-/*
- * ELRS Backpack Lap Timer — Gate Node
- * Hardware : ESP32-WROVER-E-A (LilyGo TTGO T8 V1.8)
- *
- * UART protocol — Gate→Web (1 JSON line per event):
- *   {"type":"lap",       "pilot":0,"uid":"AA:BB","rssi":-72,"ts":123456}
- *   {"type":"rssi",      "pilot":0,"rssi":-85,"raw":-87,"crossing":false,"ts":123460}
- *   {"type":"ready",     "pilots":4}
- *   {"type":"sd_status", "present":true/false}
- *   {"type":"sd_pilot_row", <pilot fields>}
- *   {"type":"sd_restore_done"}
- *
- * UART protocol — Web→Gate:
- *   {"type":"cmd","action":"race_start"}
- *   {"type":"cmd","action":"set_pilot","pilot":0,"uid":"AA:BB:CC:DD:EE:FF"}
- *   {"type":"cmd","action":"set_threshold","pilot":0,"enter":-80,"exit":-90}
- *   {"type":"cmd","action":"scan_refresh"}
- *   {"type":"cmd","action":"sd_begin_backup"}
- *   {"type":"cmd","action":"sd_backup_row","name":"...","yomi":"...","mac":"...","enter":-80,"exit":-90}
- *   {"type":"cmd","action":"sd_end_backup"}
- *   {"type":"cmd","action":"sd_restore_request"}
- *   {"type":"cmd","action":"sd_list_files"}
- *   {"type":"cmd","action":"sd_read_file","path":"/race_001.csv"}
- *   {"type":"cmd","action":"sd_delete_file","path":"/race_001.csv"}
- *
- * Wiring:
- *   GPIO26 (TX1) → XIAO ESP32-S3 GPIO3 (RX1)
- *   GPIO25 (RX1) ← XIAO ESP32-S3 GPIO2 (TX1)
- *   SD: CS=13, MOSI=15, MISO=2, SCK=14
- */
-
 #include <Arduino.h>
 #include "config.h"
 #include "pilots.h"
@@ -59,7 +28,6 @@ void setup() {
 void loop() {
     uint32_t now = millis();
 
-    // Re-send "ready" + "sd_status" every 10 s until Web Node registers at least one pilot
     if (!anyPilotRegistered() && now - lastReadySend >= 10000UL) {
         lastReadySend = now;
         char buf[64];
@@ -69,7 +37,6 @@ void loop() {
         Serial.println("[Gate] Re-sent ready + sd_status (no pilots registered)");
     }
 
-    // Read commands from Web Node
     while (Serial1.available()) {
         char c = (char)Serial1.read();
         if (c == '\n') {
@@ -81,7 +48,6 @@ void loop() {
         }
     }
 
-    // Drain ISR queue: registered pilots update rawRssi; unknown ESP-NOW MACs go to scan
     PacketInfo info;
     while (xQueueReceive(packetQueue, &info, 0) == pdTRUE) {
         int idx = findPilot(info.mac);
@@ -92,7 +58,6 @@ void loop() {
         }
     }
 
-    // EMA filter + state machine — only for registered pilots
     for (int i = 0; i < MAX_PILOTS; i++) {
         if (!pilots[i].hasUid) continue;
         PilotState& p = pilots[i];
@@ -117,7 +82,6 @@ void loop() {
         }
     }
 
-    // Periodic RSSI telemetry to Web Node
     if (now - lastRssiSend >= RSSI_INTERVAL_MS) {
         lastRssiSend = now;
         for (int i = 0; i < MAX_PILOTS; i++) {

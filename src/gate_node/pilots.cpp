@@ -49,7 +49,6 @@ void macToStr(const uint8_t* mac, char* buf) {
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
-// ── Scan: rate-limited forwarding of unknown ESP-NOW MACs ─────────────────────
 static struct ScanEntry { uint8_t mac[6]; uint32_t lastSent; } scanTable[MAX_SCAN_MACS];
 static int scanCount = 0;
 

@@ -1,15 +1,12 @@
 /*
  * ELRS Backpack Lap Timer — Web Node
  * Hardware : XIAO ESP32-S3-B
- *
- * REST API  — see http_routes.cpp
- * NVS layout — see nvs_store.cpp
- * Gate UART protocol — see gate_comm.cpp
  */
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <LittleFS.h>
+#include <ESPAsyncWebServer.h>
 #include "config.h"
 #include "data_model.h"
 #include "nvs_store.h"
@@ -35,10 +32,17 @@ void setup() {
     WiFi.softAP(AP_SSID, AP_PASS, 6);
     Serial.printf("[Web] AP  SSID=%s  IP=%s\n", AP_SSID, AP_IP.toString().c_str());
 
+    // DNS: wildcard → AP IP (required for captive portal on all platforms)
     dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+    dnsServer.setTTL(30);
     dnsServer.start(53, "*", AP_IP);
 
     if (!LittleFS.begin(true)) Serial.println("[Web] LittleFS failed");
+
+    // CORS headers for API access from browser
+    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin",  "*");
+    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
 
     initWsHandler();
     registerHttpRoutes();

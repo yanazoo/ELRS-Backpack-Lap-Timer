@@ -1,19 +1,23 @@
 /*
  * ELRS Backpack Lap Timer — Aircraft Node
- * Hardware : XIAO ESP32-C3
+ * Hardware : XIAO ESP32-C3 / XIAO ESP32-C6
  *
  * Role
  *   Broadcasts a tiny ESP-NOW beacon every BROADCAST_MS on ESPNOW_CHANNEL.
  *   The gate node (ESP32-WROVER-E) sniffs these frames via promiscuous mode
  *   and uses the WiFi RSSI to detect gate crossings.
  *
- *   Source MAC = hardware MAC of this XIAO ESP32-C3 (unique per unit).
+ *   Source MAC = hardware MAC of this board (unique per unit).
  *   Print the MAC on first boot and register it in the Web UI Config tab.
  *
  * Wiring
  *   5V  → aircraft receiver / VTX 5V pad
  *   GND → aircraft GND
  *   (no signal wires needed)
+ *
+ * Note for ESP32-C6 (XIAO ESP32-C6):
+ *   The C6 defaults to 802.11ax (WiFi 6). ESP-NOW requires legacy
+ *   802.11b/g/n, so we force the protocol after WiFi init.
  */
 
 #include <Arduino.h>
@@ -32,6 +36,13 @@ void setup() {
 
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
+
+#ifdef CONFIG_IDF_TARGET_ESP32C6
+    // C6 defaults to 802.11ax (WiFi 6); ESP-NOW needs legacy 802.11b/g/n
+    esp_wifi_set_protocol(WIFI_IF_STA,
+        WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+#endif
+
     esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
 
     if (esp_now_init() != ESP_OK) {
@@ -46,8 +57,8 @@ void setup() {
     peer.encrypt = false;
     esp_now_add_peer(&peer);
 
-    Serial.printf("[Aircraft] MAC  : %s\n", WiFi.macAddress().c_str());
-    Serial.printf("[Aircraft] Ch   : %d\n", ESPNOW_CHANNEL);
+    Serial.printf("[Aircraft] MAC     : %s\n", WiFi.macAddress().c_str());
+    Serial.printf("[Aircraft] Channel : %d\n", ESPNOW_CHANNEL);
     Serial.printf("[Aircraft] Interval: %d ms\n", BROADCAST_MS);
     Serial.println("[Aircraft] Broadcasting — register this MAC in Web UI Config tab");
 }
