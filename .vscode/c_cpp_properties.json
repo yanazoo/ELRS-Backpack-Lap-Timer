@@ -1,0 +1,21 @@
+{
+    "configurations": [
+        {
+            "name": "aircraft_node",
+            "compileCommands": "${workspaceFolder}/.pio/build/aircraft_node/compile_commands.json"
+        },
+        {
+            "name": "aircraft_node_c6",
+            "compileCommands": "${workspaceFolder}/.pio/build/aircraft_node_c6/compile_commands.json"
+        },
+        {
+            "name": "gate_node",
+            "compileCommands": "${workspaceFolder}/.pio/build/gate_node/compile_commands.json"
+        },
+        {
+            "name": "web_node",
+            "compileCommands": "${workspaceFolder}/.pio/build/web_node/compile_commands.json"
+        }
+    ],
+    "version": 4
+}
