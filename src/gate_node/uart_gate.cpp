@@ -19,9 +19,10 @@ void sendLap(int idx, uint32_t lapMs) {
     doc["lapMs"]  = lapMs;
     serializeJson(doc, Serial1);
     Serial1.print('\n');
-    Serial.printf("[Gate] LAP  pilot=%d  rssi=%d  lapMs=%lu\n",
-                  idx, pilots[idx].peakRssi, (unsigned long)lapMs);
-    sdWriteLap(idx, lapMs);
+    pilots[idx].lapCount++;
+    Serial.printf("[Gate] LAP  pilot=%d  lap=%d  rssi=%d  lapMs=%lu\n",
+                  idx, pilots[idx].lapCount, pilots[idx].peakRssi, (unsigned long)lapMs);
+    sdWriteLap(idx, lapMs, pilots[idx].lapCount);
 }
 
 void sendRssi(int idx, uint32_t now) {

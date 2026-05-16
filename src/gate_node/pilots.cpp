@@ -17,6 +17,7 @@ void initPilots() {
         pilots[i].peakTime       = 0;
         pilots[i].lastPeakTime   = 0;
         pilots[i].lastLapTime    = 0;
+        pilots[i].lapCount       = 0;
         pilots[i].entryThreshold = DEFAULT_ENTRY_THR;
         pilots[i].exitThreshold  = DEFAULT_EXIT_THR;
     }
@@ -29,6 +30,7 @@ void resetPilots() {
         pilots[i].peakTime      = 0;
         pilots[i].lastPeakTime  = 0;
         pilots[i].lastLapTime   = 0;
+        pilots[i].lapCount      = 0;
         pilots[i].emaRssi       = -120.0f;
         pilots[i].rawRssi       = -120;
     }

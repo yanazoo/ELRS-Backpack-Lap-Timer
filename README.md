@@ -265,8 +265,8 @@ CLEAR（待機）
 ### レースCSV (`/race_NNN.csv`)
 
 ```
-Slot,Name,UID,LapTime_ms,RSSI_dBm,Timestamp_ms
-0,疾風 翔,AA:BB:CC:DD:EE:FF,42135,-75,123456
+Slot,Name,UID,Lap,LapTime_ms,RSSI_dBm,Timestamp_ms
+0,疾風 翔,AA:BB:CC:DD:EE:FF,1,42135,-75,123456
 ```
 
 - ファイル先頭にUTF-8 BOM付き → Excelで直接開いても文字化けしない

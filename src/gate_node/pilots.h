@@ -19,6 +19,7 @@ struct PilotState {
     uint32_t peakTime;
     uint32_t lastPeakTime;
     uint32_t lastLapTime;
+    int      lapCount;
     int      entryThreshold;
     int      exitThreshold;
     uint32_t lastPacketTime;

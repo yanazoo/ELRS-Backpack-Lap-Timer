@@ -79,7 +79,7 @@ void sdBeginRace() {
     raceFile = SD.open(path, FILE_WRITE);
     if (raceFile) {
         raceFile.print("\xEF\xBB\xBF");  // UTF-8 BOM for Excel compatibility
-        raceFile.println("Slot,Name,UID,LapTime_ms,RSSI_dBm,Timestamp_ms");
+        raceFile.println("Slot,Name,UID,Lap,LapTime_ms,RSSI_dBm,Timestamp_ms");
         raceFile.flush();
         Serial.printf("[Gate] SD race file opened: %s\n", path);
     } else {
@@ -87,13 +87,14 @@ void sdBeginRace() {
     }
 }
 
-void sdWriteLap(int slotIdx, uint32_t lapMs) {
+void sdWriteLap(int slotIdx, uint32_t lapMs, int lapCount) {
     if (!sdPresent || !raceFile) return;
     char macStr[18];
     macToStr(pilots[slotIdx].uid, macStr);
     const char* name = pilots[slotIdx].name[0] ? pilots[slotIdx].name : macStr;
-    raceFile.printf("%d,%s,%s,%lu,%d,%lu\n",
+    raceFile.printf("%d,%s,%s,%d,%lu,%d,%lu\n",
                     slotIdx, name, macStr,
+                    lapCount,
                     (unsigned long)lapMs,
                     pilots[slotIdx].peakRssi,
                     (unsigned long)pilots[slotIdx].peakTime);
