@@ -46,6 +46,34 @@ void registerHttpRoutes() {
         req->send(200, "application/json", rosterJson());
     });
 
+    // ── POST /api/pilots/delete (registered BEFORE /api/pilots to avoid prefix match) ──
+    server.on("/api/pilots/delete", HTTP_POST, [](AsyncWebServerRequest*){},
+        nullptr,
+        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
+            handleBody(req, data, len, idx, total,
+                [](AsyncWebServerRequest* req2, const char* body){
+                    JsonDocument doc;
+                    if (deserializeJson(doc, body) != DeserializationError::Ok)
+                        { req2->send(400,"application/json",R"({"error":"bad json"})"); return; }
+                    int id = doc["id"] | -1;
+                    if (id < 0 || id >= rosterCount)
+                        { req2->send(400,"application/json",R"({"error":"bad id"})"); return; }
+                    for (int s = 0; s < MAX_ACTIVE; s++) {
+                        if (activePilots[s] == id) activePilots[s] = -1;
+                        else if (activePilots[s] > id) activePilots[s]--;
+                    }
+                    for (int i = id; i < rosterCount-1; i++) {
+                        roster[i]    = roster[i+1];
+                        rosterCal[i] = rosterCal[i+1];
+                    }
+                    rosterCount--;
+                    nvsSaveRangeFromIndex(id);
+                    saveActive();
+                    sendAllPilots();
+                    req2->send(200,"application/json",R"({"ok":true})");
+                });
+        });
+
     // ── POST /api/pilots ──────────────────────────────────────────────────────
     server.on("/api/pilots", HTTP_POST, [](AsyncWebServerRequest*){},
         nullptr,
@@ -78,34 +106,6 @@ void registerHttpRoutes() {
                     if (slot >= 0) { sendGatePilot(slot); sendGateThreshold(slot); }
                     JsonDocument resp; resp["ok"]=true; resp["id"]=id;
                     String s; serializeJson(resp,s); req2->send(200,"application/json",s);
-                });
-        });
-
-    // ── POST /api/pilots/delete ───────────────────────────────────────────────
-    server.on("/api/pilots/delete", HTTP_POST, [](AsyncWebServerRequest*){},
-        nullptr,
-        [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t idx, size_t total){
-            handleBody(req, data, len, idx, total,
-                [](AsyncWebServerRequest* req2, const char* body){
-                    JsonDocument doc;
-                    if (deserializeJson(doc, body) != DeserializationError::Ok)
-                        { req2->send(400,"application/json",R"({"error":"bad json"})"); return; }
-                    int id = doc["id"] | -1;
-                    if (id < 0 || id >= rosterCount)
-                        { req2->send(400,"application/json",R"({"error":"bad id"})"); return; }
-                    for (int s = 0; s < MAX_ACTIVE; s++) {
-                        if (activePilots[s] == id) activePilots[s] = -1;
-                        else if (activePilots[s] > id) activePilots[s]--;
-                    }
-                    for (int i = id; i < rosterCount-1; i++) {
-                        roster[i]    = roster[i+1];
-                        rosterCal[i] = rosterCal[i+1];
-                    }
-                    rosterCount--;
-                    nvsSaveRangeFromIndex(id);
-                    saveActive();
-                    sendAllPilots();
-                    req2->send(200,"application/json",R"({"ok":true})");
                 });
         });
 
@@ -318,7 +318,7 @@ void registerHttpRoutes() {
         });
 
     // ── Static files (last — after all API and captive portal routes) ──────────
-    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
+    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html").setCacheControl("no-cache");
 
     // ── 404 / captive portal catch-all ────────────────────────────────────────
     server.onNotFound([](AsyncWebServerRequest* req) {

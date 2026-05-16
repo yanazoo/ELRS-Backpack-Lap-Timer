@@ -161,11 +161,12 @@ async function submitEdit(id){
 }
 
 async function deleteRosterPilot(id){
-  var r=rosterData.find(x=>x.id===id);
-  if(!confirm((r?r.name:'このパイロット')+'を削除しますか？'))return;
-  if(editingRosterId===id) editingRosterId=null;
+  var rowEl=document.getElementById('ri-'+id);
+  if(rowEl)rowEl.remove();
+  if(editingRosterId===id)editingRosterId=null;
   rosterData=rosterData.filter(x=>x.id!==id);
-  renderRoster();
+  var badge=document.getElementById('rosterCountBadge');
+  if(badge)badge.textContent='('+rosterData.length+'/50)';
   try{
     var res=await fetch('/api/pilots/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
     if(res.ok){await loadRoster();applyActiveToSlots();buildRaceCards();buildCalibCards();toast('削除しました');}
