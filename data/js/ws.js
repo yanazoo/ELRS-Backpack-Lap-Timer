@@ -52,8 +52,9 @@ function onMsg(d){
     var s=d.pilot;if(s<0||s>=N)return;
     var p=slots[s];
     var prevCrossing=p.crossing;
-    p.rssi=d.rssi!==undefined?d.rssi:p.rssi;
-    p.crossing=d.crossing!==undefined?d.crossing:p.crossing;
+    p.rssiSignal=d.signal!==false;
+    p.rssi=p.rssiSignal?(d.rssi!==undefined?d.rssi:p.rssi):-120;
+    p.crossing=p.rssiSignal&&(d.crossing!==undefined?d.crossing:p.crossing);
     if(d.name&&d.name!=='---')p.name=d.name;
     var calibActive=document.getElementById('pane-calib').classList.contains('active');
     if(raceRunning||calibActive){
@@ -61,8 +62,8 @@ function onMsg(d){
       if(prevCrossing&&!p.crossing){ensureAudio();sfx.exit();}
     }
     updateRaceCard(p);
-    var calR=document.getElementById('calRssi'+s);if(calR)calR.textContent=p.rssi;
-    pushChart(s,p.rssi,p.crossing);
+    var calR=document.getElementById('calRssi'+s);if(calR)calR.textContent=p.rssiSignal?p.rssi:'---';
+    pushChart(s,p.rssiSignal?p.rssi:-120,p.crossing);
     return;
   }
   if(d.type==='gate_start'){

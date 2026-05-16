@@ -56,8 +56,8 @@ function updateRaceCard(p){
   var $=id=>document.getElementById(id);
   $('rcName'+p.id).textContent=p.name==='---'?'Ch'+(p.id+1):p.name;
   $('rcLaps'+p.id).textContent=p.lapCount===1?'HS':p.lapCount?p.lapCount+'周':'';
-  $('rssiBar'+p.id).style.width=dbPct(p.rssi)+'%';
-  $('rssiVal'+p.id).textContent=p.rssi+' dBm';
+  $('rssiBar'+p.id).style.width=(p.rssiSignal?dbPct(p.rssi):0)+'%';
+  $('rssiVal'+p.id).textContent=p.rssiSignal?p.rssi+' dBm':'--- dBm';
   $('rcBest'+p.id).textContent=fmt(p.bestLapMs);
   var badge=$('rcBadge'+p.id);
   if(p.crossing){badge.style.display='inline-block';badge.style.color=PCOLORS[p.id];}
@@ -105,6 +105,7 @@ function clearAllLaps(){
     updateRaceCard(p);
   });
 }
+
 function setBtns(running){
   document.getElementById('btnStart').disabled=running;
   document.getElementById('btnStop').disabled=!running;

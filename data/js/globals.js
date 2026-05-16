@@ -7,7 +7,7 @@ const N = 4;
 const slots = Array.from({length:N}, (_,i) => ({
   id:i, name:'---', yomi:'', rosterIdx:-1, rssi:-120, crossing:false,
   lapCount:0, bestLapMs:0, lapTimes:[], cumulative:0,
-  enterRssi:-80, exitRssi:-90
+  enterRssi:-80, exitRssi:-90, rssiSignal:false
 }));
 
 var rosterData = [];

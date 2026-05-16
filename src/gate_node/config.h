@@ -22,6 +22,7 @@
 #define DEFAULT_EXIT_THR   (-90)
 #define COOLDOWN_MS        3000UL
 #define RSSI_INTERVAL_MS   50UL
+#define SIGNAL_LOST_MS     1000UL
 
 // MAC scan
 #define MAX_SCAN_MACS    8

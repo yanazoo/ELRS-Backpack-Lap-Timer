@@ -29,6 +29,7 @@ struct SlotRuntime {
     int      rssi;
     int      rawRssi;
     bool     crossing;
+    bool     signal;
     uint32_t lastTs;
     uint32_t lapCount;
     uint32_t bestLapMs;

@@ -53,6 +53,7 @@ void loop() {
         int idx = findPilot(info.mac);
         if (idx >= 0) {
             pilots[idx].rawRssi = info.rssi;
+            pilots[idx].lastPacketTime = now;
         } else if (info.isEspNow) {
             reportScanMac(info.mac, info.rssi);
         }

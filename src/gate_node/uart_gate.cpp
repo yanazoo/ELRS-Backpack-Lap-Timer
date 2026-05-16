@@ -27,6 +27,8 @@ void sendLap(int idx, uint32_t lapMs) {
 void sendRssi(int idx, uint32_t now) {
     char macStr[18];
     macToStr(pilots[idx].uid, macStr);
+    bool hasSignal = pilots[idx].lastPacketTime > 0 &&
+                     (now - pilots[idx].lastPacketTime) < SIGNAL_LOST_MS;
     JsonDocument doc;
     doc["type"]     = "rssi";
     doc["pilot"]    = idx;
@@ -34,6 +36,7 @@ void sendRssi(int idx, uint32_t now) {
     doc["rssi"]     = (int)pilots[idx].emaRssi;
     doc["raw"]      = pilots[idx].rawRssi;
     doc["crossing"] = pilots[idx].crossing;
+    doc["signal"]   = hasSignal;
     doc["ts"]       = now;
     serializeJson(doc, Serial1);
     Serial1.print('\n');

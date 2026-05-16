@@ -107,6 +107,7 @@ void processGateLine(const String& line) {
         rt[s].rssi     = doc["rssi"]     | -120;
         rt[s].rawRssi  = doc["raw"]      | -120;
         rt[s].crossing = doc["crossing"] | false;
+        rt[s].signal   = doc["signal"]   | false;
         rt[s].lastTs   = doc["ts"]       | 0u;
         JsonDocument wd;
         wd["type"]     = "rssi";
@@ -115,6 +116,7 @@ void processGateLine(const String& line) {
         wd["rssi"]     = rt[s].rssi;
         wd["raw"]      = rt[s].rawRssi;
         wd["crossing"] = rt[s].crossing;
+        wd["signal"]   = rt[s].signal;
         wd["ts"]       = rt[s].lastTs;
         String wm; serializeJson(wd, wm); wsText(wm);
         return;

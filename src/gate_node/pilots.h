@@ -21,6 +21,7 @@ struct PilotState {
     uint32_t lastLapTime;
     int      entryThreshold;
     int      exitThreshold;
+    uint32_t lastPacketTime;
 };
 
 extern PilotState pilots[MAX_PILOTS];
