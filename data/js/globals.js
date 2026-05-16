@@ -30,9 +30,14 @@ var scanAutoRefreshH = null;
 
 function toast(msg, dur) {
   dur=dur||2000;
-  var t=document.getElementById('toast');
-  t.textContent=msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), dur);
+  var t=document.getElementById('statusMsg');
+  if(!t)return;
+  t.textContent=msg;
+  var isErr=msg.includes('⚠')||msg.includes('エラー')||msg.includes('失敗');
+  if(isErr)t.classList.add('err'); else t.classList.remove('err');
+  t.classList.add('show');
+  clearTimeout(t._hideTimer);
+  t._hideTimer=setTimeout(()=>t.classList.remove('show'),dur);
 }
 
 function pad(n,w){return String(n).padStart(w,'0');}

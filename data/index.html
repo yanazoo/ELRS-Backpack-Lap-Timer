@@ -140,10 +140,11 @@ button:not(:disabled):hover{filter:brightness(1.15)}
 .toggle-sw input:checked + .toggle-track{background:var(--ok)}
 .toggle-sw input:checked + .toggle-track::after{transform:translateX(20px)}
 
-/* ── Footer / Toast ── */
+/* ── Footer / Status ── */
 footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;padding:10px;font-size:12px;color:var(--muted)}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px 20px;font-size:13px;z-index:1000;transition:transform .3s;pointer-events:none;white-space:nowrap}
-.toast.show{transform:translateX(-50%) translateY(0)}
+#statusMsg{flex:1;text-align:center;font-size:11px;color:var(--muted);opacity:0;transition:opacity .3s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+#statusMsg.show{opacity:1}
+#statusMsg.err{color:var(--err)}
 
 @media(max-width:900px){.pilot-race-grid{grid-template-columns:1fr 1fr}.calib-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){
@@ -161,6 +162,7 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
       <h1>ESP-NOW Lap Timer</h1>
       <span id="wsDot" class="ws-dot disconnected"></span>
     </div>
+    <span id="statusMsg"></span>
     <nav class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('race')">🏁 レース</button>
       <button class="tab-btn"        onclick="switchTab('config')">⚙️ 設定</button>
@@ -320,7 +322,6 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
 
 </main>
 <footer><p>ESP-NOW Lap Timer — MAX 50 pilots</p></footer>
-<div id="toast" class="toast"></div>
 
 <script src="/js/globals.js"></script>
 <script src="/js/audio.js"></script>
