@@ -23,6 +23,7 @@
 #include <Arduino.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <esp_event.h>
 
 // WiFi.h (arduino-esp32 3.x) transitively requires Network.h which is not on
 // the compiler include path in PlatformIO.  Use esp_wifi.h IDF APIs directly.
@@ -35,6 +36,15 @@ static const uint8_t kBroadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 void setup() {
     Serial.begin(115200);
     delay(300);
+
+#ifdef CONFIG_IDF_TARGET_ESP32C6
+    // XIAO ESP32-C6: GPIO14 is the RF switch control
+    // LOW = internal PCB antenna, HIGH = external U.FL connector
+    pinMode(14, OUTPUT);
+    digitalWrite(14, LOW);
+#endif
+
+    esp_event_loop_create_default();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_wifi_init(&cfg);
