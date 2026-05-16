@@ -55,7 +55,7 @@ function buildRaceCards(){
 function updateRaceCard(p){
   var $=id=>document.getElementById(id);
   $('rcName'+p.id).textContent=p.name==='---'?'Ch'+(p.id+1):p.name;
-  $('rcLaps'+p.id).textContent=p.lapCount?p.lapCount+'周':'';
+  $('rcLaps'+p.id).textContent=p.lapCount===1?'HS':p.lapCount?p.lapCount+'周':'';
   $('rssiBar'+p.id).style.width=dbPct(p.rssi)+'%';
   $('rssiVal'+p.id).textContent=p.rssi+' dBm';
   $('rcBest'+p.id).textContent=fmt(p.bestLapMs);
@@ -70,7 +70,7 @@ function addLapRow(p, lapMs, cumMs){
   if(isBest)tbody.querySelectorAll('tr.best-row').forEach(r=>r.classList.remove('best-row'));
   var tr=document.createElement('tr');
   if(isBest)tr.className='best-row';
-  tr.innerHTML='<td>'+p.lapCount+'</td><td class="lap-time">'+fmt(lapMs)+'</td><td>'+fmt(cumMs)+'</td>';
+  tr.innerHTML='<td>'+(p.lapCount===1?'HS':p.lapCount)+'</td><td class="lap-time">'+fmt(lapMs)+'</td><td>'+fmt(cumMs)+'</td>';
   tbody.insertBefore(tr,tbody.firstChild);
   var delta=document.getElementById('rcDelta'+p.id);
   if(p.bestLapMs&&lapMs){var d=lapMs-p.bestLapMs;if(d===0){delta.textContent='★ BEST';delta.className='pilot-delta faster';}else{delta.textContent=fmtDelta(d);delta.className='pilot-delta '+(d<0?'faster':'slower');}}

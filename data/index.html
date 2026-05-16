@@ -260,9 +260,9 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
       <div class="config-row">
         <label>クールダウン</label>
         <div class="slider-num">
-          <input type="number" id="cooldownInput" min="500" max="30000" step="100" value="3000"
+          <input type="number" id="cooldownInput" min="0.5" max="30" step="0.1" value="3.0"
             onchange="saveGlobalConfig()" style="width:80px">
-          <span class="unit">ms</span>
+          <span class="unit">s</span>
         </div>
       </div>
       <div class="config-row">

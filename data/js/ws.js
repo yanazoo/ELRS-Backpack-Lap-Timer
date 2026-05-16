@@ -84,7 +84,7 @@ function onMsg(d){
     if(lapMs>0&&(!p.bestLapMs||lapMs<p.bestLapMs))p.bestLapMs=lapMs;
     updateRaceCard(p);addLapRow(p,lapMs,p.cumulative);checkFinished(p);
     if(d.newBest||lapMs===p.bestLapMs)sfx.best();
-    else speak(buildSpeech(p,p.lapCount,lapMs));
+    speak(buildSpeech(p,p.lapCount,lapMs));
     return;
   }
   if(d.type==='race_start'){
@@ -188,7 +188,7 @@ async function loadAll(){
   var sr=document.getElementById('speechRate');if(sr)sr.value=speechRate;
   var srN=document.getElementById('speechRateN');if(srN)srN.value=speechRate;
   var lms=document.getElementById('lapModeSelect');if(lms)lms.value=lapMode;
-  var cdEl=document.getElementById('cooldownInput');if(cdEl)cdEl.value=cooldownMs;
+  var cdEl=document.getElementById('cooldownInput');if(cdEl)cdEl.value=(cooldownMs/1000).toFixed(1);
   refreshVoiceBtns();
   slots.forEach(p=>updateRaceCard(p));
 

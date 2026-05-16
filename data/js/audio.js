@@ -29,18 +29,31 @@ var sfx={
   exit:  ()=>beep(1100,.07,'sine')
 };
 
-// Chrome pauses speech when tab goes to background — resume it periodically
+// Resume paused speech (Chrome background tab) and recover from stuck state
 setInterval(()=>{
-  if(typeof speechSynthesis!=='undefined'&&speechSynthesis.paused)speechSynthesis.resume();
+  if(typeof speechSynthesis==='undefined')return;
+  if(speechSynthesis.paused)speechSynthesis.resume();
+  // Recover if speechBusy is stuck but synthesis is no longer speaking
+  if(speechBusy&&!speechSynthesis.speaking){speechBusy=false;nextSpeech();}
 },1000);
 
 var speechQ=[],speechBusy=false,speechWarmedUp=false;
+var cachedJaVoice=null;
+
+function getJaVoice(){
+  if(cachedJaVoice)return cachedJaVoice;
+  var voices=speechSynthesis.getVoices();
+  cachedJaVoice=voices.find(v=>v.lang&&v.lang.startsWith('ja'))||null;
+  return cachedJaVoice;
+}
+if(typeof speechSynthesis!=='undefined'&&'onvoiceschanged' in speechSynthesis){
+  speechSynthesis.onvoiceschanged=function(){cachedJaVoice=null;};
+}
 
 function warmUpSpeech(){
   if(speechWarmedUp||typeof speechSynthesis==='undefined')return;
   speechWarmedUp=true;
-  // Zero-volume utterance to unlock speech synthesis in Chrome
-  var u=new SpeechSynthesisUtterance('');
+  var u=new SpeechSynthesisUtterance('​');
   u.volume=0;
   speechSynthesis.speak(u);
 }
@@ -48,18 +61,20 @@ function warmUpSpeech(){
 function speak(text){
   if(!voiceEnabled||announceMode==='none'){sfx.lap();return;}
   if(announceMode==='beep'){sfx.lap();return;}
-  speechQ.push(text);if(!speechBusy)nextSpeech();
+  if(speechQ.length<3)speechQ.push(text);
+  if(!speechBusy)nextSpeech();
 }
 function nextSpeech(){
   if(!speechQ.length){speechBusy=false;return;}
   speechBusy=true;
-  var u=new SpeechSynthesisUtterance(speechQ.shift());
+  var text=speechQ.shift();
+  var u=new SpeechSynthesisUtterance(text);
   u.lang='ja-JP';u.rate=speechRate;
-  // Explicitly select a Japanese voice (required for Chrome)
-  var voices=speechSynthesis.getVoices();
-  var jaVoice=voices.find(v=>v.lang&&v.lang.startsWith('ja'));
+  var jaVoice=getJaVoice();
   if(jaVoice)u.voice=jaVoice;
-  var timeout=setTimeout(()=>{speechSynthesis.cancel();speechBusy=false;nextSpeech();},4000);
+  // Dynamic timeout: 300ms per character, minimum 3s
+  var ms=Math.max(3000,text.length*300);
+  var timeout=setTimeout(()=>{speechSynthesis.cancel();speechBusy=false;nextSpeech();},ms);
   u.onend=()=>{clearTimeout(timeout);setTimeout(nextSpeech,80);};
   u.onerror=()=>{clearTimeout(timeout);speechBusy=false;nextSpeech();};
   speechSynthesis.speak(u);
@@ -70,7 +85,7 @@ function buildSpeech(p,lapCount,lapMs){
   var s=Math.floor(lapMs/1000),ms=Math.floor((lapMs%1000)/100);
   var m=Math.floor(s/60);s=s%60;
   var tStr=m>0?m+'分'+s+'秒'+ms:s+'秒'+ms;
-  if(announceMode==='lap_laptime')return spokenName+'、'+lapCount+'周、'+tStr;
+  if(announceMode==='lap_laptime')return spokenName+'、'+(lapCount===1?'ホールショット':lapCount+'周')+'、'+tStr;
   return spokenName+'、'+tStr;
 }
 function testVoice(){

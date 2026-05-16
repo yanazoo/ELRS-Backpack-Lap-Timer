@@ -261,9 +261,9 @@ function saveGlobalConfig(){
   announceMode=document.getElementById('announceMode').value;
   speechRate=parseFloat(document.getElementById('speechRateN').value)||1.1;
   lapMode=document.getElementById('lapModeSelect').value;
-  var cdRaw=parseInt(document.getElementById('cooldownInput').value)||3000;
-  cooldownMs=Math.max(500,Math.min(30000,cdRaw));
-  document.getElementById('cooldownInput').value=cooldownMs;
+  var cdSec=parseFloat(document.getElementById('cooldownInput').value)||3.0;
+  cooldownMs=Math.max(500,Math.min(30000,Math.round(cdSec*1000)));
+  document.getElementById('cooldownInput').value=(cooldownMs/1000).toFixed(1);
   localStorage.setItem('announce',announceMode);
   localStorage.setItem('srate',String(speechRate));
   localStorage.setItem('lapMode',lapMode);
