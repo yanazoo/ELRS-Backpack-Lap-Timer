@@ -1,6 +1,7 @@
 #pragma once
 
 extern bool sdPresent;
+extern bool sdPollEnabled;
 
 void sdInit();
 void sdSendStatus();

@@ -221,6 +221,20 @@ void registerHttpRoutes() {
         String s; serializeJson(doc,s); req->send(200,"application/json",s);
     });
 
+    // ── POST /api/sd/poll ─────────────────────────────────────────────────────
+    server.on("/api/sd/poll", HTTP_POST, [](AsyncWebServerRequest*){},nullptr,
+        [](AsyncWebServerRequest* req,uint8_t* data,size_t len,size_t,size_t){
+            JsonDocument doc;
+            bool enable = false;
+            if(deserializeJson(doc,data,len)==DeserializationError::Ok)
+                enable = doc["enable"]|false;
+            char buf[64];
+            snprintf(buf,sizeof(buf),R"({"type":"cmd","action":"sd_poll","enable":%s})",
+                     enable?"true":"false");
+            Serial1.println(buf);
+            req->send(200);
+        });
+
     // ── POST /api/sd/pilots/backup ────────────────────────────────────────────
     server.on("/api/sd/pilots/backup", HTTP_POST, [](AsyncWebServerRequest* req) {
         if (!sdPresent) { req->send(503,"application/json",R"({"error":"no sd card"})"); return; }

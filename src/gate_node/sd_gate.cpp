@@ -6,7 +6,8 @@
 #include "pilots.h"
 #include "config.h"
 
-bool sdPresent = false;
+bool sdPresent     = false;
+bool sdPollEnabled = false;
 
 static File raceFile;
 static int  raceFileNum = 0;

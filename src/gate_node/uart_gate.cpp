@@ -114,5 +114,9 @@ void processWebCmd(const String& line) {
         sdReadFile(doc["path"] | "");
     } else if (strcmp(action, "sd_delete_file") == 0) {
         sdDeleteFile(doc["path"] | "");
+    } else if (strcmp(action, "sd_poll") == 0) {
+        sdPollEnabled = doc["enable"] | false;
+        if (sdPollEnabled) sdSendStatus();
+        Serial.printf("[Gate] SD poll %s\n", sdPollEnabled ? "on" : "off");
     }
 }

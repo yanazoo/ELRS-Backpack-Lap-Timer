@@ -52,6 +52,9 @@ function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('pane-'+tab).classList.add('active');
   document.querySelectorAll('.tab-btn')[['race','config','calib','sd'].indexOf(tab)].classList.add('active');
+  var sdActive=tab==='config'||tab==='sd';
+  fetch('/api/sd/poll',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({enable:sdActive})}).catch(()=>{});
   if(tab==='calib'){
     setTimeout(()=>{
       slots.forEach(p=>{

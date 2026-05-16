@@ -85,7 +85,7 @@ void loop() {
         }
     }
 
-    sdCheckHotplug(now);
+    if (sdPollEnabled) sdCheckHotplug(now);
 
     if (now - lastRssiSend >= RSSI_INTERVAL_MS) {
         lastRssiSend = now;
