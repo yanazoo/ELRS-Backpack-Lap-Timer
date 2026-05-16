@@ -4,3 +4,4 @@ compile_commands.json
 .vscode/.cache/
 .vscode/launch.json
 .vscode/ipch
+.vscode/c_cpp_properties.json

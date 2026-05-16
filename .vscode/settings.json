@@ -2,5 +2,8 @@
     "C_Cpp.intelliSenseCachePath": "${workspaceFolder}/.vscode/.cache",
     "cmake.configureOnOpen": false,
     "cmake.autoSelectActiveFolder": false,
-    "cmake.ignoreCMakeListsMissing": true
+    "cmake.ignoreCMakeListsMissing": true,
+    "files.associations": {
+        "c_cpp_properties.json": "jsonc"
+    }
 }
