@@ -15,7 +15,7 @@ var activeSlotsLocal = [-1,-1,-1,-1];
 
 var raceRunning=false, raceStartPerf=0, timerH=null, countdownH=null;
 var voiceEnabled = localStorage.getItem('voice')!=='0';
-var announceMode = localStorage.getItem('announce')||'laptime';
+var announceMode = localStorage.getItem('announce')||'lap_laptime';
 var speechRate   = parseFloat(localStorage.getItem('srate')||'1.1');
 var lapMode      = localStorage.getItem('lapMode')||'holeshot';
 var cooldownMs   = parseInt(localStorage.getItem('cooldownMs')||'3000');

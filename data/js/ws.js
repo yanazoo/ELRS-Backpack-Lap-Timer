@@ -81,6 +81,7 @@ function onMsg(d){
     var p=slots[s];
     if(d.name&&d.name!=='---')p.name=d.name;
     ensureAudio();sfx.enter();
+    if(lapMode==='holeshot')speak(getSpokenName(p)+(announceMode==='lap_laptime'?'、ホールショット':''));
     updateRaceCard(p);
     return;
   }
