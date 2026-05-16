@@ -1,5 +1,6 @@
 .pio
 compile_commands.json
+.claude/
 .vscode/.browse.c_cpp.db*
 .vscode/.cache/
 .vscode/launch.json

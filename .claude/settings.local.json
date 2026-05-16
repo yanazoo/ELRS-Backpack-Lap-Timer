@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"c:\\\\FrSky\\\\RotorHazard FPV\\\\ELRS-Backpack-Lap-Timer-main\" status)",
+      "Bash(git -C \"c:\\\\FrSky\\\\RotorHazard FPV\\\\ELRS-Backpack-Lap-Timer-main\" diff)",
+      "Bash(git -C \"c:\\\\FrSky\\\\RotorHazard FPV\\\\ELRS-Backpack-Lap-Timer-main\" add .vscode/extensions.json .vscode/settings.json)",
+      "Bash(git -C 'c:\\\\FrSky\\\\RotorHazard FPV\\\\ELRS-Backpack-Lap-Timer-main' commit -m ' *)"
+    ]
+  }
+}
