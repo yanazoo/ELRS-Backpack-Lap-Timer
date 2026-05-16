@@ -85,6 +85,8 @@ void loop() {
         }
     }
 
+    sdCheckHotplug(now);
+
     if (now - lastRssiSend >= RSSI_INTERVAL_MS) {
         lastRssiSend = now;
         for (int i = 0; i < MAX_PILOTS; i++) {

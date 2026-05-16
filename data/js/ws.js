@@ -107,6 +107,7 @@ function onMsg(d){
     return;
   }
   if(d.type==='race_stop'){raceRunning=false;setBtns(false);stopTimer();return;}
+  if(d.type==='sd_status'){updateSdSection(d.present);return;}
   if(d.type==='sd_restore_done'){
     toast('✅ SDから'+((d.pilots&&JSON.parse(d.pilots).length)||'?')+'人分を復元しました',3000);
     loadRoster();return;

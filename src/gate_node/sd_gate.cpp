@@ -37,6 +37,29 @@ void sdInit() {
     sdSendStatus();
 }
 
+void sdCheckHotplug(uint32_t now) {
+    static uint32_t lastCheck = 0;
+    if (now - lastCheck < 2000) return;
+    lastCheck = now;
+
+    bool wasPresent = sdPresent;
+    if (!sdPresent) {
+        SD.end();
+        if (SD.begin(SD_CS_PIN, SPI, 4000000)) {
+            sdPresent = true;
+            Serial.printf("[Gate] SD inserted  size=%lluMB\n",
+                          SD.cardSize() / (1024ULL * 1024ULL));
+        }
+    } else {
+        if (SD.cardSize() == 0) {
+            sdPresent = false;
+            SD.end();
+            Serial.println("[Gate] SD removed");
+        }
+    }
+    if (sdPresent != wasPresent) sdSendStatus();
+}
+
 void sdSendStatus() {
     char buf[48];
     snprintf(buf, sizeof(buf), R"({"type":"sd_status","present":%s})",

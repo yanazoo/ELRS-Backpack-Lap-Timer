@@ -94,6 +94,7 @@ void processGateLine(const String& line) {
     }
     if (strcmp(type, "sd_status") == 0) {
         sdPresent = doc["present"] | false;
+        wsText(line);
         return;
     }
     if (strcmp(type, "scan") == 0) {

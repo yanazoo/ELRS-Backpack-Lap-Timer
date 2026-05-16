@@ -4,6 +4,7 @@ extern bool sdPresent;
 
 void sdInit();
 void sdSendStatus();
+void sdCheckHotplug(uint32_t now);
 void sdBeginRace();
 void sdWriteLap(int slotIdx, uint32_t lapMs);
 void sdEndRace();
