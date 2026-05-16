@@ -119,7 +119,7 @@ function onMsg(d){
   if(d.type==='sd_file_line'){if(d.path===sdDownloadPath)sdDownloadBuf.push(d.line);return;}
   if(d.type==='sd_file_done'){
     if(d.path===sdDownloadPath&&sdDownloadBuf.length){
-      var blob=new Blob([sdDownloadBuf.join('\n')+'\n'],{type:'text/csv'});
+      var blob=new Blob([sdDownloadBuf.join('\n')+'\n'],{type:'text/csv;charset=utf-8'});
       var a=document.createElement('a');
       a.href=URL.createObjectURL(blob);a.download=d.path.replace(/^\//,'');
       document.body.appendChild(a);a.click();document.body.removeChild(a);

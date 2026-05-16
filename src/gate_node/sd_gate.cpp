@@ -78,6 +78,7 @@ void sdBeginRace() {
     snprintf(path, sizeof(path), "/race_%03d.csv", raceFileNum);
     raceFile = SD.open(path, FILE_WRITE);
     if (raceFile) {
+        raceFile.print("\xEF\xBB\xBF");  // UTF-8 BOM for Excel compatibility
         raceFile.println("Slot,Name,UID,LapTime_ms,RSSI_dBm,Timestamp_ms");
         raceFile.flush();
         Serial.printf("[Gate] SD race file opened: %s\n", path);
@@ -107,6 +108,7 @@ void sdBeginBackup() {
     if (!sdPresent) { Serial.println("[Gate] SD backup: no SD"); return; }
     backupFile = SD.open("/pilots.csv", FILE_WRITE);
     if (backupFile) {
+        backupFile.print("\xEF\xBB\xBF");  // UTF-8 BOM for Excel compatibility
         backupFile.println("name,yomi,mac,enter,exit");
         backupFile.flush();
         Serial.println("[Gate] SD backup: /pilots.csv opened");
