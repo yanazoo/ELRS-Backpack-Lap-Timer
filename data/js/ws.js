@@ -43,7 +43,9 @@ function onMsg(d){
   }
   if(d.type==='scan'){
     var prev=scanResults[d.mac]||{};
-    scanResults[d.mac]=Object.assign(prev,{rssi:d.rssi,ts:d.ts,receivedAt:Date.now()});
+    var now2=Date.now();
+    scanResults[d.mac]=Object.assign(prev,{rssi:d.rssi,ts:d.ts,receivedAt:now2});
+    if(!prev.firstSeenAt)scanResults[d.mac].firstSeenAt=now2;
     var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===d.mac.toUpperCase());
     if(found){scanResults[d.mac].assignedRosterId=found.id;scanResults[d.mac].pilotName=found.name;}
     updateScanList();return;
@@ -56,6 +58,14 @@ function onMsg(d){
     p.rssi=p.rssiSignal?(d.rssi!==undefined?d.rssi:p.rssi):-120;
     p.crossing=p.rssiSignal&&(d.crossing!==undefined?d.crossing:p.crossing);
     if(d.name&&d.name!=='---')p.name=d.name;
+    if(p.rssiSignal&&p.rosterIdx>=0){
+      var rp=rosterData.find(r=>r.id===p.rosterIdx);
+      if(rp&&rp.uid){
+        var rmac=rp.uid.toUpperCase();var rnow=Date.now();
+        if(!scanResults[rmac]){scanResults[rmac]={rssi:p.rssi,ts:rnow,receivedAt:rnow,firstSeenAt:rnow};}
+        else{scanResults[rmac].rssi=p.rssi;scanResults[rmac].receivedAt=rnow;if(!scanResults[rmac].firstSeenAt)scanResults[rmac].firstSeenAt=rnow;}
+      }
+    }
     var calibActive=document.getElementById('pane-calib').classList.contains('active');
     if(raceRunning||calibActive){
       if(!prevCrossing&&p.crossing){ensureAudio();sfx.enter();}

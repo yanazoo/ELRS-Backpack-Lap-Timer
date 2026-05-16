@@ -59,7 +59,7 @@ function switchTab(tab){
   }
   if(tab==='sd') refreshSdFiles();
   if(tab==='config'){
-    if(!scanAutoRefreshH) scanAutoRefreshH=setInterval(scanRefresh,5000);
+    if(!scanAutoRefreshH) scanAutoRefreshH=setInterval(()=>{scanRefresh();renderRoster();},5000);
   } else {
     if(scanAutoRefreshH){clearInterval(scanAutoRefreshH);scanAutoRefreshH=null;}
   }

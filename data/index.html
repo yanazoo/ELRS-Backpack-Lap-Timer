@@ -211,9 +211,13 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
   </div>
 
   <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div class="card-title" style="margin:0">👥 パイロット情報 <span id="rosterCountBadge" style="color:var(--muted);font-weight:normal"></span></div>
       <button onclick="showAddForm()" class="btn-success" style="font-size:12px;padding:5px 12px">＋ 追加</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button onclick="autoAssignChannels()" class="btn-success" style="flex:1;font-size:12px;padding:5px 0">🤖 自動割当（電源ON順）</button>
+      <button onclick="clearChannelAssignments()" class="btn-secondary" style="flex:1;font-size:12px;padding:5px 0">✖ 全チャンネル解除</button>
     </div>
     <div class="search-row">
       <input type="text" class="search-input" id="searchInput" placeholder="🔍 名前・MACで検索..." oninput="renderRoster()">

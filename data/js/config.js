@@ -236,10 +236,46 @@ async function registerScanPilot(mac){
 }
 
 async function scanRefresh(){
-  try{await fetch('/api/scan/refresh',{method:'POST'});}catch(e){}
+  try{
+    await fetch('/api/scan/refresh',{method:'POST'});
+    toast('🔄 スキャン更新を送信しました');
+  }catch(e){toast('⚠️ 接続エラー');}
 }
 
 function clearScan(){scanResults={};updateScanList();fetch('/api/scan/clear',{method:'POST'}).catch(()=>{});}
+
+async function autoAssignChannels(){
+  var now=Date.now();
+  var online=rosterData
+    .filter(r=>r.uid&&isOnline(r.uid,now))
+    .sort((a,b)=>{
+      var sa=(scanResults[a.uid.toUpperCase()]||scanResults[a.uid]||{});
+      var sb=(scanResults[b.uid.toUpperCase()]||scanResults[b.uid]||{});
+      return (sa.firstSeenAt||9999999999999)-(sb.firstSeenAt||9999999999999);
+    });
+  if(!online.length){toast('⚠️ オンラインの機体がありません');return;}
+  var newSlots=[-1,-1,-1,-1];
+  for(var i=0;i<Math.min(online.length,N);i++)newSlots[i]=online[i].id;
+  try{
+    var r=await fetch('/api/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slots:newSlots})});
+    if(r.ok){
+      activeSlotsLocal=newSlots;applyActiveToSlots();buildRaceCards();buildCalibCards();
+      await loadRoster();
+      toast('✅ '+Math.min(online.length,N)+'機を電源ON順でCh割当しました');
+    }else toast('⚠️ 割当エラー');
+  }catch(e){toast('⚠️ 接続エラー');}
+}
+
+async function clearChannelAssignments(){
+  var newSlots=[-1,-1,-1,-1];
+  try{
+    var r=await fetch('/api/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slots:newSlots})});
+    if(r.ok){
+      activeSlotsLocal=newSlots;applyActiveToSlots();buildRaceCards();buildCalibCards();
+      await loadRoster();toast('✅ チャンネル割当を全解除しました');
+    }else toast('⚠️ エラー');
+  }catch(e){toast('⚠️ 接続エラー');}
+}
 
 async function sdBackup(){
   try{
