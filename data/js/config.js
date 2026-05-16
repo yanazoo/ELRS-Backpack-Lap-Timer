@@ -103,7 +103,7 @@ async function onChSelectChange(sel){
   }
   try{
     var r=await fetch('/api/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slots:newSlots})});
-    if(r.ok){activeSlotsLocal=newSlots;applyActiveToSlots();buildRaceCards();buildCalibCards();await loadRoster();toast('✅ チャンネル割当を保存しました');}
+    if(r.ok){activeSlotsLocal=newSlots;applyActiveToSlots();buildRaceCards();buildCalibCards();await loadRoster();}
     else toast('⚠️ 保存エラー');
   }catch(e){toast('⚠️ 接続エラー');}
 }
@@ -235,11 +235,11 @@ async function registerScanPilot(mac){
   }catch(e){toast('⚠️ 接続エラー');}
 }
 
-async function scanRefresh(){
+async function scanRefresh(showFeedback){
   try{
     await fetch('/api/scan/refresh',{method:'POST'});
-    toast('🔄 スキャン更新を送信しました');
-  }catch(e){toast('⚠️ 接続エラー');}
+    if(showFeedback)toast('🔄 スキャン更新を送信しました');
+  }catch(e){if(showFeedback)toast('⚠️ 接続エラー');}
 }
 
 function clearScan(){scanResults={};updateScanList();fetch('/api/scan/clear',{method:'POST'}).catch(()=>{});}

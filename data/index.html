@@ -205,7 +205,7 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
     <p class="section-desc">機体（XIAO ESP32-C3）の電源を入れると自動検出されます。名前を入力してパイロット情報に登録してください。入RSSI・出RSSIはスキャン時の電波強度から自動設定されます。</p>
     <div id="scanList" style="min-height:32px"><span style="color:var(--muted);font-size:12px">スキャン待機中... 機体の電源を入れてください</span></div>
     <div style="display:flex;gap:8px;margin-top:8px">
-      <button onclick="scanRefresh()" class="btn-secondary" style="flex:1;font-size:12px">🔄 スキャン更新</button>
+      <button onclick="scanRefresh(true)" class="btn-secondary" style="flex:1;font-size:12px">🔄 スキャン更新</button>
       <button onclick="clearScan()" class="btn-secondary" style="flex:1;font-size:12px">🗑 リストをクリア</button>
     </div>
   </div>

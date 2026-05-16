@@ -138,7 +138,6 @@ async function saveCalibConfig(slotId){
     var r=await fetch('/api/calib',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:ri,enter,exit:exit_})});
     if(r.ok){
       var rd=rosterData.find(x=>x.id===ri);if(rd){rd.enter=enter;rd.exit=exit_;}
-      toast('💾 閾値を保存しました',1500);
     }else toast('⚠️ 保存エラー');
   }catch(e){toast('⚠️ 接続エラー');}
 }
