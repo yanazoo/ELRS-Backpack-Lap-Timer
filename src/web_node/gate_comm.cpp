@@ -139,7 +139,7 @@ void processGateLine(const String& line) {
         uint32_t lapMs = 0;
         if (!isFirst) {
             lapMs = ts - rt[s].lastLapTs;
-        } else if (lapMode == 1 && gateRaceStartTs > 0) {
+        } else if (gateRaceStartTs > 0) {
             lapMs = ts - gateRaceStartTs;
         }
         rt[s].lastLapTs = ts;

@@ -85,7 +85,7 @@ function buildSpeech(p,lapCount,lapMs){
   var s=Math.floor(lapMs/1000),ms=Math.floor((lapMs%1000)/100);
   var m=Math.floor(s/60);s=s%60;
   var tStr=m>0?m+'分'+s+'秒'+ms:s+'秒'+ms;
-  if(announceMode==='lap_laptime')return spokenName+'、'+(lapCount===1?'ホールショット':lapCount+'周')+'、'+tStr;
+  if(announceMode==='lap_laptime')return spokenName+'、'+(lapCount===1?'ホールショット':(lapCount-1)+'周')+'、'+tStr;
   return spokenName+'、'+tStr;
 }
 function testVoice(){

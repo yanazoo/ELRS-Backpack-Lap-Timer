@@ -174,6 +174,7 @@ void registerHttpRoutes() {
             rt[s].lapCount=0; rt[s].bestLapMs=0; rt[s].lastLapTs=0;
         }
         sendAllPilots();
+        sendGateCooldown();
         sendGateCmd("race_start");
         JsonDocument doc; doc["type"]="race_start"; doc["ts"]=raceStartMs;
         String msg; serializeJson(doc,msg); wsText(msg);

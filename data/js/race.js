@@ -55,7 +55,7 @@ function buildRaceCards(){
 function updateRaceCard(p){
   var $=id=>document.getElementById(id);
   $('rcName'+p.id).textContent=p.name==='---'?'Ch'+(p.id+1):p.name;
-  $('rcLaps'+p.id).textContent=p.lapCount===1?'HS':p.lapCount?p.lapCount+'周':'';
+  $('rcLaps'+p.id).textContent=p.lapCount===1?'HS':p.lapCount?(p.lapCount-1)+'周':'';
   $('rssiBar'+p.id).style.width=(p.rssiSignal?dbPct(p.rssi):0)+'%';
   $('rssiVal'+p.id).textContent=p.rssiSignal?p.rssi+' dBm':'--- dBm';
   $('rcBest'+p.id).textContent=fmt(p.bestLapMs);
@@ -70,7 +70,7 @@ function addLapRow(p, lapMs, cumMs){
   if(isBest)tbody.querySelectorAll('tr.best-row').forEach(r=>r.classList.remove('best-row'));
   var tr=document.createElement('tr');
   if(isBest)tr.className='best-row';
-  tr.innerHTML='<td>'+(p.lapCount===1?'HS':p.lapCount)+'</td><td class="lap-time">'+fmt(lapMs)+'</td><td>'+fmt(cumMs)+'</td>';
+  tr.innerHTML='<td>'+(p.lapCount===1?'HS':(p.lapCount-1))+'</td><td class="lap-time">'+fmt(lapMs)+'</td><td>'+fmt(cumMs)+'</td>';
   tbody.insertBefore(tr,tbody.firstChild);
   var delta=document.getElementById('rcDelta'+p.id);
   if(p.bestLapMs&&lapMs){var d=lapMs-p.bestLapMs;if(d===0){delta.textContent='★ BEST';delta.className='pilot-delta faster';}else{delta.textContent=fmtDelta(d);delta.className='pilot-delta '+(d<0?'faster':'slower');}}
@@ -81,6 +81,7 @@ function addLapRow(p, lapMs, cumMs){
 
 function startRace(){
   ensureAudio();
+  document.getElementById('btnStart').disabled=true;
   sfx.count();
   var cdStart=performance.now();
   timerEl.classList.remove('running');
@@ -91,7 +92,10 @@ function startRace(){
     timerEl.textContent=(rem/1000).toFixed(2);
     if(rem===0){clearInterval(countdownH);countdownH=null;}
   },50);
-  setTimeout(async()=>{try{await fetch('/api/race/start',{method:'POST'});}catch(e){}},3300);
+  setTimeout(async()=>{
+    try{await fetch('/api/race/start',{method:'POST'});}
+    catch(e){document.getElementById('btnStart').disabled=false;}
+  },3300);
 }
 function stopRace(){
   ensureAudio();beepSeq([[880,.2,'sine',0],[440,.2,'sine',220],[220,.3,'sine',440]]);
