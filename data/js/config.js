@@ -27,7 +27,11 @@ function renderRoster(){
   var now=Date.now();
   filtered.sort(function(a,b){
     var aOn=isOnline(a.uid,now),bOn=isOnline(b.uid,now);
-    if(aOn&&!bOn)return -1;if(!aOn&&bOn)return 1;return a.id-b.id;
+    if(aOn!==bOn) return aOn?-1:1;
+    var aCh=a.activeSlot>=0?a.activeSlot:99;
+    var bCh=b.activeSlot>=0?b.activeSlot:99;
+    if(aCh!==bCh) return aCh-bCh;
+    return a.id-b.id;
   });
 
   if(!filtered.length){
