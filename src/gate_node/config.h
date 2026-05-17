@@ -17,7 +17,7 @@
 
 // Pilot detection
 #define MAX_PILOTS         4
-#define EMA_ALPHA          0.2f
+#define EMA_ALPHA          0.3f
 #define DEFAULT_ENTRY_THR  (-80)
 #define DEFAULT_EXIT_THR   (-90)
 #define COOLDOWN_MS        3000UL
