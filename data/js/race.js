@@ -104,6 +104,8 @@ function stopRace(){
   fetch('/api/race/stop',{method:'POST'}).catch(()=>{});
 }
 function clearAllLaps(){
+  stopTimer();
+  timerEl.textContent='00:00';
   slots.forEach(p=>{
     p.lapCount=0;p.bestLapMs=0;p.lapTimes=[];p.cumulative=0;
     var b=document.getElementById('lapBody'+p.id);if(b)b.innerHTML='';
