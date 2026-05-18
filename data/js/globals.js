@@ -28,6 +28,8 @@ var announceMode = localStorage.getItem('announce')||'lap_laptime';
 var speechRate   = parseFloat(localStorage.getItem('srate')||'1.1');
 var lapMode      = localStorage.getItem('lapMode')||'holeshot';
 var cooldownMs   = parseInt(localStorage.getItem('cooldownMs')||'3000');
+var sdLogMode    = localStorage.getItem('sdLogMode')||'always';
+function sdLogModeInt(m){return m==='off'?2:(m==='rotate'?1:0);}
 
 var scanResults  = {};
 var editingRosterId = null;

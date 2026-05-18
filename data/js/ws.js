@@ -210,6 +210,7 @@ async function loadAll(){
   var sr=document.getElementById('speechRate');if(sr)sr.value=speechRate;
   var srN=document.getElementById('speechRateN');if(srN)srN.value=speechRate;
   var lms=document.getElementById('lapModeSelect');if(lms)lms.value=lapMode;
+  var sdm=document.getElementById('sdLogModeSelect');if(sdm)sdm.value=sdLogMode;
   var cdEl=document.getElementById('cooldownInput');if(cdEl)cdEl.value=(cooldownMs/1000).toFixed(1);
   refreshVoiceBtns();
   slots.forEach(p=>updateRaceCard(p));
@@ -217,7 +218,7 @@ async function loadAll(){
   // Push current settings to web node so it stays in sync after page reload
   try{
     await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({lapMode:lapMode==='immediate'?1:0,cooldownMs:cooldownMs})});
+      body:JSON.stringify({lapMode:lapMode==='immediate'?1:0,cooldownMs:cooldownMs,sdLogMode:sdLogModeInt(sdLogMode)})});
   }catch(e){}
 }
 

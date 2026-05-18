@@ -24,6 +24,9 @@
 #define RSSI_INTERVAL_MS   50UL
 #define SIGNAL_LOST_MS      200UL
 
+// SD race-log rotation (rotate mode keeps at most this many race_*.csv)
+#define SD_MAX_RACE_FILES 20
+
 // MAC scan
 #define MAX_SCAN_MACS    8
 #define SCAN_INTERVAL_MS 2000UL

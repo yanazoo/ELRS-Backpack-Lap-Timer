@@ -13,6 +13,7 @@ bool        raceRunning      = false;
 uint32_t    raceStartMs      = 0;
 bool        sdPresent        = false;
 uint8_t     lapMode          = 0;
+uint8_t     sdLogMode        = 0;
 uint32_t    gateRaceStartTs  = 0;
 uint32_t    cooldownMs       = 3000;
 String      restoreBuffer[MAX_REGISTERED];
@@ -60,6 +61,12 @@ void updateScanMac(const char* mac, int rssi) {
 void sendGateCooldown() {
     char buf[64];
     snprintf(buf, sizeof(buf), R"({"type":"cmd","action":"set_cooldown","ms":%lu})", (unsigned long)cooldownMs);
+    Serial1.println(buf);
+}
+
+void sendGateSdLogMode() {
+    char buf[64];
+    snprintf(buf, sizeof(buf), R"({"type":"cmd","action":"set_sd_log_mode","mode":%u})", (unsigned)sdLogMode);
     Serial1.println(buf);
 }
 
@@ -113,7 +120,7 @@ void processGateLine(const String& line) {
     const char* type = doc["type"] | "";
 
     if (strcmp(type, "ready") == 0) {
-        sendAllPilots(); sendAllThresholds(); sendGateCooldown();
+        sendAllPilots(); sendAllThresholds(); sendGateCooldown(); sendGateSdLogMode();
         return;
     }
     if (strcmp(type, "sd_status") == 0) {

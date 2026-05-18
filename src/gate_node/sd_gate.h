@@ -1,7 +1,9 @@
 #pragma once
+#include <stdint.h>
 
-extern bool sdPresent;
-extern bool sdPollEnabled;
+extern bool    sdPresent;
+extern bool    sdPollEnabled;
+extern uint8_t sdLogMode;   // 0=always (new file each race), 1=rotate (auto-delete oldest), 2=off
 
 void sdInit();
 void sdSendStatus();

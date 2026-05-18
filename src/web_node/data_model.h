@@ -55,6 +55,7 @@ extern bool        raceRunning;
 extern uint32_t    raceStartMs;
 extern bool        sdPresent;
 extern uint8_t     lapMode;
+extern uint8_t     sdLogMode;
 extern uint32_t    gateRaceStartTs;
 extern uint32_t    cooldownMs;
 extern String      restoreBuffer[MAX_REGISTERED];

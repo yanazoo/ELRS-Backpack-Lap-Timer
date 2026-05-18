@@ -184,6 +184,7 @@ void registerHttpRoutes() {
     // ── POST /api/race/stop ───────────────────────────────────────────────────
     server.on("/api/race/stop", HTTP_POST, [](AsyncWebServerRequest* req) {
         raceRunning = false;
+        sendGateCmd("race_stop");
         JsonDocument doc; doc["type"]="race_stop";
         String msg; serializeJson(doc,msg); wsText(msg);
         req->send(200,"application/json",R"({"ok":true})");
@@ -314,6 +315,7 @@ void registerHttpRoutes() {
         JsonDocument doc;
         doc["lapMode"]    = lapMode;
         doc["cooldownMs"] = cooldownMs;
+        doc["sdLogMode"]  = sdLogMode;
         String s; serializeJson(doc,s); req->send(200,"application/json",s);
     });
     server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest*){},
@@ -325,6 +327,12 @@ void registerHttpRoutes() {
                     if (deserializeJson(doc, body) != DeserializationError::Ok)
                         { req2->send(400,"application/json",R"({"error":"bad json"})"); return; }
                     if (!doc["lapMode"].isNull())    lapMode    = (uint8_t)(int)(doc["lapMode"]);
+                    if (!doc["sdLogMode"].isNull()) {
+                        uint8_t m = (uint8_t)(int)(doc["sdLogMode"]);
+                        if (m > 2) m = 0;
+                        sdLogMode = m;
+                        sendGateSdLogMode();
+                    }
                     if (!doc["cooldownMs"].isNull()) {
                         cooldownMs = (uint32_t)(int)(doc["cooldownMs"]);
                         if (cooldownMs < 500)   cooldownMs = 500;

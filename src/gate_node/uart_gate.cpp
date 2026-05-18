@@ -59,6 +59,9 @@ void processWebCmd(const String& line) {
         snprintf(ackBuf, sizeof(ackBuf), R"({"type":"race_start_ack","ts":%lu})", (unsigned long)millis());
         Serial1.println(ackBuf);
 
+    } else if (strcmp(action, "race_stop") == 0) {
+        sdEndRace();
+
     } else if (strcmp(action, "set_pilot") == 0) {
         int idx = doc["pilot"] | -1;
         if (idx < 0 || idx >= MAX_PILOTS) return;
@@ -82,6 +85,12 @@ void processWebCmd(const String& line) {
     } else if (strcmp(action, "set_cooldown") == 0) {
         gCooldownMs = (uint32_t)(doc["ms"] | (int)COOLDOWN_MS);
         Serial.printf("[Gate] Cooldown set to %lu ms\n", (unsigned long)gCooldownMs);
+
+    } else if (strcmp(action, "set_sd_log_mode") == 0) {
+        int m = doc["mode"] | 0;
+        if (m < 0 || m > 2) m = 0;
+        sdLogMode = (uint8_t)m;
+        Serial.printf("[Gate] SD log mode = %d\n", sdLogMode);
 
     } else if (strcmp(action, "scan_refresh") == 0) {
         resetScanTimers();

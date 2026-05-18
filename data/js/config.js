@@ -312,6 +312,8 @@ function saveGlobalConfig(){
   announceMode=document.getElementById('announceMode').value;
   speechRate=parseFloat(document.getElementById('speechRateN').value)||1.1;
   lapMode=document.getElementById('lapModeSelect').value;
+  var sdEl=document.getElementById('sdLogModeSelect');
+  if(sdEl)sdLogMode=sdEl.value;
   var cdSec=parseFloat(document.getElementById('cooldownInput').value)||3.0;
   cooldownMs=Math.max(500,Math.min(30000,Math.round(cdSec*1000)));
   document.getElementById('cooldownInput').value=(cooldownMs/1000).toFixed(1);
@@ -319,8 +321,9 @@ function saveGlobalConfig(){
   localStorage.setItem('srate',String(speechRate));
   localStorage.setItem('lapMode',lapMode);
   localStorage.setItem('cooldownMs',String(cooldownMs));
+  localStorage.setItem('sdLogMode',sdLogMode);
   fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({lapMode:lapMode==='immediate'?1:0,cooldownMs:cooldownMs})}).catch(()=>{});
+    body:JSON.stringify({lapMode:lapMode==='immediate'?1:0,cooldownMs:cooldownMs,sdLogMode:sdLogModeInt(sdLogMode)})}).catch(()=>{});
 }
 
 function updateSdSection(present){
