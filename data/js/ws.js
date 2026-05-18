@@ -21,7 +21,9 @@ function onMsg(d){
     raceRunning=d.raceRunning||false;
     raceStarted=!!(d.raceRunning||d.racePaused||(d.pilots||[]).some(pd=>pd.lapCount>0));
     setBtns(raceRunning);
-    if(raceRunning)startTimer();
+    timerFrozenMs=d.raceElapsedMs||0;
+    if(raceRunning)resumeTimer();
+    else if(d.racePaused)timerEl.textContent=fmtTimer(timerFrozenMs);
     if(d.sdPresent!==undefined)updateSdSection(d.sdPresent);
     (d.pilots||[]).forEach(pd=>{
       var p=slots[pd.slot];if(!p)return;

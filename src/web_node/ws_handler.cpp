@@ -19,6 +19,12 @@ static void onWsEvent(AsyncWebSocket*, AsyncWebSocketClient* client,
     doc["raceRunning"] = raceRunning;
     doc["racePaused"]  = (racePauseStartMs != 0);
     doc["raceStartMs"] = raceStartMs;
+    // Authoritative elapsed time so a reloaded client restores the timer
+    // (running → keeps counting; paused → frozen at the pause point).
+    uint32_t elapsed = 0;
+    if (raceRunning)               elapsed = millis() - raceStartMs;
+    else if (racePauseStartMs != 0) elapsed = racePauseStartMs - raceStartMs;
+    doc["raceElapsedMs"] = elapsed;
     doc["sdPresent"]   = sdPresent;
     JsonArray pa = doc["pilots"].to<JsonArray>();
     for (int s = 0; s < MAX_ACTIVE; s++) {
