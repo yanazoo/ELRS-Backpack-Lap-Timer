@@ -14,13 +14,14 @@
 #include "ws_handler.h"
 #include "http_routes.h"
 
-static char   uartBuf[600];
+static char   uartBuf[4096];
 static size_t uartLen = 0;
 
 void setup() {
     Serial.begin(115200);
     Serial.println("\n[Web] ELRS Lap Timer — Web Node");
 
+    Serial1.setRxBufferSize(4096);
     Serial1.begin(GATE_BAUD, SERIAL_8N1, GATE_RX_PIN, GATE_TX_PIN);
 
     for (int s = 0; s < MAX_ACTIVE; s++) activePilots[s] = -1;
