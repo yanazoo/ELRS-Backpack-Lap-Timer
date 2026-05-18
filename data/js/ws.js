@@ -2,6 +2,11 @@
 
 var wsConn=null,wsRetry=1000;
 var wsDot=document.getElementById('wsDot');
+var _paneCalib=null;
+function calibPaneActive(){
+  if(!_paneCalib)_paneCalib=document.getElementById('pane-calib');
+  return !!_paneCalib&&_paneCalib.classList.contains('active');
+}
 
 function wsConnect(){
   wsConn=new WebSocket('ws://'+location.host+'/ws');
@@ -46,7 +51,7 @@ function onMsg(d){
     var now2=Date.now();
     scanResults[d.mac]=Object.assign(prev,{rssi:d.rssi,ts:d.ts,receivedAt:now2});
     if(!prev.firstSeenAt)scanResults[d.mac].firstSeenAt=now2;
-    var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===d.mac.toUpperCase());
+    var found=rosterByUid[d.mac.toUpperCase()];
     if(found){scanResults[d.mac].assignedRosterId=found.id;scanResults[d.mac].pilotName=found.name;}
     updateScanList();return;
   }
@@ -59,20 +64,20 @@ function onMsg(d){
     p.crossing=p.rssiSignal&&(d.crossing!==undefined?d.crossing:p.crossing);
     if(d.name&&d.name!=='---')p.name=d.name;
     if(p.rssiSignal&&p.rosterIdx>=0){
-      var rp=rosterData.find(r=>r.id===p.rosterIdx);
+      var rp=rosterById[p.rosterIdx];
       if(rp&&rp.uid){
         var rmac=rp.uid.toUpperCase();var rnow=Date.now();
         if(!scanResults[rmac]){scanResults[rmac]={rssi:p.rssi,ts:rnow,receivedAt:rnow,firstSeenAt:rnow,assignedRosterId:rp.id,pilotName:rp.name};}
         else{scanResults[rmac].rssi=p.rssi;scanResults[rmac].receivedAt=rnow;if(!scanResults[rmac].firstSeenAt)scanResults[rmac].firstSeenAt=rnow;scanResults[rmac].assignedRosterId=rp.id;scanResults[rmac].pilotName=rp.name;}
       }
     }
-    var calibActive=document.getElementById('pane-calib').classList.contains('active');
-    if(raceRunning||calibActive){
+    if(raceRunning||calibPaneActive()){
       if(!prevCrossing&&p.crossing){ensureAudio();sfx.enter();}
       if(prevCrossing&&!p.crossing){ensureAudio();sfx.exit();}
     }
     updateRaceCard(p);
-    var calR=document.getElementById('calRssi'+s);if(calR)calR.textContent=p.rssiSignal?p.rssi:'---';
+    var calR=p.calRssiEl||(p.calRssiEl=document.getElementById('calRssi'+s));
+    if(calR){var cv=p.rssiSignal?p.rssi:'---';if(calR._v!==cv){calR.textContent=cv;calR._v=cv;}}
     pushChart(s,p.rssiSignal?p.rssi:-120,p.crossing);
     return;
   }
@@ -143,9 +148,10 @@ async function loadRoster(){
   try{
     var r=await fetch('/api/pilots');if(!r.ok)return;
     rosterData=await r.json();
+    rebuildRosterIndex();
     renderRoster();applyActiveToSlots();buildRaceCards();
     Object.keys(scanResults).forEach(function(mac){
-      var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===mac.toUpperCase());
+      var found=rosterByUid[mac.toUpperCase()];
       if(found){scanResults[mac].assignedRosterId=found.id;scanResults[mac].pilotName=found.name;}
     });
     updateScanList();
@@ -173,6 +179,7 @@ async function loadAll(){
   try{
     var rp=await fetch('/api/pilots');if(rp.ok){
       rosterData=await rp.json();
+      rebuildRosterIndex();
       renderRoster();applyActiveToSlots();buildRaceCards();buildCalibCards();
     }
   }catch(e){}
@@ -192,7 +199,7 @@ async function loadAll(){
     var rsc=await fetch('/api/scan');if(rsc.ok){
       (await rsc.json()).forEach(s=>{
         scanResults[s.mac]=Object.assign(scanResults[s.mac]||{},{rssi:s.rssi,ts:s.ts});
-        var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===s.mac.toUpperCase());
+        var found=rosterByUid[s.mac.toUpperCase()];
         if(found){scanResults[s.mac].assignedRosterId=found.id;scanResults[s.mac].pilotName=found.name;}
       });
       updateScanList();

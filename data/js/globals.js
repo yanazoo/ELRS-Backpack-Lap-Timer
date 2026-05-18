@@ -11,6 +11,15 @@ const slots = Array.from({length:N}, (_,i) => ({
 }));
 
 var rosterData = [];
+var rosterById = {}, rosterByUid = {};
+function rebuildRosterIndex(){
+  rosterById={};rosterByUid={};
+  for(var i=0;i<rosterData.length;i++){
+    var r=rosterData[i];
+    rosterById[r.id]=r;
+    if(r.uid)rosterByUid[r.uid.toUpperCase()]=r;
+  }
+}
 var activeSlotsLocal = [-1,-1,-1,-1];
 
 var raceRunning=false, raceStartPerf=0, timerH=null, countdownH=null;

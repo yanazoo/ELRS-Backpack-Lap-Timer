@@ -14,7 +14,7 @@ function stopTimer(){clearInterval(timerH);timerH=null;timerEl.classList.remove(
 function applyActiveToSlots(){
   for(var s=0;s<N;s++){
     var ri=activeSlotsLocal[s];
-    var r=rosterData.find(x=>x.id===ri);
+    var r=rosterById[ri];
     slots[s].rosterIdx=ri;
     slots[s].name=r?r.name:'---';
     slots[s].yomi=r?r.yomi:'';
@@ -49,24 +49,42 @@ function buildRaceCards(){
         +'<tbody id="lapBody'+p.id+'"></tbody></table>'
       +'</div>';
     g.appendChild(d);
+    // Cache DOM refs once so the hot RSSI path avoids repeated getElementById
+    p.el={
+      card : d,
+      name : document.getElementById('rcName'+p.id),
+      laps : document.getElementById('rcLaps'+p.id),
+      bar  : document.getElementById('rssiBar'+p.id),
+      val  : document.getElementById('rssiVal'+p.id),
+      best : document.getElementById('rcBest'+p.id),
+      badge: document.getElementById('rcBadge'+p.id),
+      delta: document.getElementById('rcDelta'+p.id),
+      body : document.getElementById('lapBody'+p.id)
+    };
   });
 }
 
 function updateRaceCard(p){
-  var $=id=>document.getElementById(id);
-  $('rcName'+p.id).textContent=p.name==='---'?'Ch'+(p.id+1):p.name;
+  var e=p.el;if(!e)return;
+  var nm=p.name==='---'?'Ch'+(p.id+1):p.name;
+  if(e._name!==nm){e.name.textContent=nm;e._name=nm;}
   var _lbl=lapMode==='immediate'?(p.lapCount?p.lapCount+'周':''):(p.lapCount===1?'HS':p.lapCount?(p.lapCount-1)+'周':'');
-  $('rcLaps'+p.id).textContent=_lbl;
-  $('rssiBar'+p.id).style.width=(p.rssiSignal?dbPct(p.rssi):0)+'%';
-  $('rssiVal'+p.id).textContent=p.rssiSignal?p.rssi+' dBm':'--- dBm';
-  $('rcBest'+p.id).textContent=fmt(p.bestLapMs);
-  var badge=$('rcBadge'+p.id);
-  if(p.crossing){badge.style.display='inline-block';badge.style.color=PCOLORS[p.id];}
-  else{badge.style.display='none';}
+  if(e._lbl!==_lbl){e.laps.textContent=_lbl;e._lbl=_lbl;}
+  var _w=(p.rssiSignal?dbPct(p.rssi):0);
+  if(e._w!==_w){e.bar.style.width=_w+'%';e._w=_w;}
+  var _val=p.rssiSignal?p.rssi+' dBm':'--- dBm';
+  if(e._val!==_val){e.val.textContent=_val;e._val=_val;}
+  var _best=fmt(p.bestLapMs);
+  if(e._best!==_best){e.best.textContent=_best;e._best=_best;}
+  if(e._cross!==p.crossing){
+    if(p.crossing){e.badge.style.display='inline-block';e.badge.style.color=PCOLORS[p.id];}
+    else{e.badge.style.display='none';}
+    e._cross=p.crossing;
+  }
 }
 
 function addLapRow(p, lapMs, cumMs){
-  var tbody=document.getElementById('lapBody'+p.id);
+  var e=p.el,tbody=e?e.body:document.getElementById('lapBody'+p.id);
   var isBest=(p.bestLapMs===lapMs&&lapMs>0);
   if(isBest)tbody.querySelectorAll('tr.best-row').forEach(r=>r.classList.remove('best-row'));
   var tr=document.createElement('tr');
@@ -74,9 +92,9 @@ function addLapRow(p, lapMs, cumMs){
   var _lap=lapMode==='immediate'?p.lapCount:(p.lapCount===1?'HS':(p.lapCount-1));
   tr.innerHTML='<td>'+_lap+'</td><td class="lap-time">'+fmt(lapMs)+'</td><td>'+fmt(cumMs)+'</td>';
   tbody.insertBefore(tr,tbody.firstChild);
-  var delta=document.getElementById('rcDelta'+p.id);
+  var delta=e?e.delta:document.getElementById('rcDelta'+p.id);
   if(p.bestLapMs&&lapMs){var d=lapMs-p.bestLapMs;if(d===0){delta.textContent='★ BEST';delta.className='pilot-delta faster';}else{delta.textContent=fmtDelta(d);delta.className='pilot-delta '+(d<0?'faster':'slower');}}
-  var card=document.getElementById('rc-'+p.id);
+  var card=e?e.card:document.getElementById('rc-'+p.id);
   card.classList.remove('flash');void card.offsetWidth;card.classList.add('flash');
   card.addEventListener('animationend',()=>card.classList.remove('flash'),{once:true});
 }

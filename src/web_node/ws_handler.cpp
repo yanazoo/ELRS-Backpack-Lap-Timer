@@ -9,6 +9,7 @@ AsyncWebSocket ws("/ws");
 DNSServer      dnsServer;
 
 void wsText(const String& msg) { ws.textAll(msg); }
+void wsText(const char* msg)   { ws.textAll(msg); }
 
 static void onWsEvent(AsyncWebSocket*, AsyncWebSocketClient* client,
                       AwsEventType evType, void*, uint8_t*, size_t) {

@@ -169,6 +169,7 @@ async function deleteRosterPilot(id){
   if(rowEl)rowEl.remove();
   if(editingRosterId===id)editingRosterId=null;
   rosterData=rosterData.filter(x=>x.id!==id);
+  rebuildRosterIndex();
   var badge=document.getElementById('rosterCountBadge');
   if(badge)badge.textContent='('+rosterData.length+'/20)';
   try{

@@ -5,7 +5,8 @@
 #include "sd_gate.h"
 #include "uart_gate.h"
 
-static String   webCmdBuf;
+static char     webCmdBuf[600];
+static size_t   webCmdLen     = 0;
 static uint32_t lastRssiSend  = 0;
 static uint32_t lastReadySend = 0;
 
@@ -41,11 +42,13 @@ void loop() {
     while (Serial1.available()) {
         char c = (char)Serial1.read();
         if (c == '\n') {
-            webCmdBuf.trim();
-            if (webCmdBuf.length()) { processWebCmd(webCmdBuf); webCmdBuf = ""; }
+            webCmdBuf[webCmdLen] = '\0';
+            if (webCmdLen) { String line(webCmdBuf); line.trim();
+                             if (line.length()) processWebCmd(line); }
+            webCmdLen = 0;
         } else if (c != '\r') {
-            webCmdBuf += c;
-            if (webCmdBuf.length() > 512) webCmdBuf = "";
+            if (webCmdLen < sizeof(webCmdBuf) - 1) webCmdBuf[webCmdLen++] = c;
+            else webCmdLen = 0;
         }
     }
 

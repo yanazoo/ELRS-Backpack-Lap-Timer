@@ -20,6 +20,28 @@ int         restoreCount = 0;
 ScanMac     scanMacs[MAX_SCAN_MACS];
 int         scanMacCount = 0;
 
+// Minimal JSON string-body escaper (handles ", \\ and control chars).
+// UTF-8 multibyte sequences (Japanese names) pass through unchanged.
+static void jsonEscape(const char* src, char* dst, size_t dstSize) {
+    static const char hex[] = "0123456789abcdef";
+    size_t j = 0;
+    for (size_t i = 0; src[i]; i++) {
+        unsigned char c = (unsigned char)src[i];
+        if (c == '"' || c == '\\') {
+            if (j + 2 >= dstSize) break;
+            dst[j++] = '\\'; dst[j++] = c;
+        } else if (c < 0x20) {
+            if (j + 6 >= dstSize) break;
+            dst[j++] = '\\'; dst[j++] = 'u'; dst[j++] = '0'; dst[j++] = '0';
+            dst[j++] = hex[(c >> 4) & 0xF]; dst[j++] = hex[c & 0xF];
+        } else {
+            if (j + 1 >= dstSize) break;
+            dst[j++] = c;
+        }
+    }
+    dst[j] = '\0';
+}
+
 void updateScanMac(const char* mac, int rssi) {
     for (int i = 0; i < scanMacCount; i++) {
         if (strcmp(scanMacs[i].mac, mac) == 0) {
@@ -112,16 +134,16 @@ void processGateLine(const String& line) {
         rt[s].crossing = doc["crossing"] | false;
         rt[s].signal   = doc["signal"]   | false;
         rt[s].lastTs   = doc["ts"]       | 0u;
-        JsonDocument wd;
-        wd["type"]     = "rssi";
-        wd["pilot"]    = s;
-        wd["name"]     = activeName(s);
-        wd["rssi"]     = rt[s].rssi;
-        wd["raw"]      = rt[s].rawRssi;
-        wd["crossing"] = rt[s].crossing;
-        wd["signal"]   = rt[s].signal;
-        wd["ts"]       = rt[s].lastTs;
-        String wm; serializeJson(wd, wm); wsText(wm);
+        char nameEsc[68];
+        jsonEscape(activeName(s), nameEsc, sizeof(nameEsc));
+        char wm[200];
+        snprintf(wm, sizeof(wm),
+                 R"({"type":"rssi","pilot":%d,"name":"%s","rssi":%d,"raw":%d,"crossing":%s,"signal":%s,"ts":%lu})",
+                 s, nameEsc, rt[s].rssi, rt[s].rawRssi,
+                 rt[s].crossing ? "true" : "false",
+                 rt[s].signal   ? "true" : "false",
+                 (unsigned long)rt[s].lastTs);
+        wsText(wm);
         return;
     }
     if (strcmp(type, "race_start_ack") == 0) {
