@@ -11,6 +11,7 @@ LapRecord   laps[MAX_LAPS];
 int         lapCount    = 0;
 bool        raceRunning      = false;
 uint32_t    raceStartMs      = 0;
+uint32_t    racePauseStartMs = 0;   // web millis() when race was paused (0 = not paused)
 bool        sdPresent        = false;
 uint8_t     lapMode          = 0;
 uint8_t     sdLogMode        = 0;

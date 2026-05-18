@@ -54,6 +54,7 @@ extern LapRecord   laps[MAX_LAPS];
 extern int         lapCount;
 extern bool        raceRunning;
 extern uint32_t    raceStartMs;
+extern uint32_t    racePauseStartMs;
 extern bool        sdPresent;
 extern uint8_t     lapMode;
 extern uint8_t     sdLogMode;

@@ -4,12 +4,22 @@ var timerEl=document.getElementById('timer');
 
 function startTimer(){
   if(countdownH){clearInterval(countdownH);countdownH=null;}
-  raceStartPerf=performance.now();
+  timerFrozenMs=0;raceStartPerf=performance.now();
   timerEl.classList.add('running');
   if(timerH)clearInterval(timerH);
   timerH=setInterval(()=>{timerEl.textContent=fmtTimer(performance.now()-raceStartPerf);},50);
 }
-function stopTimer(){clearInterval(timerH);timerH=null;timerEl.classList.remove('running');}
+function resumeTimer(){
+  if(countdownH){clearInterval(countdownH);countdownH=null;}
+  raceStartPerf=performance.now()-timerFrozenMs;
+  timerEl.classList.add('running');
+  if(timerH)clearInterval(timerH);
+  timerH=setInterval(()=>{timerEl.textContent=fmtTimer(performance.now()-raceStartPerf);},50);
+}
+function stopTimer(){
+  if(timerH){timerFrozenMs=performance.now()-raceStartPerf;clearInterval(timerH);timerH=null;}
+  timerEl.classList.remove('running');
+}
 
 function applyActiveToSlots(){
   for(var s=0;s<N;s++){
@@ -101,7 +111,16 @@ function addLapRow(p, lapMs, cumMs){
 
 function startRace(){
   ensureAudio();
-  document.getElementById('btnStart').disabled=true;
+  var btnStart=document.getElementById('btnStart');
+  var btnClear=document.getElementById('btnClear');
+  btnStart.disabled=true;
+  if(btnClear)btnClear.disabled=true;
+  // Resume a paused race (Stop → Start) without countdown or reset.
+  if(raceStarted && !raceRunning){
+    fetch('/api/race/resume',{method:'POST'})
+      .catch(e=>{btnStart.disabled=false;if(btnClear)btnClear.disabled=false;});
+    return;
+  }
   sfx.count();
   var cdStart=performance.now();
   timerEl.classList.remove('running');
@@ -114,7 +133,7 @@ function startRace(){
   },50);
   setTimeout(async()=>{
     try{await fetch('/api/race/start',{method:'POST'});}
-    catch(e){document.getElementById('btnStart').disabled=false;}
+    catch(e){btnStart.disabled=false;}
   },3300);
 }
 function stopRace(){
@@ -137,6 +156,7 @@ async function clearAllLaps(){
     }catch(e){toast('⚠️ SD保存 接続エラー');}
   }
   stopTimer();
+  timerFrozenMs=0;
   timerEl.textContent='00:00';
   slots.forEach(p=>{
     p.lapCount=0;p.bestLapMs=0;p.lapTimes=[];p.cumulative=0;
@@ -145,11 +165,17 @@ async function clearAllLaps(){
     var d=e?e.delta:document.getElementById('rcDelta'+p.id);if(d)d.textContent='';
     updateRaceCard(p);
   });
+  // Clear ends the race; next Start is a fresh race.
+  raceStarted=false;
+  setBtns(false);
 }
 
 function setBtns(running){
   document.getElementById('btnStart').disabled=running;
   document.getElementById('btnStop').disabled=!running;
+  // Clear is only allowed while stopped (not during a running race).
+  var btnClear=document.getElementById('btnClear');
+  if(btnClear)btnClear.disabled=running;
 }
 function checkFinished(p){
   var tot=parseInt(document.getElementById('totalLaps').value)||0;

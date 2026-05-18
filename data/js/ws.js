@@ -18,7 +18,9 @@ function wsConnect(){
 
 function onMsg(d){
   if(d.type==='init'){
-    raceRunning=d.raceRunning||false;setBtns(raceRunning);
+    raceRunning=d.raceRunning||false;
+    raceStarted=!!(d.raceRunning||d.racePaused||(d.pilots||[]).some(pd=>pd.lapCount>0));
+    setBtns(raceRunning);
     if(raceRunning)startTimer();
     if(d.sdPresent!==undefined)updateSdSection(d.sdPresent);
     (d.pilots||[]).forEach(pd=>{
@@ -107,12 +109,15 @@ function onMsg(d){
     return;
   }
   if(d.type==='race_start'){
-    raceRunning=true;setBtns(true);startTimer();
+    raceRunning=true;raceStarted=true;setBtns(true);startTimer();
     slots.forEach(p=>{p.lapCount=0;p.bestLapMs=0;p.lapTimes=[];p.cumulative=0;
       document.getElementById('lapBody'+p.id).innerHTML='';
       document.getElementById('rcDelta'+p.id).textContent='';
       updateRaceCard(p);});
     return;
+  }
+  if(d.type==='race_resume'){
+    raceRunning=true;raceStarted=true;setBtns(true);resumeTimer();return;
   }
   if(d.type==='race_stop'){raceRunning=false;setBtns(false);stopTimer();return;}
   if(d.type==='sd_status'){updateSdSection(d.present);return;}

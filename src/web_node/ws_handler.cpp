@@ -17,6 +17,7 @@ static void onWsEvent(AsyncWebSocket*, AsyncWebSocketClient* client,
     JsonDocument doc;
     doc["type"]        = "init";
     doc["raceRunning"] = raceRunning;
+    doc["racePaused"]  = (racePauseStartMs != 0);
     doc["raceStartMs"] = raceStartMs;
     doc["sdPresent"]   = sdPresent;
     JsonArray pa = doc["pilots"].to<JsonArray>();

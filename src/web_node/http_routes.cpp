@@ -169,7 +169,7 @@ void registerHttpRoutes() {
 
     // ── POST /api/race/start ──────────────────────────────────────────────────
     server.on("/api/race/start", HTTP_POST, [](AsyncWebServerRequest* req) {
-        raceRunning = true; raceStartMs = millis(); lapCount = 0;
+        raceRunning = true; raceStartMs = millis(); racePauseStartMs = 0; lapCount = 0;
         for (int s = 0; s < MAX_ACTIVE; s++) {
             rt[s].lapCount=0; rt[s].bestLapMs=0; rt[s].lastLapTs=0;
         }
@@ -181,8 +181,32 @@ void registerHttpRoutes() {
         req->send(200,"application/json",R"({"ok":true})");
     });
 
+    // ── POST /api/race/resume ─────────────────────────────────────────────────
+    // Continue a paused race (Stop → Start) without resetting laps. Paused
+    // wall-clock time is excluded from lap timing by shifting every stored
+    // gate timestamp forward by the pause duration, so the lap straddling the
+    // pause is measured as if the race never stopped.
+    server.on("/api/race/resume", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (raceRunning || racePauseStartMs == 0) {
+            req->send(200,"application/json",R"({"ok":false,"reason":"not_paused"})");
+            return;
+        }
+        uint32_t pauseDur = millis() - racePauseStartMs;
+        raceStartMs += pauseDur;
+        if (gateRaceStartTs > 0) gateRaceStartTs += pauseDur;
+        for (int s = 0; s < MAX_ACTIVE; s++) {
+            if (rt[s].lastLapTs > 0) rt[s].lastLapTs += pauseDur;
+        }
+        racePauseStartMs = 0;
+        raceRunning = true;
+        JsonDocument doc; doc["type"]="race_resume"; doc["ts"]=raceStartMs;
+        String msg; serializeJson(doc,msg); wsText(msg);
+        req->send(200,"application/json",R"({"ok":true})");
+    });
+
     // ── POST /api/race/stop ───────────────────────────────────────────────────
     server.on("/api/race/stop", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (raceRunning) racePauseStartMs = millis();
         raceRunning = false;
         JsonDocument doc; doc["type"]="race_stop";
         String msg; serializeJson(doc,msg); wsText(msg);
