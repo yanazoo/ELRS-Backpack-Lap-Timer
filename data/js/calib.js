@@ -40,6 +40,7 @@ function buildCalibCards(){
           +'</div></div>'
       +'</div>';
     g.appendChild(d);
+    p.calRssiEl=null;
     setTimeout(()=>initChart(p.id),0);
   });
 }
@@ -48,7 +49,8 @@ function initChart(id){
   var cv=document.getElementById('calCanvas'+id);if(!cv)return;
   cv.width = cv.offsetWidth || cv.parentElement.offsetWidth || 300;
   cv.height = 130;
-  charts[id]={cv,ctx:cv.getContext('2d'),data:new Float32Array(200).fill(-120),cross:new Uint8Array(200)};
+  var col=getComputedStyle(document.documentElement).getPropertyValue('--p'+id).trim();
+  charts[id]={cv,ctx:cv.getContext('2d'),data:new Float32Array(200).fill(-120),cross:new Uint8Array(200),col:col};
   drawChart(id);
 }
 
@@ -82,7 +84,7 @@ function drawChart(id){
   var yMin=range.yMin,yMax=range.yMax,rng=yMax-yMin;
   var toY=function(v){return h-((Math.max(yMin,Math.min(yMax,v))-yMin)/rng)*h;};
   var dx=w/200;
-  var col=getComputedStyle(document.documentElement).getPropertyValue('--p'+id).trim();
+  var col=c.col||(c.col=getComputedStyle(document.documentElement).getPropertyValue('--p'+id).trim());
   ctx.fillStyle='#0d1117';ctx.fillRect(0,0,w,h);
   ctx.fillStyle=col+'22';
   for(var i=0;i<200;i++)if(c.cross[i])ctx.fillRect(i*dx,0,dx+1,h);
@@ -137,7 +139,7 @@ async function saveCalibConfig(slotId){
   try{
     var r=await fetch('/api/calib',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:ri,enter,exit:exit_})});
     if(r.ok){
-      var rd=rosterData.find(x=>x.id===ri);if(rd){rd.enter=enter;rd.exit=exit_;}
+      var rd=rosterById[ri];if(rd){rd.enter=enter;rd.exit=exit_;}
     }else toast('⚠️ 保存エラー');
   }catch(e){toast('⚠️ 接続エラー');}
 }

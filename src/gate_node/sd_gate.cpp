@@ -6,8 +6,9 @@
 #include "pilots.h"
 #include "config.h"
 
-bool sdPresent     = false;
-bool sdPollEnabled = false;
+bool    sdPresent     = false;
+bool    sdPollEnabled = false;
+uint8_t sdLogMode     = 0;   // 0=always, 1=rotate, 2=off
 
 static File raceFile;
 static int  raceFileNum = 0;
@@ -71,8 +72,26 @@ void sdSendStatus() {
     Serial1.println(buf);
 }
 
+// rotate mode: delete oldest race_*.csv until fewer than keep remain,
+// leaving room for the one race file we are about to create.
+static void sdPruneRaceFiles(int keep) {
+    char path[32];
+    for (;;) {
+        int count = 0, minN = 1000;
+        for (int n = 1; n < 1000; n++) {
+            snprintf(path, sizeof(path), "/race_%03d.csv", n);
+            if (SD.exists(path)) { count++; if (n < minN) minN = n; }
+        }
+        if (count < keep || minN == 1000) break;
+        snprintf(path, sizeof(path), "/race_%03d.csv", minN);
+        SD.remove(path);
+        Serial.printf("[Gate] SD rotate: removed %s\n", path);
+    }
+}
+
 void sdBeginRace() {
-    if (!sdPresent) return;
+    if (!sdPresent || sdLogMode == 2) return;   // 2 = off (no race logging)
+    if (sdLogMode == 1) sdPruneRaceFiles(SD_MAX_RACE_FILES);
     raceFileNum = findNextRaceNum();
     char path[32];
     snprintf(path, sizeof(path), "/race_%03d.csv", raceFileNum);
@@ -87,18 +106,19 @@ void sdBeginRace() {
     }
 }
 
-void sdWriteLap(int slotIdx, uint32_t lapMs, int lapCount) {
+// One race result row, written from web-provided values at "clear" time.
+// No per-row flush; sdEndRace() close() finalizes and persists the file.
+void sdWriteRaceRow(int slot, const char* name, const char* uid,
+                    int lap, uint32_t lapMs, int rssi, uint32_t ts) {
     if (!sdPresent || !raceFile) return;
-    char macStr[18];
-    macToStr(pilots[slotIdx].uid, macStr);
-    const char* name = pilots[slotIdx].name[0] ? pilots[slotIdx].name : macStr;
     raceFile.printf("%d,%s,%s,%d,%lu,%d,%lu\n",
-                    slotIdx, name, macStr,
-                    lapCount,
+                    slot,
+                    (name && name[0]) ? name : (uid ? uid : ""),
+                    uid ? uid : "",
+                    lap,
                     (unsigned long)lapMs,
-                    pilots[slotIdx].peakRssi,
-                    (unsigned long)pilots[slotIdx].peakTime);
-    raceFile.flush();
+                    rssi,
+                    (unsigned long)ts);
 }
 
 void sdEndRace() {

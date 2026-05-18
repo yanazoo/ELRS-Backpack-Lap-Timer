@@ -6,27 +6,58 @@ function ensureAudio(){
   if(actx.state==='suspended')actx.resume();
   warmUpSpeech();
 }
-function beep(freq,dur,type,vol){if(!actx)return;type=type||'sine';vol=vol===undefined?0.4:vol;var o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.frequency.value=freq;o.type=type;var t=actx.currentTime;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.start(t);o.stop(t+dur);}
+// Layered voice: fundamental + chorus-detuned twin + sub-octave (body) +
+// soft upper harmonic (presence), routed through a lowpass for warmth and
+// a click-free attack / smooth exponential release. Same signature as before
+// so existing call sites get the deeper, richer tone automatically.
+function beep(freq,dur,type,vol){
+  if(!actx)return;
+  type=type||'sine';
+  vol=(vol===undefined?0.4:vol);
+  var t=actx.currentTime;
+  var g=actx.createGain();
+  var lp=actx.createBiquadFilter();
+  lp.type='lowpass';
+  lp.frequency.value=Math.min(6000,freq*6+700);
+  lp.Q.value=0.7;
+  g.connect(lp);lp.connect(actx.destination);
+  var atk=Math.min(0.012,dur*0.3);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+atk);
+  g.gain.exponentialRampToValueAtTime(0.0008,t+dur);
+  function layer(f,wave,lvl,detune){
+    var o=actx.createOscillator(),og=actx.createGain();
+    o.type=wave;o.frequency.value=f;
+    if(detune)o.detune.value=detune;
+    og.gain.value=lvl;
+    o.connect(og);og.connect(g);
+    o.start(t);o.stop(t+dur+0.03);
+  }
+  layer(freq,type,0.42,0);       // fundamental
+  layer(freq,type,0.20,7);       // detuned twin -> thickness
+  layer(freq/2,'sine',0.45,0);   // sub-octave -> depth/body
+  layer(freq*2,'sine',0.10,0);   // soft harmonic -> presence
+}
 function beepSeq(notes){notes.forEach(n=>setTimeout(()=>beep(n[0],n[1],n[2]),n[3]||0));}
 
 var sfx={
-  // RotorHazard leader tone
-  lap:  ()=>beepSeq([[1200,.075,'square',0],[1800,.1,'square',75]]),
-  // RotorHazard winner tone
+  // Leader tone — lower & warmer
+  lap:  ()=>beepSeq([[600,.09,'triangle',0],[900,.13,'triangle',90]]),
+  // Winner tone — fuller, deeper fanfare
   best: ()=>beepSeq([
-    [1200,.05,'square',0],  [1800,.075,'square',50],
-    [1200,.05,'square',125],[1800,.075,'square',175],
-    [1200,.05,'square',250],[1800,.1,  'square',300]
+    [600,.06,'triangle',0],  [900,.09,'triangle',60],
+    [600,.06,'triangle',150],[900,.09,'triangle',210],
+    [600,.06,'triangle',300],[900,.14,'triangle',360]
   ]),
-  // RotorHazard staging + start
+  // Staging beeps + deeper start horn
   count: ()=>beepSeq([
-    [440,.1,'triangle',0],
-    [440,.1,'triangle',1000],
-    [440,.1,'triangle',2000],
-    [880,.7,'triangle',3000]
+    [392,.12,'triangle',0],
+    [392,.12,'triangle',1000],
+    [392,.12,'triangle',2000],
+    [523,.8, 'triangle',3000]
   ]),
-  enter: ()=>beep(880,.2,'sine'),
-  exit:  ()=>beep(1100,.07,'sine')
+  enter: ()=>beep(523,.22,'triangle'),
+  exit:  ()=>beep(740,.09,'triangle')
 };
 
 var speechQ=[],speechBusy=false,speechWarmedUp=false,lastSpeechStart=0;

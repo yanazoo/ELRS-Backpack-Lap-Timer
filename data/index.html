@@ -181,7 +181,7 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
     <div class="race-buttons">
       <button id="btnStart" onclick="startRace()" class="btn-success">▶ スタート</button>
       <button id="btnStop"  onclick="stopRace()"  class="btn-danger" disabled>■ ストップ</button>
-      <button onclick="clearAllLaps()" class="btn-secondary">クリア</button>
+      <button id="btnClear" onclick="clearAllLaps()" class="btn-secondary">クリア</button>
     </div>
     <div class="lap-count-row">
       <label>総周回数:</label>
@@ -270,6 +270,14 @@ footer{background:var(--sf);border-top:1px solid var(--bd);text-align:center;pad
             onchange="saveGlobalConfig()" style="width:80px">
           <span class="unit">s</span>
         </div>
+      </div>
+      <div class="config-row">
+        <label>SDログ</label>
+        <select id="sdLogModeSelect" onchange="saveGlobalConfig()" style="flex:1;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:6px 8px;font-size:13px">
+          <option value="always">常に保存（毎レース新規ファイル）</option>
+          <option value="rotate">上書き（古い順に自動削除）</option>
+          <option value="off">書き込まない</option>
+        </select>
       </div>
       <div class="config-row">
         <label>アナウンス</label>

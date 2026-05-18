@@ -11,14 +11,38 @@ LapRecord   laps[MAX_LAPS];
 int         lapCount    = 0;
 bool        raceRunning      = false;
 uint32_t    raceStartMs      = 0;
+uint32_t    racePauseStartMs = 0;   // web millis() when race was paused (0 = not paused)
 bool        sdPresent        = false;
 uint8_t     lapMode          = 0;
+uint8_t     sdLogMode        = 0;
 uint32_t    gateRaceStartTs  = 0;
 uint32_t    cooldownMs       = 3000;
 String      restoreBuffer[MAX_REGISTERED];
 int         restoreCount = 0;
 ScanMac     scanMacs[MAX_SCAN_MACS];
 int         scanMacCount = 0;
+
+// Minimal JSON string-body escaper (handles ", \\ and control chars).
+// UTF-8 multibyte sequences (Japanese names) pass through unchanged.
+static void jsonEscape(const char* src, char* dst, size_t dstSize) {
+    static const char hex[] = "0123456789abcdef";
+    size_t j = 0;
+    for (size_t i = 0; src[i]; i++) {
+        unsigned char c = (unsigned char)src[i];
+        if (c == '"' || c == '\\') {
+            if (j + 2 >= dstSize) break;
+            dst[j++] = '\\'; dst[j++] = c;
+        } else if (c < 0x20) {
+            if (j + 6 >= dstSize) break;
+            dst[j++] = '\\'; dst[j++] = 'u'; dst[j++] = '0'; dst[j++] = '0';
+            dst[j++] = hex[(c >> 4) & 0xF]; dst[j++] = hex[c & 0xF];
+        } else {
+            if (j + 1 >= dstSize) break;
+            dst[j++] = c;
+        }
+    }
+    dst[j] = '\0';
+}
 
 void updateScanMac(const char* mac, int rssi) {
     for (int i = 0; i < scanMacCount; i++) {
@@ -38,6 +62,12 @@ void updateScanMac(const char* mac, int rssi) {
 void sendGateCooldown() {
     char buf[64];
     snprintf(buf, sizeof(buf), R"({"type":"cmd","action":"set_cooldown","ms":%lu})", (unsigned long)cooldownMs);
+    Serial1.println(buf);
+}
+
+void sendGateSdLogMode() {
+    char buf[64];
+    snprintf(buf, sizeof(buf), R"({"type":"cmd","action":"set_sd_log_mode","mode":%u})", (unsigned)sdLogMode);
     Serial1.println(buf);
 }
 
@@ -91,7 +121,7 @@ void processGateLine(const String& line) {
     const char* type = doc["type"] | "";
 
     if (strcmp(type, "ready") == 0) {
-        sendAllPilots(); sendAllThresholds(); sendGateCooldown();
+        sendAllPilots(); sendAllThresholds(); sendGateCooldown(); sendGateSdLogMode();
         return;
     }
     if (strcmp(type, "sd_status") == 0) {
@@ -112,16 +142,16 @@ void processGateLine(const String& line) {
         rt[s].crossing = doc["crossing"] | false;
         rt[s].signal   = doc["signal"]   | false;
         rt[s].lastTs   = doc["ts"]       | 0u;
-        JsonDocument wd;
-        wd["type"]     = "rssi";
-        wd["pilot"]    = s;
-        wd["name"]     = activeName(s);
-        wd["rssi"]     = rt[s].rssi;
-        wd["raw"]      = rt[s].rawRssi;
-        wd["crossing"] = rt[s].crossing;
-        wd["signal"]   = rt[s].signal;
-        wd["ts"]       = rt[s].lastTs;
-        String wm; serializeJson(wd, wm); wsText(wm);
+        char nameEsc[68];
+        jsonEscape(activeName(s), nameEsc, sizeof(nameEsc));
+        char wm[200];
+        snprintf(wm, sizeof(wm),
+                 R"({"type":"rssi","pilot":%d,"name":"%s","rssi":%d,"raw":%d,"crossing":%s,"signal":%s,"ts":%lu})",
+                 s, nameEsc, rt[s].rssi, rt[s].rawRssi,
+                 rt[s].crossing ? "true" : "false",
+                 rt[s].signal   ? "true" : "false",
+                 (unsigned long)rt[s].lastTs);
+        wsText(wm);
         return;
     }
     if (strcmp(type, "race_start_ack") == 0) {
@@ -162,7 +192,8 @@ void processGateLine(const String& line) {
         if (lapMs > 0 && (rt[s].bestLapMs == 0 || lapMs < rt[s].bestLapMs)) {
             rt[s].bestLapMs = lapMs; newBest = true;
         }
-        if (lapCount < MAX_LAPS) laps[lapCount++] = { s, ri, lapMs, ts };
+        int lapRssi = doc["rssi"] | -120;
+        if (lapCount < MAX_LAPS) laps[lapCount++] = { s, ri, lapMs, ts, lapRssi };
 
         JsonDocument wd;
         wd["type"]     = "lap";

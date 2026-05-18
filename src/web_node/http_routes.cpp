@@ -169,7 +169,7 @@ void registerHttpRoutes() {
 
     // ── POST /api/race/start ──────────────────────────────────────────────────
     server.on("/api/race/start", HTTP_POST, [](AsyncWebServerRequest* req) {
-        raceRunning = true; raceStartMs = millis(); lapCount = 0;
+        raceRunning = true; raceStartMs = millis(); racePauseStartMs = 0; lapCount = 0;
         for (int s = 0; s < MAX_ACTIVE; s++) {
             rt[s].lapCount=0; rt[s].bestLapMs=0; rt[s].lastLapTs=0;
         }
@@ -181,12 +181,78 @@ void registerHttpRoutes() {
         req->send(200,"application/json",R"({"ok":true})");
     });
 
+    // ── POST /api/race/resume ─────────────────────────────────────────────────
+    // Continue a paused race (Stop → Start) without resetting laps. Paused
+    // wall-clock time is excluded from lap timing by shifting every stored
+    // gate timestamp forward by the pause duration, so the lap straddling the
+    // pause is measured as if the race never stopped.
+    server.on("/api/race/resume", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (raceRunning || racePauseStartMs == 0) {
+            req->send(200,"application/json",R"({"ok":false,"reason":"not_paused"})");
+            return;
+        }
+        uint32_t pauseDur = millis() - racePauseStartMs;
+        raceStartMs += pauseDur;
+        if (gateRaceStartTs > 0) gateRaceStartTs += pauseDur;
+        for (int s = 0; s < MAX_ACTIVE; s++) {
+            if (rt[s].lastLapTs > 0) rt[s].lastLapTs += pauseDur;
+        }
+        racePauseStartMs = 0;
+        raceRunning = true;
+        JsonDocument doc; doc["type"]="race_resume"; doc["ts"]=raceStartMs;
+        String msg; serializeJson(doc,msg); wsText(msg);
+        req->send(200,"application/json",R"({"ok":true})");
+    });
+
     // ── POST /api/race/stop ───────────────────────────────────────────────────
     server.on("/api/race/stop", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (raceRunning) racePauseStartMs = millis();
         raceRunning = false;
         JsonDocument doc; doc["type"]="race_stop";
         String msg; serializeJson(doc,msg); wsText(msg);
         req->send(200,"application/json",R"({"ok":true})");
+    });
+
+    // ── POST /api/race/save ───────────────────────────────────────────────────
+    // Write the in-memory lap history to SD as one CSV (triggered by the
+    // "全周回クリア" button). SD log mode (off/rotate) is honoured by the gate.
+    server.on("/api/race/save", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (lapCount <= 0) { req->send(200,"application/json",R"({"ok":true,"saved":false,"reason":"empty"})"); return; }
+        // Only write when an SD card is present and logging is not off.
+        // Honest status is returned so the UI can say "unsaved" instead of
+        // falsely reporting success; the clear still proceeds (as before).
+        bool willSave = sdPresent && sdLogMode != 2;
+        if (willSave) {
+            sendGateCmd("sd_race_save_begin");
+            delay(300);
+            int perSlot[MAX_ACTIVE] = {0};
+            for (int i = 0; i < lapCount; i++) {
+                int s  = laps[i].slot;
+                int ri = laps[i].rosterIdx;
+                int lapNo = (s >= 0 && s < MAX_ACTIVE) ? ++perSlot[s] : 0;
+                char uid[18] = "";
+                if (ri >= 0 && ri < rosterCount && roster[ri].hasUid) uidToStr(roster[ri].uid, uid);
+                JsonDocument row;
+                row["type"]   = "cmd";
+                row["action"] = "sd_race_save_row";
+                row["slot"]   = s;
+                row["name"]   = (ri >= 0 && ri < rosterCount) ? roster[ri].name : "---";
+                row["uid"]    = uid;
+                row["lap"]    = lapNo;
+                row["lapMs"]  = laps[i].lapTimeMs;
+                row["rssi"]   = laps[i].rssi;
+                row["ts"]     = laps[i].timestamp;
+                serializeJson(row, Serial1); Serial1.print('\n');
+                delay(15);
+            }
+            sendGateCmd("sd_race_save_end");
+        }
+        lapCount = 0;
+        const char* reason = willSave ? "" : (sdLogMode == 2 ? "off" : "nosd");
+        char resp[64];
+        snprintf(resp, sizeof(resp), R"({"ok":true,"saved":%s,"reason":"%s"})",
+                 willSave ? "true" : "false", reason);
+        req->send(200,"application/json",resp);
     });
 
     // ── GET /api/laps ─────────────────────────────────────────────────────────
@@ -314,6 +380,7 @@ void registerHttpRoutes() {
         JsonDocument doc;
         doc["lapMode"]    = lapMode;
         doc["cooldownMs"] = cooldownMs;
+        doc["sdLogMode"]  = sdLogMode;
         String s; serializeJson(doc,s); req->send(200,"application/json",s);
     });
     server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest*){},
@@ -325,6 +392,12 @@ void registerHttpRoutes() {
                     if (deserializeJson(doc, body) != DeserializationError::Ok)
                         { req2->send(400,"application/json",R"({"error":"bad json"})"); return; }
                     if (!doc["lapMode"].isNull())    lapMode    = (uint8_t)(int)(doc["lapMode"]);
+                    if (!doc["sdLogMode"].isNull()) {
+                        uint8_t m = (uint8_t)(int)(doc["sdLogMode"]);
+                        if (m > 2) m = 0;
+                        sdLogMode = m;
+                        sendGateSdLogMode();
+                    }
                     if (!doc["cooldownMs"].isNull()) {
                         cooldownMs = (uint32_t)(int)(doc["cooldownMs"]);
                         if (cooldownMs < 500)   cooldownMs = 500;

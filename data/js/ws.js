@@ -2,6 +2,11 @@
 
 var wsConn=null,wsRetry=1000;
 var wsDot=document.getElementById('wsDot');
+var _paneCalib=null;
+function calibPaneActive(){
+  if(!_paneCalib)_paneCalib=document.getElementById('pane-calib');
+  return !!_paneCalib&&_paneCalib.classList.contains('active');
+}
 
 function wsConnect(){
   wsConn=new WebSocket('ws://'+location.host+'/ws');
@@ -13,8 +18,12 @@ function wsConnect(){
 
 function onMsg(d){
   if(d.type==='init'){
-    raceRunning=d.raceRunning||false;setBtns(raceRunning);
-    if(raceRunning)startTimer();
+    raceRunning=d.raceRunning||false;
+    raceStarted=!!(d.raceRunning||d.racePaused||(d.pilots||[]).some(pd=>pd.lapCount>0));
+    setBtns(raceRunning);
+    timerFrozenMs=d.raceElapsedMs||0;
+    if(raceRunning)resumeTimer();
+    else if(d.racePaused)timerEl.textContent=fmtTimer(timerFrozenMs);
     if(d.sdPresent!==undefined)updateSdSection(d.sdPresent);
     (d.pilots||[]).forEach(pd=>{
       var p=slots[pd.slot];if(!p)return;
@@ -46,7 +55,7 @@ function onMsg(d){
     var now2=Date.now();
     scanResults[d.mac]=Object.assign(prev,{rssi:d.rssi,ts:d.ts,receivedAt:now2});
     if(!prev.firstSeenAt)scanResults[d.mac].firstSeenAt=now2;
-    var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===d.mac.toUpperCase());
+    var found=rosterByUid[d.mac.toUpperCase()];
     if(found){scanResults[d.mac].assignedRosterId=found.id;scanResults[d.mac].pilotName=found.name;}
     updateScanList();return;
   }
@@ -59,20 +68,20 @@ function onMsg(d){
     p.crossing=p.rssiSignal&&(d.crossing!==undefined?d.crossing:p.crossing);
     if(d.name&&d.name!=='---')p.name=d.name;
     if(p.rssiSignal&&p.rosterIdx>=0){
-      var rp=rosterData.find(r=>r.id===p.rosterIdx);
+      var rp=rosterById[p.rosterIdx];
       if(rp&&rp.uid){
         var rmac=rp.uid.toUpperCase();var rnow=Date.now();
         if(!scanResults[rmac]){scanResults[rmac]={rssi:p.rssi,ts:rnow,receivedAt:rnow,firstSeenAt:rnow,assignedRosterId:rp.id,pilotName:rp.name};}
         else{scanResults[rmac].rssi=p.rssi;scanResults[rmac].receivedAt=rnow;if(!scanResults[rmac].firstSeenAt)scanResults[rmac].firstSeenAt=rnow;scanResults[rmac].assignedRosterId=rp.id;scanResults[rmac].pilotName=rp.name;}
       }
     }
-    var calibActive=document.getElementById('pane-calib').classList.contains('active');
-    if(raceRunning||calibActive){
+    if(raceRunning||calibPaneActive()){
       if(!prevCrossing&&p.crossing){ensureAudio();sfx.enter();}
       if(prevCrossing&&!p.crossing){ensureAudio();sfx.exit();}
     }
     updateRaceCard(p);
-    var calR=document.getElementById('calRssi'+s);if(calR)calR.textContent=p.rssiSignal?p.rssi:'---';
+    var calR=p.calRssiEl||(p.calRssiEl=document.getElementById('calRssi'+s));
+    if(calR){var cv=p.rssiSignal?p.rssi:'---';if(calR._v!==cv){calR.textContent=cv;calR._v=cv;}}
     pushChart(s,p.rssiSignal?p.rssi:-120,p.crossing);
     return;
   }
@@ -102,12 +111,15 @@ function onMsg(d){
     return;
   }
   if(d.type==='race_start'){
-    raceRunning=true;setBtns(true);startTimer();
+    raceRunning=true;raceStarted=true;setBtns(true);startTimer();
     slots.forEach(p=>{p.lapCount=0;p.bestLapMs=0;p.lapTimes=[];p.cumulative=0;
       document.getElementById('lapBody'+p.id).innerHTML='';
       document.getElementById('rcDelta'+p.id).textContent='';
       updateRaceCard(p);});
     return;
+  }
+  if(d.type==='race_resume'){
+    raceRunning=true;raceStarted=true;setBtns(true);resumeTimer();return;
   }
   if(d.type==='race_stop'){raceRunning=false;setBtns(false);stopTimer();return;}
   if(d.type==='sd_status'){updateSdSection(d.present);return;}
@@ -143,9 +155,10 @@ async function loadRoster(){
   try{
     var r=await fetch('/api/pilots');if(!r.ok)return;
     rosterData=await r.json();
+    rebuildRosterIndex();
     renderRoster();applyActiveToSlots();buildRaceCards();
     Object.keys(scanResults).forEach(function(mac){
-      var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===mac.toUpperCase());
+      var found=rosterByUid[mac.toUpperCase()];
       if(found){scanResults[mac].assignedRosterId=found.id;scanResults[mac].pilotName=found.name;}
     });
     updateScanList();
@@ -173,6 +186,7 @@ async function loadAll(){
   try{
     var rp=await fetch('/api/pilots');if(rp.ok){
       rosterData=await rp.json();
+      rebuildRosterIndex();
       renderRoster();applyActiveToSlots();buildRaceCards();buildCalibCards();
     }
   }catch(e){}
@@ -192,7 +206,7 @@ async function loadAll(){
     var rsc=await fetch('/api/scan');if(rsc.ok){
       (await rsc.json()).forEach(s=>{
         scanResults[s.mac]=Object.assign(scanResults[s.mac]||{},{rssi:s.rssi,ts:s.ts});
-        var found=rosterData.find(r=>r.uid&&r.uid.toUpperCase()===s.mac.toUpperCase());
+        var found=rosterByUid[s.mac.toUpperCase()];
         if(found){scanResults[s.mac].assignedRosterId=found.id;scanResults[s.mac].pilotName=found.name;}
       });
       updateScanList();
@@ -203,6 +217,7 @@ async function loadAll(){
   var sr=document.getElementById('speechRate');if(sr)sr.value=speechRate;
   var srN=document.getElementById('speechRateN');if(srN)srN.value=speechRate;
   var lms=document.getElementById('lapModeSelect');if(lms)lms.value=lapMode;
+  var sdm=document.getElementById('sdLogModeSelect');if(sdm)sdm.value=sdLogMode;
   var cdEl=document.getElementById('cooldownInput');if(cdEl)cdEl.value=(cooldownMs/1000).toFixed(1);
   refreshVoiceBtns();
   slots.forEach(p=>updateRaceCard(p));
@@ -210,7 +225,7 @@ async function loadAll(){
   // Push current settings to web node so it stays in sync after page reload
   try{
     await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({lapMode:lapMode==='immediate'?1:0,cooldownMs:cooldownMs})});
+      body:JSON.stringify({lapMode:lapMode==='immediate'?1:0,cooldownMs:cooldownMs,sdLogMode:sdLogModeInt(sdLogMode)})});
   }catch(e){}
 }
 

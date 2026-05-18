@@ -11,14 +11,26 @@ const slots = Array.from({length:N}, (_,i) => ({
 }));
 
 var rosterData = [];
+var rosterById = {}, rosterByUid = {};
+function rebuildRosterIndex(){
+  rosterById={};rosterByUid={};
+  for(var i=0;i<rosterData.length;i++){
+    var r=rosterData[i];
+    rosterById[r.id]=r;
+    if(r.uid)rosterByUid[r.uid.toUpperCase()]=r;
+  }
+}
 var activeSlotsLocal = [-1,-1,-1,-1];
 
 var raceRunning=false, raceStartPerf=0, timerH=null, countdownH=null;
+var raceStarted=false, timerFrozenMs=0;
 var voiceEnabled = localStorage.getItem('voice')!=='0';
 var announceMode = localStorage.getItem('announce')||'lap_laptime';
 var speechRate   = parseFloat(localStorage.getItem('srate')||'1.1');
 var lapMode      = localStorage.getItem('lapMode')||'holeshot';
 var cooldownMs   = parseInt(localStorage.getItem('cooldownMs')||'3000');
+var sdLogMode    = localStorage.getItem('sdLogMode')||'always';
+function sdLogModeInt(m){return m==='off'?2:(m==='rotate'?1:0);}
 
 var scanResults  = {};
 var editingRosterId = null;

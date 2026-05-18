@@ -3,6 +3,7 @@
 
 void sendGateCmd(const char* action);
 void sendGateCooldown();
+void sendGateSdLogMode();
 void sendGatePilot(int slot);
 void sendGateThreshold(int slot);
 void sendAllPilots();
