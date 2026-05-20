@@ -117,17 +117,21 @@ if(typeof speechSynthesis!=='undefined'&&'onvoiceschanged' in speechSynthesis){
   speechSynthesis.onvoiceschanged=function(){cachedJaVoice=null;};
 }
 
-// Android Chrome only unlocks TTS once a speak() actually starts from a
-// user gesture. A zero-volume/empty utterance is often dropped without
-// unlocking, so retry (driven by repeated gesture calls) with a real but
-// silent utterance until one truly starts.
+// iOS Safari (and some Android engines) silently drop a volume:0 or
+// whitespace-only utterance, which means our warm-up never counts as the
+// first user-gesture speak() and lap-time TTS stays muted until the user
+// explicitly hits "音声テスト". Speak a real 1-character utterance at a
+// barely-audible volume so the engine truly unlocks while remaining
+// effectively silent.
 function warmUpSpeech(){
   if(speechWarmedUp||speechWarming||typeof speechSynthesis==='undefined')return;
   try{
     if(speechSynthesis.paused)speechSynthesis.resume();
     speechWarming=true;
-    var u=new SpeechSynthesisUtterance(' ');
-    u.volume=0;u.lang='ja-JP';
+    var u=new SpeechSynthesisUtterance('.');
+    u.volume=0.01;u.lang='ja-JP';u.rate=speechRate;
+    var jaVoice=getJaVoice();
+    if(jaVoice)u.voice=jaVoice;
     u.onstart=()=>{speechWarmedUp=true;speechWarming=false;};
     u.onend=()=>{speechWarmedUp=true;speechWarming=false;};
     u.onerror=()=>{speechWarming=false;};
