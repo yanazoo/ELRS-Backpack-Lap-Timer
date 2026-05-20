@@ -110,7 +110,7 @@ function addLapRow(p, lapMs, cumMs){
 }
 
 function startRace(){
-  ensureAudio();
+  ensureAudio();warmUpSpeech();
   var btnStart=document.getElementById('btnStart');
   var btnClear=document.getElementById('btnClear');
   btnStart.disabled=true;
